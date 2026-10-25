@@ -218,6 +218,47 @@ def dataset_rows(corpus: Corpus, only: list[str] | None = None) -> list[dict]:
     return rows
 
 
+def sync_completed_evaluation(client, project: str, result: dict) -> dict:
+    """Verify delivery; replay the original completed record if its end was lost.
+
+    Weave 0.54.0's eager /call/end returned 502 for this project while the complete
+    record endpoint worked. Reuse the real timestamps, references and summary.
+    This repairs transport only; it never reruns an example or changes a score.
+    """
+    call_id = result["evaluation_call_id"]
+    original = client.server.call_read(req={"project_id": project, "id": call_id}).call
+    replayed = original.ended_at is None or original.output is None
+    if replayed:
+        raw = original.model_dump(mode="json")
+        fields = (
+            "id",
+            "attributes",
+            "inputs",
+            "op_name",
+            "project_id",
+            "started_at",
+            "trace_id",
+            "display_name",
+            "parent_id",
+            "thread_id",
+            "turn_id",
+        )
+        record = {key: raw[key] for key in fields if key in raw}
+        record.update(
+            ended_at=result["evaluation_ended_at"],
+            output=result["weave_summary"],
+            summary=raw.get("summary") or {},
+            exception=None,
+        )
+        client.server.calls_complete(req={"batch": [record]})
+    remote = client.server.call_read(req={"project_id": project, "id": call_id}).call
+    return {
+        "verified": remote.ended_at is not None and remote.output == result["weave_summary"],
+        "replayed_complete_record": replayed,
+        "checked_at": datetime.now(UTC).isoformat(),
+    }
+
+
 async def run_evaluation(args):
     global RUN_DIRECTORY
     os.environ.setdefault("WEAVE_PARALLELISM", "3")
@@ -275,32 +316,8 @@ async def run_evaluation(args):
     summary_path = RUN_DIRECTORY / "summary.json"
     summary_path.write_text(json.dumps(result, indent=2, default=str) + "\n")
     client.flush()
-    # During the build, the SDK's batched v2 parent-call end returned 502 while
-    # individual predictions/scores succeeded. Replay the actual completed end
-    # through the service API, without rerunning the experiment or inventing data.
     try:
-        remote = client.get_call(call.id)
-        replayed = remote.ended_at is None or remote.output is None
-        if replayed:
-            client.server.call_end(
-                req={
-                    "end": {
-                        "project_id": config.project,
-                        "id": call.id,
-                        "started_at": call.started_at,
-                        "ended_at": call.ended_at,
-                        "trace_id": call.trace_id,
-                        "output": summary,
-                        "summary": {},
-                        "is_eval": True,
-                    }
-                }
-            )
-            remote = client.get_call(call.id)
-        result["remote_sync"] = {
-            "verified": remote.ended_at is not None and remote.output is not None,
-            "replayed_end": replayed,
-        }
+        result["remote_sync"] = sync_completed_evaluation(client, config.project, result)
     except Exception as exc:
         result["remote_sync"] = {"verified": False, "error": type(exc).__name__}
     summary_path.write_text(json.dumps(result, indent=2, default=str) + "\n")
