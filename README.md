@@ -2,7 +2,7 @@
 
 A documentation assistant that researches Weave, checks its drafts against source passages, and leaves an inspectable record. Built for the CoreWeave Developer Relations take-home.
 
-**[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving)** · [Product plan](plan.html) · [Interactive walkthrough](walkthrough.html) · [AI build log](docs/AI_BUILD_LOG.md) · [Evaluation cases](evals/cases.json)
+**[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving)** · [Product plan](plan.html) · [Research and experiments](research.html) · [Interactive walkthrough](walkthrough.html) · [Reviewer handoff](docs/REVIEWER_HANDOFF.md) · [AI build log](docs/AI_BUILD_LOG.md) · [Evaluation cases](evals/cases.json)
 
 ![The local assistant](docs/images/app-start.png)
 
@@ -41,6 +41,16 @@ The saved snapshot contains **351 Weave pages**. `scripts/fetch_docs.py` also do
 
 Queries, answers, cited documentation, and executed snippets are traced to the configured project. For a public project, use public examples. The UI makes this visible before input.
 
+## Answer library and usage
+
+Each new UI turn is also saved in a local SQLite library at `.agent-cache/answers.sqlite3`, excluded from Git. **Answer library** in the sidebar shows the original question, preceding conversation context, answer, cited passages, snapshot, trace link, and usage. Reviews begin as **unreviewed**. Mark an answer useful or describe a correction; review history persists separately from the model's source check. A changed documentation snapshot displays a freshness warning. Saved answers are never retrieved as source authority or automatically published as a dataset.
+
+The cost receipt includes every returned planning and verification call, including rejected drafts and repairs. It shows model calls, input/output and cache tokens, a dated standard-API list-price estimate, and searches, reads, duplicate requests and draft counts. Prices come from [Anthropic's pricing documentation](https://platform.claude.com/docs/en/about-claude/pricing), checked October 25, 2026: Sonnet 5.5 is $2/$10 and Opus 5.5 $4/$20 per million uncached input/output tokens. Cache categories have their own rates. Unknown models, incomplete usage, unsupported service tiers and ambiguous cache lifetimes remain unpriced.
+
+The [live foundation check](results/learning-foundation.json) records two real turns: $0.304304 and $0.116720 estimated model charges, including verification. The first needed a revision. Both remain unreviewed by the owner; these are observations, not typical-price or quality benchmarks. [View the library](docs/images/app-library.png).
+
+These are estimates for returned usage, not invoices. They exclude online Signal scoring, separate evaluation judges, future voice services, hosting, taxes, and usage not returned after failures or SDK/provider retries. The library's total covers only its saved turns. The existing per-call Weave spans carry the same provider usage; turn attributes add a cost summary without creating duplicate model spans. Source-check success, review approval and research activity do not guarantee that every prerequisite or caveat was covered.
+
 ## What makes it an agent
 
 ```mermaid
@@ -67,6 +77,7 @@ flowchart LR
 | [llm.py](src/coreweaving/llm.py) | Anthropic calls and explicit Weave LLM spans | Centralizes timeouts, retries, messages and token accounting |
 | [sandbox.py](src/coreweaving/sandbox.py) | Small Python examples in Docker | No network, host mounts or credentials; read-only root, non-root user, resource/time/output limits |
 | [app.py](app.py) | Chat, research progress, source passages and verification findings | Streamlit keeps interface code small and locally runnable |
+| [metrics.py](src/coreweaving/metrics.py) / [library.py](src/coreweaving/library.py) | Per-turn usage receipts and persistent local reviews | Count verification and repairs; preserve evidence without treating past answers as truth |
 | [evaluate.py](src/coreweaving/evaluate.py) | `weave.Evaluation`, fixed reference evidence and a separate judge | Quality measured independently of the agent's own check |
 | [signals.py](src/coreweaving/signals.py) | Publish and activate an online review Signal | Monitor completed agent turns automatically |
 
@@ -125,7 +136,7 @@ An earlier [baseline run](results/baseline-v1/summary.json) passed 13/13. Before
 
 The [judge calibration check](results/judge-calibration.json) accepted a recorded supported answer and rejected a fabricated `hallucination_free=True` API guarantee, even though the fabricated answer retained a real source ID and a passing verifier flag. This is a two-fixture diagnostic, separate from the 13-case dataset.
 
-**Reproducibility and delivery.** The latest full run records source hash, dataset hash, snapshot hash, and evaluated commit `1c39ad8`. Later commits `d98a17c` and `2077e2c` fix Signal configuration, agent filtering, and evaluation transport. A subsequent interface review improved the welcome screen and conversation input; the planner, verifier, retrieval, and sandbox remain unchanged. The interface checks are recorded separately from the full quality evaluation. A [focused delivery check](results/delivery-check/summary.json) passed and confirmed automatic recovery. Weave 0.54.0 returned repeated 502 errors for the eager parent evaluation's end event; the harness now checks ingestion and, if needed, replays the actual complete call record with its original ID, timestamps, and summary. The [submission recovery receipt](results/submission-v1/remote-recovery.json) confirms delivery. Earlier baseline/pipeline parent calls remain incomplete remotely; their local results and nested scores are preserved. See the [evidence index](results/README.md).
+**Reproducibility and delivery.** The latest full run records source hash, dataset hash, snapshot hash, and evaluated commit `1c39ad8`. Later commits `d98a17c` and `2077e2c` fix Signal configuration, agent filtering, and evaluation transport. Subsequent changes improve the interface and add usage instrumentation and a local answer library; the planner/verifier prompts, tool policy, retrieval, and sandbox remain unchanged. Their tests and live checks are separate from the original full quality evaluation; 12/13 is not a new evaluation of those later revisions. A [focused delivery check](results/delivery-check/summary.json) passed and confirmed automatic recovery. Weave 0.54.0 returned repeated 502 errors for the eager parent evaluation's end event; the harness now checks ingestion and, if needed, replays the actual complete call record with its original ID, timestamps, and summary. The [submission recovery receipt](results/submission-v1/remote-recovery.json) confirms delivery. Earlier baseline/pipeline parent calls remain incomplete remotely; their local results and nested scores are preserved. See the [evidence index](results/README.md).
 
 This small, development-visible dataset reveals failure modes; its pass rate is not a general accuracy estimate. The judge is fallible. There is no claim that verification improves quality without a controlled comparison.
 
@@ -137,7 +148,7 @@ uv run pytest -q -m 'not sandbox' # without Docker
 uv run ruff check .
 ```
 
-All **16 tests passed**. They exercise invented citations, rejected drafts, research limits, provider failures, follow-up context, Markdown code fences, snapshot integrity, page-level workflow warnings, container isolation/time/output limits, and one agent request per UI submission across reruns and conversation resets. The UI regression test uses a fake agent and makes no model requests. An earlier [fresh-checkout verification](results/fresh-install.json) restored all 351 pages from upstream with matching hashes, installed the locked dependencies, passed the then-current 15 tests, and answered a real question.
+All **44 tests passed**. They exercise invented citations, rejected drafts, research limits, provider failures, follow-up context, Markdown code fences, snapshot integrity, page-level workflow warnings, container isolation/time/output limits, one agent request per UI submission, complete per-turn usage, unknown pricing, cache accounting, library persistence and review history. The UI regression uses a fake agent and checks that switching views or saving a review never submits another question. An earlier [fresh-checkout verification](results/fresh-install.json) restored all 351 pages from upstream with matching hashes, installed the locked dependencies, passed the then-current 15 tests, and answered a real question.
 
 The [interface review](results/ui-review.json) checked phone, tablet, and desktop layouts, starter buttons, source/check/research panels, and a real two-turn conversation without JavaScript errors. The final conversation retained one conversation ID and submitted each question once. [Desktop](docs/images/app-start.png), [mobile](docs/images/app-mobile.png), and [conversation](docs/images/app-answer.png) screenshots show the reviewed interface. Separate [backend trace verification](results/trace-verification.json) confirms two turns under each of two earlier conversation IDs, model/tool spans, verifier spans, and recorded token usage.
 
@@ -151,4 +162,8 @@ For the interview:
 
 Open [plan.html](plan.html) locally for the brief, product direction, and adoption hypotheses. Open [walkthrough.html](walkthrough.html) for a plain-language technical guide. [The AI build log](docs/AI_BUILD_LOG.md) records the decisions and integration failures encountered while building.
 
-With more time: add hybrid semantic/keyword retrieval, a held-out test set, judge calibration against human review, a verification ablation, persistent conversation storage, and broader prompt-injection and concurrency tests. Prioritize those using observed failures rather than adding framework layers.
+## Research direction
+
+The [research room](research.html) documents parallel investigations into selective specialist routing, a provenance-bearing documentation graph, voice and bounded adaptive layouts. These are proposed experiments, not implemented features or measured improvements. Keep the current agent as the baseline, compare one change at a time in `weave.Evaluation`, preserve whole-question context, and use original passages as authority. Weave provides the tracing, evaluation, monitoring and deliberate dataset-promotion surfaces; the app provides a concise receipt and review controls. The existing Signal already uses CoreWeave Serverless Inference.
+
+Next priorities: test question coverage and missing prerequisites, compare bounded link expansion against BM25, then try at most two workers only for independent research. Voice should produce an editable transcript before entering the same verified loop; adaptive presentation should use a small set of validated layouts. Neither is enabled yet. Further work includes held-out evaluation, human judge calibration, a verification ablation and broader prompt-injection/concurrency checks. No quality gain is claimed without a controlled comparison.
