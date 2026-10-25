@@ -75,4 +75,6 @@ class LanguageModel:
                 "content": blocks,
                 "stop_reason": response.stop_reason,
                 "usage": response.usage.model_dump(),
+                "model": response.model,
+                "response_id": response.id,
             }

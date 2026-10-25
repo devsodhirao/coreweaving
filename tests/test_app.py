@@ -8,7 +8,7 @@ from streamlit.testing.v1 import AppTest
 from coreweaving.config import ROOT, Settings
 
 
-def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch):
+def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch, tmp_path):
     requests = []
 
     class FakeAgent:
@@ -18,6 +18,7 @@ def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch):
         def run(self, question, session, update):
             requests.append((question, session.conversation_id))
             return {
+                "answer_id": f"test-{len(requests)}",
                 "answer": f"Checked answer to: {question}",
                 "verification": {"passed": True, "issues": []},
                 "verification_attempts": [],
@@ -25,9 +26,11 @@ def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch):
                 "actions": [],
                 "elapsed_seconds": 0.1,
                 "trace_url": "https://example.test/" + session.conversation_id,
+                "snapshot_id": "test-snapshot",
             }
 
     monkeypatch.setattr("coreweaving.agent.Agent", FakeAgent)
+    monkeypatch.setattr("coreweaving.library.LIBRARY_PATH", tmp_path / "answers.sqlite3")
     monkeypatch.setattr(
         "coreweaving.corpus.Corpus", lambda: SimpleNamespace(pages={}, snapshot_id="test-snapshot")
     )
@@ -53,6 +56,22 @@ def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch):
         assert [text for text, _ in requests] == ["Explain tracing.", "How do I add a Signal?"]
         assert requests[0][1] == requests[1][1]
         assert len(app.chat_input) == 1
+
+        app.radio[0].set_value("Answer library").run()
+        assert not app.exception
+        assert len(requests) == 2
+        next(item for item in app.selectbox if item.label == "Your assessment").set_value("useful")
+        app.text_area[0].set_value("Reviewed in the isolated UI test.")
+        next(button for button in app.button if button.label == "Save my review").click().run()
+        assert not app.exception
+        from coreweaving.library import list_answers
+
+        saved = list_answers()
+        assert len(saved) == 2
+        assert sum(item["review_state"] == "useful" for item in saved) == 1
+        assert len(requests) == 2
+        app.radio[0].set_value("Conversation").run()
+        assert len(requests) == 2
 
         next(button for button in app.button if button.label == "New conversation").click().run()
         assert len(requests) == 2

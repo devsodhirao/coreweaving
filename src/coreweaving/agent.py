@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from coreweaving.config import AGENT_NAME, Settings, conversation_url
 from coreweaving.corpus import Corpus
 from coreweaving.llm import LanguageModel
+from coreweaving.metrics import MeteredModel, summarize
 from coreweaving.sandbox import run_python
 
 SYSTEM = """You are Coreweaving, a careful Weave documentation assistant.
@@ -156,7 +157,7 @@ def cited_ids(answer: str) -> list[str]:
 class Agent:
     def __init__(self, corpus: Corpus, config: Settings, llm=None):
         self.corpus, self.config = corpus, config
-        self.llm = llm or LanguageModel()
+        self.llm = MeteredModel(llm or LanguageModel())
 
     def verify(
         self, candidate: Candidate, session: Session, question: str, actions: list[dict]
@@ -238,11 +239,13 @@ class Agent:
         if not question.strip() or len(question) > 12000:
             raise ValueError("Enter a question between 1 and 12,000 characters.")
         session = session or Session()
+        call_start = len(self.llm.calls)
         started = time.monotonic()
         actions, checks = [], []
         usage = {"input_tokens": 0, "output_tokens": 0}
         notify = on_event or (lambda event: None)
-        messages = [*session.history[-12:], {"role": "user", "content": question}]
+        input_history = list(session.history[-12:])
+        messages = [*input_history, {"role": "user", "content": question}]
         system = SYSTEM + f"\nDocumentation snapshot: {self.corpus.snapshot_id[:12]}."
         answer, kind, verdict = "", "insufficient", Verification(passed=False)
         repairs, tool_count = 0, 0
@@ -360,11 +363,16 @@ class Agent:
                     )
                     verdict = Verification(passed=False, issues=[f"Operation failed: {error_type}"])
                 turn.output_messages = [weave.Message(role="assistant", content=answer)]
+                metrics = summarize(self.llm.calls[call_start:], actions)
                 turn.set_attributes(
                     {
                         "coreweaving.verified": verdict.passed,
                         "coreweaving.answer_kind": kind,
                         "coreweaving.revisions": repairs,
+                        "coreweaving.model_calls": metrics["model_calls"],
+                        "coreweaving.known_estimated_usd": metrics["known_estimated_usd"],
+                        "coreweaving.unpriced_calls": metrics["unpriced_calls"],
+                        "coreweaving.price_checked_at": metrics["pricing"]["checked_at"],
                     }
                 )
         session.history.extend(
@@ -374,6 +382,8 @@ class Agent:
         session.history = session.history[-12:]
         sources = [session.evidence[i] for i in cited_ids(answer) if i in session.evidence]
         return {
+            "answer_id": str(uuid.uuid4()),
+            "conversation_context": input_history,
             "answer": answer,
             "kind": kind,
             "verification": verdict.model_dump(),
@@ -386,5 +396,6 @@ class Agent:
             "model": self.config.agent_model,
             "elapsed_seconds": round(time.monotonic() - started, 2),
             "planner_usage": usage,
+            "metrics": metrics,
             "error_type": error_type,
         }

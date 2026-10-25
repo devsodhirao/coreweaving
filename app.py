@@ -1,10 +1,13 @@
 """A small interface that shows both the answer and the evidence behind it."""
 
+import json
+
 import streamlit as st
 
 from coreweaving.agent import Agent, Session
 from coreweaving.config import init_weave, settings
 from coreweaving.corpus import Corpus
+from coreweaving.library import list_answers, review_answer, save_answer
 
 st.set_page_config(
     page_title="Coreweaving · Ask the docs",
@@ -73,12 +76,164 @@ def show_result(result):
                 st.write(issue)
         if not result["verification_attempts"]:
             st.write(result["verification"]["issues"])
+    if metrics := result.get("metrics"):
+        amount = metrics["estimated_usd"]
+        label = (
+            f"Estimated model cost · ${amount:.4f}"
+            if amount is not None
+            else "Model usage · partial estimate"
+        )
+        with st.expander(label):
+            st.write(
+                f"{metrics['model_calls']} model calls · "
+                f"{metrics['total_input_tokens']:,} input tokens · "
+                f"{metrics['tokens']['output_tokens']:,} output tokens"
+            )
+            st.caption(
+                "Tokens are the pieces of text the model reads and produces. Re-reading context also counts."
+            )
+            st.table(
+                [
+                    {
+                        "Stage": {
+                            "planner": "Research and drafting",
+                            "verification": "Source verification",
+                        }.get(stage, stage),
+                        "Calls": values["calls"],
+                        "Known estimate (USD)": f"${values['known_estimated_usd']:.5f}",
+                    }
+                    for stage, values in metrics["by_purpose"].items()
+                ]
+            )
+            research = metrics["research"]
+            st.write(
+                f"Research: {research['searches']} searches, {research['passage_reads']} passage reads "
+                f"across {research['distinct_pages_read']} pages, "
+                f"{research['repeated_tool_requests']} repeated tool requests, "
+                f"{research['drafts_submitted']} submitted drafts."
+            )
+            if metrics["unpriced_calls"]:
+                st.warning(
+                    f"{metrics['unpriced_calls']} calls lack a complete estimate; they are not counted as free."
+                )
+            st.caption(metrics["scope"])
+            st.caption(
+                f"[Pricing source]({metrics['pricing']['source']}) · checked "
+                f"{metrics['pricing']['checked_at']}. Returned call usage is also recorded in Weave."
+            )
     with st.expander("Research steps"):
         for action in result["actions"]:
             st.markdown(f"**{action['tool']}**")
             st.json(action["input"], expanded=False)
             st.json(action["result"], expanded=False)
     st.link_button("Inspect this conversation in Weave ↗", result["trace_url"])
+
+
+def show_library(corpus):
+    st.caption("COREWEAVING / OUR ANSWER LIBRARY")
+    st.title("Keep the evidence. Improve the answer.")
+    st.write("Real agent responses, saved locally for us to review together.")
+    st.caption(
+        "A source check, your review, and source freshness are separate signals. "
+        "Saved answers are never fed back to the agent as documentation."
+    )
+    try:
+        records = list_answers()
+    except Exception as exc:
+        st.error(f"The local library could not open ({type(exc).__name__}).")
+        return
+    if not records:
+        st.info(
+            "Ask a question in Conversation. Its answer, sources, and usage will appear here for review."
+        )
+        return
+    estimate = sum(r["result"].get("metrics", {}).get("known_estimated_usd", 0) for r in records)
+    unknown = sum(
+        not r["result"].get("metrics") or r["result"]["metrics"]["estimated_usd"] is None
+        for r in records
+    )
+    columns = st.columns(3)
+    columns[0].metric("Saved turns", len(records))
+    columns[1].metric("Marked useful", sum(r["review_state"] == "useful" for r in records))
+    columns[2].metric("Known model estimate", f"${estimate:.4f}")
+    st.caption(
+        f"Across these saved turns only; {unknown} have missing or partial estimates. "
+        "Includes research and source checks; excludes Signals and separate evaluation runs."
+    )
+    query = st.text_input("Find a question")
+    choices = {
+        "All": None,
+        "Unreviewed": "unreviewed",
+        "Useful": "useful",
+        "Needs correction": "needs_correction",
+    }
+    selected = st.selectbox("Review status", list(choices))
+    visible = [
+        r
+        for r in records
+        if query.casefold() in r["question"].casefold()
+        and (choices[selected] is None or r["review_state"] == choices[selected])
+    ]
+    if not visible:
+        st.info("No saved questions match those filters.")
+        return
+    by_id = {r["id"]: r for r in visible}
+    answer_id = st.selectbox(
+        "Saved question", list(by_id), format_func=lambda key: by_id[key]["question"]
+    )
+    row = by_id[answer_id]
+    st.markdown(f"**{row['question']}**")
+    st.caption(f"Saved {row['created_at']} · Review: {row['review_state'].replace('_', ' ')}")
+    if row["result"].get("snapshot_id") != corpus.snapshot_id:
+        st.warning(
+            "The documentation snapshot differs from this saved answer. Review it against the current sources before reusing it."
+        )
+    else:
+        st.caption(
+            "Source snapshot matches the currently loaded documentation; this does not prove the answer is correct."
+        )
+    if context := row["result"].get("conversation_context"):
+        with st.expander("Conversation context used for this answer"):
+            for message in context:
+                st.markdown(f"**{message['role'].title()}**")
+                st.markdown(message["content"])
+    show_result(row["result"])
+    st.info(
+        "Review the whole task: did it answer every part, explain prerequisites, name its assumptions, "
+        "and keep legacy and current workflows compatible? A supported sentence can still be part "
+        "of an incomplete answer."
+    )
+    labels = {
+        "unreviewed": "Not reviewed yet",
+        "useful": "Useful after my review",
+        "needs_correction": "Needs a correction",
+    }
+    with st.form("review_" + answer_id):
+        state = st.selectbox(
+            "Your assessment",
+            list(labels),
+            index=list(labels).index(row["review_state"]),
+            format_func=labels.get,
+        )
+        notes = st.text_area(
+            "What makes sense, what is missing, or what needs correcting?", value=row["notes"]
+        )
+        if st.form_submit_button("Save my review"):
+            try:
+                review_answer(answer_id, state, notes)
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                st.rerun()
+    st.caption(
+        "Review notes stay on this computer. Dataset promotion to the public Weave project is a separate, deliberate step."
+    )
+    st.download_button(
+        "Download this answer and its evidence",
+        json.dumps(row, ensure_ascii=False, indent=2),
+        file_name=f"coreweaving-answer-{answer_id}.json",
+        mime="application/json",
+    )
 
 
 try:
@@ -99,7 +254,9 @@ with st.sidebar:
     if st.button("New conversation", width="stretch"):
         st.session_state.session = Session()
         st.session_state.turns = []
+        st.session_state.workspace_view = "Conversation"
         st.rerun()
+    view = st.radio("Workspace", ["Conversation", "Answer library"], key="workspace_view")
     st.markdown("**Keep the conversation going.**")
     st.write("Ask a follow-up, such as ‘How would I add that to my agent?’")
     st.caption("The assistant remembers the last six exchanges in this session.")
@@ -109,13 +266,21 @@ with st.sidebar:
         st.caption(f"Model: {config.agent_model}")
         st.caption("Code examples run in an offline Python container when needed.")
         st.caption("New conversations and server restarts clear conversation memory.")
+        st.caption("The local answer library persists across restarts. It is excluded from Git.")
+
+if view == "Answer library":
+    show_library(corpus)
+    st.stop()
+
+if warning := st.session_state.pop("library_warning", None):
+    st.warning(warning)
 
 st.caption("COREWEAVING / WEAVE DOCUMENTATION")
 st.title("Good answers leave a trail.")
 st.write("Ask about Weave. See the answer, its sources, and how it was checked.")
 st.caption(
     "This demo records conversations in a public Weave project. "
-    "Use public examples and keep credentials out of chat."
+    "Answers are also saved locally for review. Use public examples and keep credentials out of chat."
 )
 if not st.session_state.turns:
     # An inline welcome field avoids the pinned chat layout scrolling a narrow
@@ -196,5 +361,9 @@ if question:
             )
         show_result(result)
     st.session_state.turns.append((question, result))
+    try:
+        save_answer(question, result)
+    except Exception as exc:
+        st.session_state.library_warning = f"The answer is ready, but its local library copy could not be saved ({type(exc).__name__})."
     weave_client.flush()
     st.rerun()

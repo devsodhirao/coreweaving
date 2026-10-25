@@ -140,3 +140,41 @@ def test_clarification_is_checked_even_without_sources(corpus):
     assert result["kind"] == "clarification"
     assert result["verification"]["passed"]
     assert fake.requests[1]["purpose"] == "verification"
+
+
+def test_usage_includes_rejected_verification_and_isolated_follow_up(corpus):
+    responses = [
+        response(READ, ANSWER),
+        verdict(False),
+        response(ANSWER),
+        verdict(),
+        response(ANSWER),
+        verdict(),
+    ]
+    for index, item in enumerate(responses, 1):
+        item.update(
+            model="claude-sonnet-5-5",
+            response_id=f"fixture-{index}",
+            usage={"input_tokens": index * 100, "output_tokens": index * 10},
+        )
+    fake = FakeModel(responses)
+    agent, session = Agent(corpus, Settings(project="test/test"), fake), Session()
+    first = agent.run("How do I initialize Weave?", session)
+    second = agent.run("Remind me what to initialize first.", session)
+    receipt = first["metrics"]
+    assert first["verification_attempts"][0]["passed"] is False
+    assert first["verification"]["passed"] is True
+    assert receipt["model_calls"] == 4
+    assert receipt["by_purpose"]["planner"]["calls"] == 2
+    assert receipt["by_purpose"]["verification"]["calls"] == 2
+    assert receipt["tokens"]["input_tokens"] == 1000
+    assert receipt["tokens"]["output_tokens"] == 100
+    assert receipt["estimated_usd"] == pytest.approx(0.003)
+    assert receipt["research"]["drafts_submitted"] == 2
+    assert second["metrics"]["model_calls"] == 2
+    assert second["metrics"]["tokens"]["input_tokens"] == 1100
+    assert second["metrics"]["tokens"]["output_tokens"] == 110
+    assert second["metrics"]["estimated_usd"] == pytest.approx(0.0033)
+    assert len(first["metrics"]["calls"]) == 4
+    assert first["answer_id"] != second["answer_id"]
+    assert first["conversation_id"] == second["conversation_id"]
