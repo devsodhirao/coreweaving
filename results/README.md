@@ -4,6 +4,7 @@ All files contain recorded outputs or explicitly labeled fixtures. No example re
 
 | Evidence | Result and scope |
 | --- | --- |
+| [Proposal review](proposal-review.json) | Audit of Claude's suggested evaluation pass at `82bcaae`: local results, installed API support, scoring/trial pitfalls and statistical arithmetic. Review only; no new model runs or quality measurements. |
 | [submission-v1](submission-v1/summary.json) | Latest full `weave.Evaluation`: 12/13 pass, evaluated commit `1c39ad8`, source/dataset/snapshot hashes recorded. Individual answers and judge explanations are in `cases/`. |
 | [Submission delivery recovery](submission-v1/remote-recovery.json) | Actual completed evaluation record replayed through `calls_complete` after the eager end endpoint returned 502. Original timestamps and scores preserved; remote output verified. |
 | [baseline-v1](baseline-v1/summary.json) | Earlier 13/13 run before page introductions were attached to every passage. Local results complete; its parent call end was not ingested. Not a controlled comparison with the submission run. |

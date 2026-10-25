@@ -2,6 +2,8 @@
 
 This is the entry point for an independent review. The repository is the source of truth; the chat transcript is not required.
 
+Before implementing the next evaluation pass, read the [review of Claude's proposal](AI_BUILD_LOG.md#review-of-claudes-proposed-evaluation-pass--2026-10-26) and its [audit receipt](../results/proposal-review.json). It accepts the coverage/evaluation direction with corrections to scoring, trial persistence, comparisons and scope. That proposal has not been executed.
+
 **Current pass: implemented and verified; research Site published.** Baseline before this pass: `d3c24e8` on `main`. Read `git status --short` and `git log -3 --oneline` before reviewing; those identify the current checkout and any subsequent work. The research and library checks are recorded in [learning-foundation.json](../results/learning-foundation.json).
 
 ## What we are building
