@@ -53,6 +53,7 @@ def setup() -> dict:
         sampling_rate=1.0,
         scorers=[scorer],
         op_names=["weave.genai.turn_ended"],
+        query={"$expr": {"$eq": [{"$getField": "agent_name"}, {"$literal": AGENT_NAME}]}},
     )
     ref = monitor.activate()
     client.flush()
@@ -62,7 +63,8 @@ def setup() -> dict:
         "sampling_rate": 1.0,
         "target": "weave.genai.turn_ended",
         "agent": AGENT_NAME,
-        "selection": "Project-wide turn sampling; scoring prompt ignores other agent names.",
+        "selection": "Server-side agent_name filter; only coreweaving turns are sampled.",
+        "query": monitor.query.model_dump(by_alias=True),
         "model": model.llm_model_id,
         "definition": SIGNAL_DEFINITION,
         "project": settings().project,
