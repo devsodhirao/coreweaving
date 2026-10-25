@@ -47,6 +47,7 @@ class Passage:
     url: str
     page_sha256: str
     text: str
+    page_context: str = ""
 
     def evidence(self, source_id: str) -> dict:
         return {"source_id": source_id, **asdict(self)}
@@ -79,9 +80,17 @@ class Corpus:
                 heading = section.splitlines()[0].lstrip("# ")
                 for offset in range(0, len(section), 7000):
                     chunks.append((heading, section[offset : offset + 7000]))
+            page_context = chunks[0][1][:2000] if chunks else ""
             entries = [
                 Passage(
-                    page_id, i, page["title"], heading, page["canonical_url"], page["sha256"], body
+                    page_id,
+                    i,
+                    page["title"],
+                    heading,
+                    page["canonical_url"],
+                    page["sha256"],
+                    body,
+                    page_context,
                 )
                 for i, (heading, body) in enumerate(chunks)
             ]

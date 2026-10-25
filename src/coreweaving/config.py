@@ -1,5 +1,6 @@
 """Configuration contains names and limits; credentials stay in the environment."""
 
+import hashlib
 import os
 from dataclasses import dataclass
 from functools import lru_cache
@@ -10,6 +11,15 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parents[2]
 AGENT_NAME = "coreweaving"
+
+
+def source_fingerprint() -> str:
+    """Bind evaluation evidence to the implementation bytes, even in a dirty checkout."""
+    paths = sorted((ROOT / "src/coreweaving").glob("*.py")) + [ROOT / "app.py"]
+    content = b"\n".join(
+        str(path.relative_to(ROOT)).encode() + b"\0" + path.read_bytes() for path in paths
+    )
+    return hashlib.sha256(content).hexdigest()
 
 
 @dataclass(frozen=True)

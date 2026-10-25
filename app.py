@@ -37,6 +37,9 @@ def show_result(result):
                 if "url" in source:
                     st.markdown(f"**[{source['source_id']}] [{source['title']}]({source['url']})**")
                     st.caption(source["heading"])
+                    if source.get("page_context") and source["page_context"] != source["text"]:
+                        st.caption("Page context (including any workflow warnings)")
+                        st.text(source["page_context"])
                     st.text(source["text"])
                 else:
                     st.markdown(f"**[{source['source_id']}] Python execution**")

@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import json
 import os
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -12,7 +13,7 @@ import weave
 from pydantic import BaseModel, Field
 
 from coreweaving.agent import Agent, Session, cited_ids
-from coreweaving.config import ROOT, Settings, init_weave, settings
+from coreweaving.config import ROOT, Settings, init_weave, settings, source_fingerprint
 from coreweaving.corpus import Corpus
 from coreweaving.llm import LanguageModel
 
@@ -73,6 +74,7 @@ def integrity(output: dict, minimum_pages: int, require_code: bool) -> dict:
 class DocumentationModel(weave.Model):
     agent_model: str
     snapshot_id: str
+    source_sha256: str
 
     @weave.op()
     async def predict(self, prompts: list[str], case_id: str) -> dict:
@@ -81,6 +83,8 @@ class DocumentationModel(weave.Model):
             corpus = Corpus()
             if corpus.snapshot_id != self.snapshot_id:
                 raise ValueError("Corpus changed during evaluation.")
+            if source_fingerprint() != self.source_sha256:
+                raise ValueError("Implementation changed during evaluation; use a stable checkout.")
             agent, session = Agent(corpus, config), Session()
             turns = [agent.run(prompt, session) for prompt in prompts]
             return {**turns[-1], "case_id": case_id, "turns": turns}
@@ -218,6 +222,8 @@ async def run_evaluation(args):
     global RUN_DIRECTORY
     os.environ.setdefault("WEAVE_PARALLELISM", "3")
     client, config, corpus = init_weave(), settings(), Corpus()
+    source_sha256 = source_fingerprint()
+    git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     run_name = args.name or datetime.now(UTC).strftime("eval-%Y%m%dT%H%M%SZ")
     RUN_DIRECTORY = ROOT / "results" / run_name
     RUN_DIRECTORY.mkdir(parents=True, exist_ok=False)
@@ -233,13 +239,17 @@ async def run_evaluation(args):
             "snapshot_id": corpus.snapshot_id,
             "rubric_version": "1",
             "case_count": len(rows),
+            "source_sha256": source_sha256,
+            "git_commit": git_commit,
         },
     )
     model = DocumentationModel(
-        name="coreweaving-agent", agent_model=config.agent_model, snapshot_id=corpus.snapshot_id
+        name="coreweaving-agent",
+        agent_model=config.agent_model,
+        snapshot_id=corpus.snapshot_id,
+        source_sha256=source_sha256,
     )
     summary, call = await evaluation.evaluate.call(evaluation, model)
-    client.flush()
     cases = [
         json.loads(path.read_text()) for path in sorted((RUN_DIRECTORY / "cases").glob("*.json"))
     ]
@@ -252,13 +262,48 @@ async def run_evaluation(args):
         "agent_model": config.agent_model,
         "judge_model": config.judge_model,
         "snapshot_id": corpus.snapshot_id,
+        "source_sha256": source_sha256,
+        "git_commit": git_commit,
         "dataset_ref": dataset_ref.uri(),
         "cases_sha256": hashlib.sha256((ROOT / "evals/cases.json").read_bytes()).hexdigest(),
         "evaluation_call_id": call.id,
+        "evaluation_started_at": call.started_at.isoformat(),
+        "evaluation_ended_at": call.ended_at.isoformat(),
         "evaluation_url": f"https://forge.coreweave.com/wandb/{config.project}/weave/calls/{call.id}",
         "weave_summary": summary,
     }
-    (RUN_DIRECTORY / "summary.json").write_text(json.dumps(result, indent=2, default=str) + "\n")
+    summary_path = RUN_DIRECTORY / "summary.json"
+    summary_path.write_text(json.dumps(result, indent=2, default=str) + "\n")
+    client.flush()
+    # During the build, the SDK's batched v2 parent-call end returned 502 while
+    # individual predictions/scores succeeded. Replay the actual completed end
+    # through the service API, without rerunning the experiment or inventing data.
+    try:
+        remote = client.get_call(call.id)
+        replayed = remote.ended_at is None or remote.output is None
+        if replayed:
+            client.server.call_end(
+                req={
+                    "end": {
+                        "project_id": config.project,
+                        "id": call.id,
+                        "started_at": call.started_at,
+                        "ended_at": call.ended_at,
+                        "trace_id": call.trace_id,
+                        "output": summary,
+                        "summary": {},
+                        "is_eval": True,
+                    }
+                }
+            )
+            remote = client.get_call(call.id)
+        result["remote_sync"] = {
+            "verified": remote.ended_at is not None and remote.output is not None,
+            "replayed_end": replayed,
+        }
+    except Exception as exc:
+        result["remote_sync"] = {"verified": False, "error": type(exc).__name__}
+    summary_path.write_text(json.dumps(result, indent=2, default=str) + "\n")
     print(json.dumps({k: v for k, v in result.items() if k != "weave_summary"}, indent=2))
 
 

@@ -38,3 +38,9 @@ def test_evaluation_references_resolve_and_cover_required_categories():
         {row["category"] for row in rows}
     )
     assert all(row["reference_evidence"] for row in rows)
+
+
+def test_legacy_workflow_warning_travels_with_a_later_section():
+    passage = Corpus().read("guides/evaluation/custom-monitors", 2).evidence("S1")
+    assert "previous approach" in passage["page_context"]
+    assert "Signals" in passage["page_context"]
