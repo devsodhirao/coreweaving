@@ -1,5 +1,5 @@
 window.COREWEAVING_STATUS = {
-  updated: "October 25, 2026 · Agent, evaluations, and live Signal verified; final packaging underway.",
+  updated: "October 25, 2026 · Agent, evaluation, live Signal, fresh setup, and public repository verified.",
   checks: [
     {label: "Both API keys accepted", done: true},
     {label: "Public Weave project created", done: true},
@@ -8,6 +8,6 @@ window.COREWEAVING_STATUS = {
     {label: "Conversation and verification working", done: true},
     {label: "Evaluation suite executed", done: true},
     {label: "Live Signal scored a turn", done: true},
-    {label: "Fresh setup and public repository checked", done: false}
+    {label: "Fresh setup and public repository checked", done: true}
   ]
 };
