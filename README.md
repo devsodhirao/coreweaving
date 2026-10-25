@@ -2,7 +2,11 @@
 
 A documentation assistant that researches Weave, checks its drafts against source passages, and leaves an inspectable record. Built for the CoreWeave Developer Relations take-home.
 
-**[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving)** · [Interactive walkthrough](walkthrough.html) · [AI build log](docs/AI_BUILD_LOG.md) · [Evaluation cases](evals/cases.json)
+**[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving)** · [Product plan](plan.html) · [Interactive walkthrough](walkthrough.html) · [AI build log](docs/AI_BUILD_LOG.md) · [Evaluation cases](evals/cases.json)
+
+![The local assistant](docs/images/app-start.png)
+
+The assistant serves people asking complex questions about Weave documentation. Adding tracing and monitoring to an existing agent is one demonstration scenario; the brief does not require a narrower audience. The useful outcome is a next step with an explanation and inspectable evidence. The [product plan](plan.html) distinguishes that product hypothesis from features and results already demonstrated.
 
 ## Run it locally
 
@@ -86,7 +90,9 @@ uv run python -m coreweaving.signals --fixture
 
 This activates a monitor for `weave.genai.turn_ended`. The `needs-review` tag detects operational failures, exhausted research limits, and uncited factual Weave instructions. It uses CoreWeave Serverless Inference (`meta-llama/Llama-3.3-70B-Instruct`), samples every matching turn, and consumes Forge inference credits. It does **not** prove that a cited answer is correct. The optional fixture is deliberately labeled as a synthetic failure; it is separate from the agent evaluation.
 
-Signal activation and observed scoring evidence are recorded in [results/signal-setup.json](results/signal-setup.json). A successful configuration publish alone is not treated as proof that online scoring ran.
+The active Signal is **`coreweaving-review-signal`**. It uses `Monitor` with an explicit turn-context prompt and the `scores` array output contract; the older `ClassifierMonitor` configuration did not produce new-agent Signal feedback. A server-side `agent_name == coreweaving` filter selects the documentation agent before sampling and scoring. A prompt-only exclusion proved insufficient: an evaluator turn was tagged during a diagnostic run. The filter avoids spending inference credits on those excluded turns.
+
+[Activation](results/signal-setup.json) and [observed backend feedback](results/signal-feedback.json) are saved separately. The negative fixture received the `needs-review` tag from the active monitor. [Filter verification](results/signal-filter-verification.json) separately records an included failure fixture and an excluded evaluator control, with the observation window. Publishing a configuration alone is not treated as proof of scoring. Your project needs an available inference provider/credit balance; the build used the existing Forge allowance and did not enable pay-as-you-go.
 
 ## Evaluation
 
@@ -99,7 +105,27 @@ The fixed dataset has **13 cases**: two basic, three multi-hop, two ambiguous, t
 
 The judge rates correctness, completeness, grounding, and uncertainty handling from 0–4, with an explanation. A case passes only when all four scores are at least 3 **and** deterministic checks pass: citations resolve, verification passed, required source-page coverage is met, requested code actually executed, and no runtime error occurred. Clarification cases are allowed to have no citations. A cautious failure to answer an answerable question is not a success.
 
-Each run publishes a `weave.Dataset`, executes `weave.Evaluation`, and saves the actual questions, answers, actions, citations, checks, judge rationales and aggregate summary under `results/<run>/`. The three-case pipeline check passed; the full-suite results are being collected and will be summarized here before submission.
+Each run publishes a `weave.Dataset`, executes `weave.Evaluation`, and saves the actual questions, answers, actions, citations, checks, judge rationales and aggregate summary under `results/<run>/`.
+
+**Latest full run: 12/13 passed (92.3%).** [Open the recorded evaluation](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving/weave/calls/01a170df-c8bc-792c-97be-ce4a92f001ef) or [read the saved summary](results/submission-v1/summary.json).
+
+| Measure | Latest full run |
+| --- | --- |
+| Correctness | 4.00 / 4 |
+| Completeness | 3.85 / 4 |
+| Grounding | 3.92 / 4 |
+| Uncertainty handling | 3.77 / 4 |
+| Structural/integrity checks | 13 / 13 |
+| Internal source check | 13 / 13 |
+| Mean case prediction latency | 31.4 seconds, including follow-ups where present |
+
+The failed case, [tracing and Signals](results/submission-v1/cases/03-tracing-and-signals.json), scored 2/4 for uncertainty: it omitted the expected caveat that model-based monitoring can miss or misclassify failures. Its APIs were judged correct. The judge also questioned a citation to introductory text that was actually present in the passage's `page_context`; this minor criticism is an example of why judge results need human calibration. We retain the original judgment and do not silently rescore it to improve the headline.
+
+An earlier [baseline run](results/baseline-v1/summary.json) passed 13/13. Before the latest run, we made page-level workflow warnings available alongside every retrieved section to reduce the risk of mixing legacy Calls/Monitors with current Agents/Signals. These stochastic runs are not a controlled comparison. No causal improvement claim follows from their scores.
+
+The [judge calibration check](results/judge-calibration.json) accepted a recorded supported answer and rejected a fabricated `hallucination_free=True` API guarantee, even though the fabricated answer retained a real source ID and a passing verifier flag. This is a two-fixture diagnostic, separate from the 13-case dataset.
+
+**Reproducibility and delivery.** The latest full run records source hash, dataset hash, snapshot hash, and evaluated commit `1c39ad8`. Later commits `d98a17c` and `2077e2c` fix Signal configuration, agent filtering, and evaluation transport; the planner, verifier, retrieval, sandbox, and UI behavior are unchanged. A [focused delivery check](results/delivery-check/summary.json) passed and confirmed automatic recovery. Weave 0.54.0 returned repeated 502 errors for the eager parent evaluation's end event; the harness now checks ingestion and, if needed, replays the actual complete call record with its original ID, timestamps, and summary. The [submission recovery receipt](results/submission-v1/remote-recovery.json) confirms delivery. Earlier baseline/pipeline parent calls remain incomplete remotely; their local results and nested scores are preserved. See the [evidence index](results/README.md).
 
 This small, development-visible dataset reveals failure modes; its pass rate is not a general accuracy estimate. The judge is fallible. There is no claim that verification improves quality without a controlled comparison.
 
@@ -111,7 +137,7 @@ uv run pytest -q -m 'not sandbox' # without Docker
 uv run ruff check .
 ```
 
-Tests exercise invented citations, rejected drafts, research limits, provider failures, follow-up context, Markdown code fences, snapshot integrity, and container isolation/time/output limits.
+All **15 tests passed**. They exercise invented citations, rejected drafts, research limits, provider failures, follow-up context, Markdown code fences, snapshot integrity, page-level workflow warnings, and container isolation/time/output limits. A [fresh-checkout verification](results/fresh-install.json) restored all 351 pages from upstream with matching hashes, installed the locked dependencies, passed the tests, and answered a real question. Browser checks exercised a real question, source display, and trace link without JavaScript errors. [Backend trace verification](results/trace-verification.json) confirms two turns under each of two conversation IDs, model/tool spans, verifier spans, and recorded token usage.
 
 For the interview:
 
@@ -121,6 +147,6 @@ For the interview:
 4. Open a Weave conversation and inspect a read, a model call, and verification.
 5. Open an evaluation case and explain its judgment and limitations.
 
-Open [walkthrough.html](walkthrough.html) locally for a plain-language guide. [The AI build log](docs/AI_BUILD_LOG.md) records the decisions and integration failures encountered while building.
+Open [plan.html](plan.html) locally for the brief, product direction, and adoption hypotheses. Open [walkthrough.html](walkthrough.html) for a plain-language technical guide. [The AI build log](docs/AI_BUILD_LOG.md) records the decisions and integration failures encountered while building.
 
 With more time: add hybrid semantic/keyword retrieval, a held-out test set, judge calibration against human review, a verification ablation, persistent conversation storage, and broader prompt-injection and concurrency tests. Prioritize those using observed failures rather than adding framework layers.
