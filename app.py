@@ -6,13 +6,28 @@ from coreweaving.agent import Agent, Session
 from coreweaving.config import init_weave, settings
 from coreweaving.corpus import Corpus
 
-st.set_page_config(page_title="Coreweaving · Ask the docs", page_icon="◉", layout="wide")
+st.set_page_config(
+    page_title="Coreweaving · Ask the docs",
+    page_icon="◉",
+    layout="wide",
+    initial_sidebar_state="auto",
+)
 st.markdown(
     """<style>
-.stApp {background:#f6f4ee} .block-container {max-width:1150px;padding-top:3rem}
-h1 {font-family:Georgia,serif;font-weight:500;letter-spacing:-1.5px}
-[data-testid=stSidebar] {background:#e9efea}
-[data-testid=stChatMessage] {border:1px solid #dce4dd;border-radius:14px;background:#fffefa}
+.block-container {max-width:1060px;padding-top:4rem;padding-bottom:3rem}
+[data-testid=stHeading] h1 {font-family:Georgia,serif;font-weight:400;
+    font-size:clamp(2.25rem,4vw,3.4rem);letter-spacing:-1.5px;line-height:1.13}
+[data-testid=stSidebar] {background:#e8eee5}
+[data-testid=stChatMessage] {border:1px solid #d7dfd2;border-radius:12px;background:#fffefa;
+    padding:1.4rem}
+[data-testid=stChatMessage] p {line-height:1.65}
+.st-key-starter_learn,.st-key-starter_build,.st-key-starter_evaluate {
+    background:#fffefa;border-radius:10px}
+.st-key-starters [data-testid=stCaptionContainer] {min-height:3.5rem}
+@media(max-width:640px) {
+    [data-testid=stChatMessage] {padding:1rem}
+    .st-key-starters [data-testid=stCaptionContainer] {min-height:0}
+}
 </style>""",
     unsafe_allow_html=True,
 )
@@ -24,15 +39,15 @@ def resources():
 
 
 def show_result(result):
-    st.markdown(result["answer"])
     passed = result["verification"]["passed"]
     st.caption(
         f"{'Source check passed' if passed else 'Source check did not pass'} · "
-        f"{result['elapsed_seconds']:.1f}s · {len(result['actions'])} tool calls"
+        f"{len(result['sources'])} sources · {result['elapsed_seconds']:.1f}s"
     )
-    st.link_button("Inspect this conversation in Weave ↗", result["trace_url"])
+    st.markdown(result["answer"])
     if result["sources"]:
-        with st.expander(f"Source passages ({len(result['sources'])})"):
+        with st.expander(f"Sources · {len(result['sources'])} sources"):
+            st.caption("Match [S1], [S2], and other citations to the passages below.")
             for source in result["sources"]:
                 if "url" in source:
                     st.markdown(f"**[{source['source_id']}] [{source['title']}]({source['url']})**")
@@ -46,6 +61,10 @@ def show_result(result):
                     st.code(source["code"], language="python")
                     st.text(source.get("output", source.get("error", "")))
     with st.expander("What the check found"):
+        st.caption(
+            "A separate model call compared the draft with these sources. "
+            "This check can miss mistakes; it is not a guarantee of correctness."
+        )
         for index, check in enumerate(result["verification_attempts"], 1):
             st.markdown(f"**Draft {index}: {'passed' if check['passed'] else 'needs revision'}**")
             for claim in check["claims"]:
@@ -59,6 +78,7 @@ def show_result(result):
             st.markdown(f"**{action['tool']}**")
             st.json(action["input"], expanded=False)
             st.json(action["result"], expanded=False)
+    st.link_button("Inspect this conversation in Weave ↗", result["trace_url"])
 
 
 try:
@@ -75,42 +95,72 @@ if "session" not in st.session_state:
 
 with st.sidebar:
     st.markdown("### coreweaving")
-    st.write("Ask a question. Follow the evidence.")
-    if st.button("New conversation", use_container_width=True):
+    st.write("Your companion to the Weave docs.")
+    if st.button("New conversation", width="stretch"):
         st.session_state.session = Session()
         st.session_state.turns = []
         st.rerun()
-    st.caption(f"{len(corpus.pages)} documentation pages · snapshot {corpus.snapshot_id[:12]}")
-    st.caption(f"Model: {config.agent_model}")
-    st.markdown("Try a follow-up such as **‘And how would I monitor that?’**")
-    st.caption(
-        "Questions, answers, and source passages are recorded in this public Weave project. "
-        "Use public examples; keep credentials out of chat."
-    )
-    st.caption("A source check is useful evidence, not a guarantee of correctness.")
+    st.markdown("**Keep the conversation going.**")
+    st.write("Ask a follow-up, such as ‘How would I add that to my agent?’")
+    st.caption("The assistant remembers the last six exchanges in this session.")
+    with st.expander("About this demo"):
+        st.caption(f"{len(corpus.pages)} saved Weave documentation pages")
+        st.caption(f"Snapshot: {corpus.snapshot_id[:12]}")
+        st.caption(f"Model: {config.agent_model}")
+        st.caption("Code examples run in an offline Python container when needed.")
+        st.caption("New conversations and server restarts clear conversation memory.")
 
-st.caption("WEAVE DOCUMENTATION / AN ASSISTANT YOU CAN INSPECT")
+st.caption("COREWEAVING / WEAVE DOCUMENTATION")
 st.title("Good answers leave a trail.")
-st.write("Explore the docs with an assistant that searches, reads, and checks its answer.")
+st.write("Ask about Weave. See the answer, its sources, and how it was checked.")
+st.caption(
+    "This demo records conversations in a public Weave project. "
+    "Use public examples and keep credentials out of chat."
+)
+if not st.session_state.turns:
+    # An inline welcome field avoids the pinned chat layout scrolling a narrow
+    # first screen past its heading. Conversation input stays pinned below.
+    with st.container(key="welcome_input"):
+        question = st.chat_input("Ask about Weave…", key="welcome_question")
+else:
+    question = st.chat_input("Ask about Weave…", key="conversation_question")
+
+starter_area = st.empty()
 if not st.session_state.turns:
     examples = [
-        "How do I trace a custom multi-turn agent and add a Signal?",
-        "Does adding @weave.op automatically put my agent in the Agents view?",
-        "Can Signals guarantee that my agent never hallucinates?",
+        (
+            "learn",
+            "Understand Weave",
+            "How do tracing, evaluations, and Signals fit together?",
+        ),
+        (
+            "build",
+            "Trace an agent",
+            "How do I trace a custom multi-turn agent in Python?",
+        ),
+        (
+            "evaluate",
+            "Build an evaluation",
+            "How do I evaluate my agent using a dataset and an LLM judge?",
+        ),
     ]
-    columns = st.columns(3)
-    for column, example in zip(columns, examples):
-        if column.button(example, use_container_width=True):
-            st.session_state.pending_question = example
+    with starter_area.container(), st.container(key="starters"):
+        st.markdown("**Start with a task, or ask your own question.**")
+        for column, (key, label, example) in zip(st.columns(3), examples):
+            with column, st.container(border=True, key=f"starter_{key}"):
+                if st.button(label + " →", width="stretch", wrap=True):
+                    st.session_state.pending_question = example
+                st.caption(example)
 
-for question, result in st.session_state.turns:
+for previous_question, previous_result in st.session_state.turns:
     with st.chat_message("user"):
-        st.markdown(question)
+        st.markdown(previous_question)
     with st.chat_message("assistant"):
-        show_result(result)
+        show_result(previous_result)
 
-question = st.chat_input("Ask about Weave…") or st.session_state.pop("pending_question", None)
+question = question or st.session_state.pop("pending_question", None)
 if question:
+    starter_area.empty()
     with st.chat_message("user"):
         st.markdown(question)
     with st.chat_message("assistant"):
@@ -122,9 +172,13 @@ if question:
                     st.write(event["detail"])
                 elif stage in ("search_docs", "read_page", "run_python"):
                     detail = event["detail"]
-                    st.write(
-                        f"{stage}: {detail.get('query', detail.get('page_id', 'offline example'))}"
-                    )
+                    if stage == "search_docs":
+                        st.write(f"Searching: {detail.get('query', '')}")
+                    elif stage == "read_page":
+                        page = corpus.pages.get(detail.get("page_id"))
+                        st.write(f"Reading: {page[0].title if page else 'a documentation page'}")
+                    else:
+                        st.write("Trying a small Python example in the offline container.")
                 elif stage == "verification":
                     st.write(
                         "Source check passed."
@@ -143,3 +197,4 @@ if question:
         show_result(result)
     st.session_state.turns.append((question, result))
     weave_client.flush()
+    st.rerun()

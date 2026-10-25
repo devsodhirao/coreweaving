@@ -16,6 +16,7 @@ All files contain recorded outputs or explicitly labeled fixtures. No example re
 | [Signal filter verification](signal-filter-verification.json) | Included agent failure versus excluded evaluator control, with exact monitor query and observation window. Earlier prompt-only filtering was insufficient. |
 | [Fresh install](fresh-install.json) | Separate checkout, locked dependency install, 351 docs restored from upstream, 15 passing tests, and an actual checked answer. |
 | [Trace verification](trace-verification.json) | Two actual two-turn conversations, their model/tool/verifier span counts, recorded token usage, and trace IDs queried from Weave. |
+| [Interface review](ui-review.json) | Layouts at 390, 768, and 1440 pixels; plan and guide navigation; actual starter submission and evidence panels; final two-turn conversation after the input transition fix. All 16 local tests passed, including a fake-agent regression for repeated submissions. Separate from the 13-case quality evaluation. |
 
 The failed latest case is [03-tracing-and-signals](submission-v1/cases/03-tracing-and-signals.json). It received 4/4 correctness and 2/4 uncertainty, primarily for omitting the expected caution about fallible monitoring. The judge also questioned text from a page introduction that was actually supplied in `page_context`. The judgment is retained as recorded; manual calibration remains useful.
 
