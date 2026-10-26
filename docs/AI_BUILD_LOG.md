@@ -117,3 +117,16 @@ The papers motivate experiments; they do not validate this implementation. [Huan
 6. Ship a concise README with setup, architecture, honest comparison/failure findings and Weave links. Keep material limitations beside the claims they qualify; put detailed receipts in `results/`. Recheck the app and fresh setup after code changes. Stream progress before verification, then release the checked answer.
 
 No application changes, paid model runs, library deletion or branch moves were performed in this review. The next implementation should use an agreed scope rather than silently adopting a four-to-five-hour expansion of the roughly three-hour brief.
+
+
+## Bounded coverage implementation and behavior contract — 2026-10-26
+
+The owner authorized measurement and testing, then asked for purpose-bound permissions, deliberate memory growth and the existing BDD approach. We reused the intent/trigger/consequence/evidence pattern from prior projects, with ordinary pytest rather than another framework dependency. [Behavior contract](BEHAVIOR_CONTRACT.md) distinguishes enforced capabilities from model guidance and working memory from saved review records.
+
+Native workers handled bounded agent/caching, evaluation, and dataset tasks; the lead integrated product behavior, spending limits and comparison accounting. Their provider/model identities were not independently established. This is not an Opus/Fable worker claim. A second read-only pass found two real harness problems: partial predictions could disappear from per-arm cost totals, and interrupted evidence writes could prevent finalization. Both were fixed before paid measurements: persist evidence atomically and reconcile all returned usage, including ungraded attempts.
+
+Support-only remains the production default while support+coverage is evaluated. Material partial claims still require repair; verification-off is confined to experiments and labeled not-run. All arms share the planner prompt and tool schema. Caching is enabled without an effort change. Coverage includes current reads and sources cited in retained dialogue; its self-generated checklist is diagnostic, not independent ground truth. The UI exposes that checklist, its evidence and cache usage without another model call.
+
+The six capability cases and 22 source-backed assertions were frozen before paid outputs; the original 13 regression cases remain byte-for-byte unchanged with 48 additional assertions. [Dataset review](../results/dataset-review.json) records fairness checks and alternatives. Inherited regression case03 includes a normative monitoring-fallibility expectation not explicitly established by its selected product passages; preserve the historical failure and disclose that limitation.
+
+Pre-measurement checks:119 pytest tests passed, including real Docker isolation/time/output probes; ruff lint/format and diff checks passed. These prove tested control flow and runtime behavior, not generated-answer quality. Planned paid evidence: a cache probe and four labeled judge fixtures (each capped at $1), then six frozen cases × three modes × two repeats under one $10 estimated agent+judge budget. No full216-run experiment is implied. Online Signal spending is separate and excluded from this model budget.
