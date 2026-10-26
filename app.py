@@ -350,10 +350,11 @@ def show_library(corpus):
         st.info("No saved questions match those filters.")
         return
     by_id = {r["id"]: r for r in visible}
-    # Streamlit serializes formatted labels. Number them so repeated questions
-    # cannot silently select a different answer when an inspection button reruns.
+    # Streamlit serializes formatted labels. Keep each label unique and stable
+    # when answers arrive or filters change, so reruns retain the selected record.
     option_labels = {
-        key: f"{index}. {row['question']}" for index, (key, row) in enumerate(by_id.items(), 1)
+        key: f"{row['created_at'][:19].replace('T', ' ')} · {row['question']} · {key}"
+        for key, row in by_id.items()
     }
     answer_id = st.selectbox(
         "Saved question", list(by_id), format_func=option_labels.get, key="saved_question"

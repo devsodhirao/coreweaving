@@ -289,6 +289,28 @@ def test_library_duplicate_questions_keep_selected_answer_when_inspecting(monkey
         assert not app.exception
         selected = next(item for item in app.selectbox if item.label == "Saved question")
         assert selected.value == "newer-answer"
+        selected_wire_label = selected.options[selected.index]
+
+        # A background request can finish while the library is open. Prepending
+        # another matching question must not reuse the selected record's label.
+        records.insert(
+            0,
+            {
+                **records[0],
+                "id": "background-answer",
+                "result": {
+                    **records[0]["result"],
+                    "answer_id": "background-answer",
+                    "answer": "Saved response: background-answer",
+                    "trace_url": "https://example.test/background-answer",
+                },
+            },
+        )
+        app.run()
+        assert not app.exception
+        selected = next(item for item in app.selectbox if item.label == "Saved question")
+        assert selected.value == "newer-answer"
+        assert selected.options[selected.index] == selected_wire_label
 
         # When inspection reruns the app, the identical question must not select
         # the other record and discard the clicked answer's button event.
@@ -300,6 +322,7 @@ def test_library_duplicate_questions_keep_selected_answer_when_inspecting(monkey
         assert selected.value == "newer-answer"
         assert any(item.value == "Saved response: newer-answer" for item in app.markdown)
         assert not any(item.value == "Saved response: older-answer" for item in app.markdown)
+        assert not any(item.value == "Saved response: background-answer" for item in app.markdown)
         dialogs = app.get("dialog")
         assert len(dialogs) == 1 and dialogs[0].proto.dialog.is_open
         links = app.get("link_button")
