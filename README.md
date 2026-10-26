@@ -2,7 +2,7 @@
 
 An agentic assistant that answers complex questions about **Weave documentation**. It uses a **multi-step tool-calling loop**, retains **multi-turn context**, and **verifies drafts against sources** before responding. It implements Weave's **new agent tracing model**, **online Signals**, and a completed **`weave.Evaluation` suite with 13 varied questions and an LLM judge**. The web app runs locally for the interview; recorded results include failures and their analysis.
 
-**[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving)** · [Results](results/README.md) · [Product plan](plan.html) · [AI build log](docs/AI_BUILD_LOG.md)
+**[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving)** · [Results](results/README.md) · [Code map](docs/CODE_MAP.md) · [AI build log](docs/AI_BUILD_LOG.md)
 
 ![The local assistant](docs/images/app-start.png)
 
@@ -43,11 +43,9 @@ Open **http://localhost:8501**. Terminal interface: `uv run python -m coreweavin
 
 Questions, answers, evidence and executed snippets are traced to your project. **This demo's project is public; use public examples.** The app displays this before input.
 
-## Why build this?
+## Why this approach?
 
-For personal documentation questions, Claude or ChatGPT is a simpler starting point: both support project sources ([Claude retrieval](https://support.claude.com/en/articles/11473015-retrieval-augmented-generation-rag-for-projects), [ChatGPT projects](https://learn.chatgpt.com/docs/projects)). This assignment makes the implementation inspectable: explicit tool permissions, exact source evidence, repeatable evaluation and monitoring.
-
-Weave connects those records across the agent, judge and monitor, helping a developer explain failures and compare changes. We have not compared answer quality against Claude or ChatGPT. OpenAI's platform also offers [tracing](https://developers.openai.com/api/docs/guides/agents-api/tracing) and [evaluations](https://developers.openai.com/api/docs/guides/agent-evals).
+This project makes an agent's behavior inspectable: explicit tool permissions, original source passages, repeatable evaluations and monitoring of completed turns. Weave connects those records so a developer can diagnose a failure and compare a change.
 
 The design serves three needs: **useful answers** with evidence nearby, **bounded behavior** whose permissions are explicit, and **measurable improvement** through recorded failures. The [design rationale](docs/CODE_MAP.md#design-rationale-and-open-questions) maps each choice to its purpose, tradeoff and evidence. Sonnet, BM25 and the research limits are practical starting choices; their alternatives have not been benchmarked here.
 
@@ -67,7 +65,11 @@ flowchart LR
     W --> S[Signal scores completed turns]
 ```
 
-Sonnet 5.5 chooses tools in a direct Python loop and performs a separate verification call. Opus 5.5 judges evaluation answers against references withheld from the agent. These models used the available account; we did not run a model-selection contest. Local BM25 search avoids an embedding service and makes API-name matches inspectable, with weaker paraphrase matching as a tradeoff.
+**Sonnet 5.5 for planning and verification:** native tool calls fit the direct Python loop. At the same token count, our [recorded price table](src/coreweaving/metrics.py) makes these repeated calls cheaper than Opus.
+
+**Opus 5.5 for offline judging:** reserve the more expensive model for critique against references withheld from the agent. The hypothesis is that extra judging spend buys more useful criticism; calibration checked specific scoring behaviors, but no model comparison establishes that advantage. Both models share a family.
+
+Local BM25 search avoids an embedding service and makes API-name matches inspectable, with weaker paraphrase matching as a tradeoff.
 
 | File | Start with | Responsibility and choice |
 | --- | --- | --- |
@@ -114,24 +116,24 @@ uv run python -m coreweaving.signals --fixture
 The original 13 questions include multi-page, ambiguous, false-premise, follow-up and execution cases. Six later capability questions have 22 assertions frozen before outputs. Passing requires every assertion, correctness/completeness/grounding/uncertainty each at least 3/4, and citation/execution integrity. Judge errors fail. [Dataset review](results/dataset-review.json)
 
 <!-- MEASURED_RESULTS_START -->
-**Latest completed regression: 11/13 cases, 45/48 assertions, $2.6336** estimated agent+judge cost, on `179a052` with rubric `2.1-assertions`. [Results](results/regression-v2/summary.json) · [Failure analysis](results/regression-v2/review.json) · [Weave run](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving/weave/calls/01a175ad-161b-703a-9331-4b0497e25234)
+**Recorded regression: 11/13 cases, 45/48 assertions, $2.63** estimated agent+judge cost. This run predates the final app fixes. [Version and scope](results/README.md#which-version-was-evaluated) · [Failure analysis](results/regression-v2/review.json) · [Weave run](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving/weave/calls/01a175ad-161b-703a-9331-4b0497e25234)
 
 The earlier pilot compared six questions × three modes × two repeats:
 
 | Verification | Passed | Agent estimate | Judge estimate | Mean agent time |
 | --- | ---: | ---: | ---: | ---: |
-| Off, experimental control | 7/12 | $1.0193 | $1.4206 | 20.0 s |
-| **Source support, default** | **10/12** | **$1.9269** | **$1.4068** | **42.1 s** |
-| Support + coverage, experimental | 8/12 | $2.5166 | $1.3550 | 54.9 s |
+| Off, experimental control | 7/12 | $1.02 | $1.42 | 20.0 s |
+| **Source support, default** | **10/12** | **$1.93** | **$1.41** | **42.1 s** |
+| Support + coverage, experimental | 8/12 | $2.52 | $1.36 | 54.9 s |
 
-All 36 case-runs cost an estimated **$9.6452**. Coverage added work and refused two answerable tasks, so support remains default. Historical `submission-v1` scored 12/13 under a different rubric. Original answers and scores remain unchanged. [Pilot records](results/coverage-pilot-v1/summary.json) · [Review](results/coverage-pilot-v1/review.md)
+All 36 case-runs cost an estimated **$9.65**. Coverage added work and refused two answerable tasks, so support remains default. Historical `submission-v1` scored 12/13 under a different rubric. Original answers and scores remain unchanged. [Pilot records](results/coverage-pilot-v1/summary.json) · [Review](results/coverage-pilot-v1/review.md)
 <!-- MEASURED_RESULTS_END -->
 
-Estimates include returned planning, verification, repair and judge usage; they exclude Signals, hosting, taxes and unreturned charges. Time excludes judging. Budgets bound these estimates, not account bills.
+Dollar amounts are rounded; totals use raw receipts. Estimates include returned planning, verification, repair and judge usage; they exclude Signals, hosting, taxes and unreturned charges. Time excludes judging. Budgets bound these estimates, not account bills.
 
 **Local checks: 196 tests pass; Ruff is clean.** Browser testing exercised all three presets, three contextual follow-ups, ambiguity, a false API premise, real offline execution and the inspection window. The first repaired eight-question run met 23/24 manual checks. A subsequent prompt change regressed the overview and a code example, so it was reverted. Original answers and failures remain recorded.
 
-The final targeted run delivered both overview and tracing answers in 36.22s and 19.94s, for **$0.2517**. It met 5/6 manual checks: the overview still omitted when live monitoring runs. A separate real recovery check confirmed four supported points from a previously failed answer for $0.0300. All preset checks and that replay together cost **$2.8676**, excluding Signals. [Browser checks and limitations](results/preset-check-summary.json) · [Final backend readback](results/preset-check-v4/backend.json) · [Recovery evidence](results/recovery-check-v1/receipt.json)
+The final targeted run delivered both overview and tracing answers in 36.22s and 19.94s, for **$0.25**. It met 5/6 manual checks: the overview still omitted when live monitoring runs. A separate real recovery check confirmed four supported points from a previously failed answer for $0.03. All preset checks and that replay together cost **$2.87**, excluding Signals. [Browser checks and limitations](results/preset-check-summary.json) · [Final backend readback](results/preset-check-v4/backend.json) · [Recovery evidence](results/recovery-check-v1/receipt.json)
 
 The final read-only browser check preserves the selected saved answer and opens its analysis window on desktop and mobile. [UI check](results/final-readonly-ui.json)
 
@@ -146,15 +148,15 @@ uv run ruff check src app.py tests scripts
 
 ## Known limits
 
-1. **Evaluation scope:** six selected tasks and a same-family judge cannot establish general or causal superiority. Reviews identified an overly narrow API assertion and an inherited normative caveat. One Signal flag does not establish monitoring accuracy. The overview can overqualify relationships, and illustrative SDK code needs review; one experimental response omitted assistant history despite passing its verifier.
-2. **Final-source coverage:** the 11/13 run predates the later app fixes. The final two-question UI check and recovery replay used source `1b981419`; later tested changes reject empty recovery verdicts and keep saved-answer selection stable. The readability pass produces source `8e41f124` with unchanged executable logic, prompts and schemas. No full quality evaluation has run on this source. [Readability verification](results/readability-review.json)
+1. **Evaluation scope:** six selected pilot tasks and a same-family judge limit generalization. Signal accuracy and advantages over general assistants remain unmeasured. Answers can pass verification while omitting important details; [failure reviews](results/README.md) also identify rubric errors.
+2. **Final-source coverage:** no full regression has run on the final code. Later browser checks, a recovery replay and local tests cover narrower behaviors. [Exact versions and evidence](results/README.md#which-version-was-evaluated)
 3. **Freshness:** the downloaded Python SDK reference identifies 0.53.1; runtime is pinned to 0.54.0. The sidebar exposes this mismatch. That reference version does not date every guide, and API compatibility is not automatically validated.
 4. **Privacy:** configured secrets and common credential formats are masked before model requests, traces, history, SQLite and exports. This is not general PII detection; encoded or unfamiliar secrets may escape it.
 5. **Process lifetime:** background jobs and working conversation memory are in process. A restart can lose unfinished work; completed library records persist. The session source ledger is not yet size-limited.
 
 ## Walkthrough and next steps
 
-Ask a question, change an assumption, inspect sources/cost, then open its trace and an evaluation failure. [Field guide](walkthrough.html) · [Reviewer handoff](docs/REVIEWER_HANDOFF.md)
+Ask a question, change an assumption, inspect sources/cost, then open its trace and an evaluation failure. [Field guide](walkthrough.html) · [Reviewer handoff](docs/REVIEWER_HANDOFF.md) · [Product plan](plan.html)
 
 Work expanded beyond the brief's approximately three hours; the [build log](docs/AI_BUILD_LOG.md) records dated milestones. The cost/memory features, library and artifacts add maintenance and explanation work beyond the core brief. Voice, adaptive layouts, routing and graphs are [future ideas](research.html).
 

@@ -2,10 +2,23 @@
 
 All files contain recorded outputs or explicitly labeled fixtures. No example results are presented as real agent executions.
 
+## Which version was evaluated?
+
+These are historical measurements, each tied to its original implementation. Publication does not rerun or upgrade their evidence. The README rounds costs; JSON receipts retain full precision.
+
+| Measurement | Implementation and scope |
+| --- | --- |
+| [Regression: 11/13, 45/48 assertions](regression-v2/summary.json) | Commit `179a052`, rubric `2.1-assertions`; estimated agent+judge cost $2.6336314. This predates later UI, citation and recovery fixes. The earlier 12/13 used a different rubric, so the score change is not a direct quality comparison. |
+| [Three-policy pilot](coverage-pilot-v1/summary.json) | Frozen source at `d79d64b`, six cases × two repeats per mode; off 7/12, support 10/12, coverage 8/12. Coverage remains available experimentally; support is the default. |
+| [Final targeted UI answers](preset-check-v4/backend.json) and [recovery replay](recovery-check-v1/receipt.json) | Source `1b981419`: two useful UI answers, 5/6 manual checks, with monitoring timing omitted. Separately, one verifier call accepted four supported partial facts. The replay is not an end-to-end UI completion. |
+| [Later fixes and readability pass](readability-review.json) | Empty-recovery guards and stable saved-answer selection were locally tested after those paid answers. Runtime `cebca8e` / source `a4b6f4d3` received read-only desktop/mobile inspection. Commit `c9107dd` / source `8e41f124` changes comments/docstrings while preserving executable syntax, prompts and schemas; 196 tests pass. No full quality evaluation has run on this source. |
+
+## Recorded checks
+
 | Evidence | Result and scope |
 | --- | --- |
 | [Code/readability review](readability-review.json) | Comments/docstrings, requirement-led README and detailed code map; executable syntax, prompts, schemas, rubric and Signal definition unchanged. 196 tests pass; lint/format clean. Private guide mappings/excerpts updated and checked outside Git. No new model calls or quality results. |
-| [Brief alignment check](brief-alignment-check.json) | Original requirements cross-checked against implementation, recorded evaluations, active Signal configuration and the guides. Corrected publication status, Signal timing and release-tag wording; final runtime unchanged. Latest commits remain local. |
+| [Brief alignment check](brief-alignment-check.json) | Original requirements cross-checked against implementation, recorded evaluations, active Signal configuration and the guides. Corrected publication status, Signal timing and release-tag wording; final runtime unchanged. This receipt predates publication. |
 | [Preset investigation and final status](preset-check-summary.json) | 24 actual UI turns across four recorded source versions, plus one strict recovery replay; $2.8676069 estimated model cost. V2 met 23/24 manual checks; a subsequent prompt regression was reverted. Final targeted V4 delivered both answers and met 5/6 checks, with monitoring timing still omitted. Source `a4b6f4d3`, before the documentation-only readability pass, has 196 passing tests and later guards for empty recovery verdicts and saved-answer selection. No full regression on that source. |
 | [Partial recovery replay](recovery-check-v1/receipt.json) · [Independent review](recovery-check-v1/implementation-review.json) | One real verifier call accepted four supported points from a failed historical answer for $0.0300105. The narrowed text is explicitly partial. A later empty-claims waiver was reproduced and fixed with local tests. This is not a rescore or a complete answer to the original question. |
 | [Final local setup](final-setup-preset-fixes.json) | Local clone of `9518441`, then updated to `cebca8e`; locked 91-package environment, 351 documents restored with zero failures and 12 runtime modules imported. No credentials copied or model calls made. |
