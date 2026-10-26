@@ -1,6 +1,6 @@
 # Coreweaving
 
-A conversational Weave documentation assistant for the CoreWeave Developer Relations take-home. It researches across pages, verifies drafts, and exposes sources, cost and traces.
+A conversational Weave documentation assistant for the CoreWeave Developer Relations take-home. It researches across pages and checks drafts before answering. A separate **Sources & analysis** window contains the evidence, checks, cost and Weave trace.
 
 **[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving)** · [Results](results/README.md) · [Product plan](plan.html) · [AI build log](docs/AI_BUILD_LOG.md)
 
@@ -27,7 +27,7 @@ docker pull python:3.12-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a
 uv run streamlit run app.py --server.address 127.0.0.1
 ```
 
-Open **http://localhost:8501**. Terminal interface: `uv run python -m coreweaving`. [Fresh setup of final local source](results/final-local-setup.json) · [Earlier public clone check](results/fresh-setup-final.json)
+Open **http://localhost:8501**. Terminal interface: `uv run python -m coreweaving`. [Fresh local setup and final code check](results/final-setup-preset-fixes.json) · [Earlier public clone check](results/fresh-setup-final.json)
 
 Questions, answers, evidence and executed snippets are traced to your project. **This demo's project is public; use public examples.** The app displays this before input.
 
@@ -58,11 +58,16 @@ Sonnet 5.5 chooses tools in a direct Python loop and performs a separate verific
 | [corpus.py](src/coreweaving/corpus.py) | Search, passage evidence and source identity. |
 | [llm.py](src/coreweaving/llm.py) | Anthropic requests, usage and Weave model spans. |
 | [evaluate.py](src/coreweaving/evaluate.py) | `weave.Evaluation`, assertion judge and saved results. |
-| [app.py](app.py) | Streamlit chat, background work, evidence and review library. |
+| [app.py](app.py) | Streamlit chat, background work and separate answer inspection. |
+| [config.py](src/coreweaving/config.py) / [sandbox.py](src/coreweaving/sandbox.py) | Configuration, credential masking and bounded offline execution. |
+| [metrics.py](src/coreweaving/metrics.py) / [library.py](src/coreweaving/library.py) | All-call usage accounting and persistent review records. |
+| [signals.py](src/coreweaving/signals.py) | Configure the online monitor and inspect its feedback. |
 
-Scripts support setup and recorded experiments; they do not add runtime agent tools. The agent has 10 planning calls, 18 tool calls and two repair opportunities. Python runs in a non-root, offline container without host mounts or credentials. There is no general shell or account-administration tool. [Behavior contract](docs/BEHAVIOR_CONTRACT.md)
+Scripts support setup and recorded experiments; they do not add runtime agent tools. The agent has 10 planning calls, 18 tool calls and two repair opportunities. In default support mode, an exhausted attempt can make one final strict check of up to four supported documentation facts. A passing recovery is labeled **partial**, never a completed task; a failed recheck withholds the text. Coverage mode does not use this recovery. Python runs in a non-root, offline container without host mounts or credentials. There is no general shell or account-administration tool. [Behavior contract](docs/BEHAVIOR_CONTRACT.md)
 
 **Corpus versus live site:** retrieval uses 351 downloaded pages with structured passages and content hashes, keeping comparisons reproducible. It does not browse live during a turn. Official citation links let readers check current guidance. Locked restoration rejects changed content; `--refresh` accepts a new snapshot for reevaluation. Model calls and tracing still need the network.
+
+The workflow follows simple tool loops and focused evidence handling ([agent patterns](https://www.anthropic.com/research/building-effective-agents), [context engineering](https://www.anthropic.com/research/effective-context-engineering-for-ai-agents)). Our browser tests exposed citation parsing, evidence handoff and inconsistent verification; the [behavior contract](docs/BEHAVIOR_CONTRACT.md) maps those findings to fixes and tests.
 
 Completed answers are saved before UI rendering. The local SQLite library retains answers, context and separate human reviews; entries start unreviewed and never become factual retrieval input automatically. New conversation clears working context, not saved answers or traces.
 
@@ -100,7 +105,13 @@ All 36 case-runs cost an estimated **$9.6452**. Coverage added work and refused 
 
 Estimates include returned planning, verification, repair and judge usage; they exclude Signals, hosting, taxes and unreturned charges. Time excludes judging. Budgets bound these estimates, not account bills.
 
-The final correction pass has **174 passing local tests** and clean Ruff checks across source, app, tests and scripts. It adds persistence before rendering, credential masking, a shared citation contract, separate checks for research statements and cached-input trace normalization. A live two-turn check on source `c7ca9220` saved and displayed each answer once while navigating away during research; both source checks passed, with no browser errors or mobile page overflow. All 13 model spans matched the **$0.253286** estimate; the synthetic credential was absent from public trace payloads. [Browser receipt](results/ui-recovery-v1/browser.json) · [Backend verification](results/ui-recovery-v1/backend.json)
+**Local checks: 196 tests pass; Ruff is clean.** Browser testing exercised all three presets, three contextual follow-ups, ambiguity, a false API premise, real offline execution and the inspection window. The first repaired eight-question run met 23/24 manual checks. A subsequent prompt change regressed the overview and a code example, so it was reverted. Original answers and failures remain recorded.
+
+The final targeted run delivered both overview and tracing answers in 36.22s and 19.94s, for **$0.2517**. It met 5/6 manual checks: the overview still omitted when live monitoring runs. A separate real recovery check confirmed four supported points from a previously failed answer for $0.0300. All preset checks and that replay together cost **$2.8676**, excluding Signals. [Browser checks and limitations](results/preset-check-summary.json) · [Final backend readback](results/preset-check-v4/backend.json) · [Recovery evidence](results/recovery-check-v1/receipt.json)
+
+The final read-only browser check preserves the selected saved answer and opens its analysis window on desktop and mobile. [UI check](results/final-readonly-ui.json)
+
+A security/navigation check also confirmed one saved answer per submission, matching trace cost and no synthetic credential in public trace payloads. [Receipt](results/ui-recovery-v1/backend.json)
 
 ```bash
 # Paid model calls; use a new run name.
@@ -111,8 +122,8 @@ uv run ruff check src app.py tests scripts
 
 ## Known limits
 
-1. **Evaluation scope:** six selected tasks and a same-family judge cannot establish general or causal superiority. Reviews identified an overly narrow API assertion and an inherited normative caveat. One Signal flag does not establish monitoring accuracy. The verifier may overqualify valid combinations of documented APIs.
-2. **Final-source coverage:** the 11/13 run predates the last app/security fixes. Local tests and the live functional check do not replace another answer-quality evaluation.
+1. **Evaluation scope:** six selected tasks and a same-family judge cannot establish general or causal superiority. Reviews identified an overly narrow API assertion and an inherited normative caveat. One Signal flag does not establish monitoring accuracy. The overview can overqualify relationships, and illustrative SDK code needs review; one experimental response omitted assistant history despite passing its verifier.
+2. **Final-source coverage:** the 11/13 run predates the later app fixes. The final two-question UI check and recovery replay used source `1b981419`; later tested changes reject empty recovery verdicts and keep saved-answer selection stable. There is no full regression on final source `a4b6f4d3`.
 3. **Freshness:** the downloaded Python SDK reference identifies 0.53.1; runtime is pinned to 0.54.0. The sidebar exposes this mismatch. That reference version does not date every guide, and API compatibility is not automatically validated.
 4. **Privacy:** configured secrets and common credential formats are masked before model requests, traces, history, SQLite and exports. This is not general PII detection; encoded or unfamiliar secrets may escape it.
 5. **Process lifetime:** background jobs and working conversation memory are in process. A restart can lose unfinished work; completed library records persist. The session source ledger is not yet size-limited.
@@ -123,4 +134,4 @@ Ask a question, change an assumption, inspect sources/cost, then open its trace 
 
 Work expanded beyond the brief's approximately three hours; the [build log](docs/AI_BUILD_LOG.md) records dated milestones. The requested cost/memory features, library and artifacts remain. Voice, adaptive layouts, routing and graphs are [future ideas](research.html).
 
-Further work, if separately chosen: check API existence against the pinned SDK, improve retrieval where failures justify it, connect deliberate reviews to Weave feedback, and test a different judge family and larger trials. No new feature or paid experiment is part of this correction pass.
+Further work, if separately chosen: check API existence against the pinned SDK, improve retrieval where failures justify it, connect deliberate reviews to Weave feedback, and test a different judge family and larger trials. Voice, specialist routing and graph retrieval remain future work.

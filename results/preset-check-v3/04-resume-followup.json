@@ -1,0 +1,1970 @@
+{
+  "answer_id": "83b8516a-5d00-43b0-814c-e05d953b07c2",
+  "question": "My app resumes an existing chat on a later HTTP request. What should I preserve so the next turn belongs to the same conversation?",
+  "source_ids": [
+    "S7",
+    "S8",
+    "S9",
+    "S10"
+  ],
+  "citation_contract_version": 2,
+  "conversation_context": [
+    {
+      "role": "user",
+      "content": "How do I trace a custom multi-turn agent in Python?"
+    },
+    {
+      "role": "assistant",
+      "content": "Use the Weave agent tracing helpers. Wrap the whole session in `weave.start_conversation()`, each user exchange in `weave.start_turn()`, and the model and tool calls inside each turn in `weave.start_llm()` and `weave.start_tool()` [S5]. I haven't run this code. It's adapted from the docs' quickstart.\n\n```python\nimport weave\nweave.init(\"TEAM/PROJECT\")\n\ndef run_turn(history, user_message):\n    history.append({\"role\": \"user\", \"content\": user_message})\n    with weave.start_turn(user_message=user_message, model=\"gpt-4o-mini\"):\n        with weave.start_llm(model=\"gpt-4o-mini\", provider_name=\"openai\") as llm:\n            answer = call_your_model(history)      # your code\n            llm.output(answer)\n        # for tool calls:\n        # with weave.start_tool(name=..., arguments=..., tool_call_id=...) as tool:\n        #     tool.result = run_tool(...)\n        return answer\n\nwith weave.start_conversation(agent_name=\"my-agent\"):\n    history = []\n    for q in [\"First question\", \"Follow-up\"]:\n        run_turn(history, q)\n```\n\n- **Setup:** Install `weave`, `openai` and `requests` (the quickstart's packages) [S6]. Call `weave.init(\"TEAM/PROJECT\")`. It authenticates with Weights & Biases and configures the OpenTelemetry (OTel) exporter that sends agent spans to the **Agents** view [S3].\n- **Nesting:** In the quickstart, each turn opens a `chat` span for the LLM call. If the model requests a tool, an `execute_tool` span wraps the tool call. A second `chat` span then produces the final answer [S5].\n- **Usage and cost:** Inside an LLM span, `llm.record(usage=weave.Usage(...), response_id=..., response_model=...)` sets token usage, the priced model, and the response ID in one call [S5].\n\nThe docs say Weave is built on OTel. Each turn, LLM call and tool call emits a span tagged with GenAI attributes such as `gen_ai.agent.name` and `gen_ai.conversation.id` [S2]. Traces appear in the project's **Agents** tab, with a multi-turn timeline of nested tool calls, token usage and feedback [S2].\n\nIf you use `@weave.op` to trace individual functions, the docs point to a different guide, \"Trace LLM applications\" [S2]. If your agent already uses an SDK such as the Claude Agent SDK or Codex, the docs suggest an integration instead [S1].\n\nI only read the quickstart's example and the overview page. I didn't read the reference sections on the manual start/end pattern or the semantic conventions."
+    }
+  ],
+  "answer": "Preserve the `conversation_id` and pass it to `weave.start_conversation()` on every request. The docs say the ID must be stable for the life of the conversation, and reusing it adds new turns to the existing conversation. If you omit it, the SDK generates a new UUID, so a later request would start a different conversation [S7].\n\n```python\n# Request 1: let the SDK generate an ID, then save it with your chat record.\nwith weave.start_conversation(agent_name=\"my-agent\") as conversation:\n    chat.weave_conversation_id = conversation.conversation_id\n    ...  # run turns\n\n# Later request: reuse the saved ID.\nwith weave.start_conversation(\n    agent_name=\"my-agent\",\n    conversation_id=chat.weave_conversation_id,\n) as conversation:\n    with conversation.start_turn(user_message=msg):\n        ...\n```\n\nI haven't run this code. It combines the documented `start_conversation(conversation_id=...)` parameter [S7], the quickstart's `with ... as conversation` and `conversation.conversation_id` usage [S9], and the instance-method form `conversation.start_turn(...)` [S10]. `chat.weave_conversation_id` is a placeholder for wherever your app stores chat state.\n\n- **Persist the ID yourself.** The docs don't say where to keep it between HTTP requests, so that choice is yours. I didn't find documentation on whether an arbitrary existing chat ID is accepted as `conversation_id`. The docs require only that it be stable [S7]. Saving the generated ID is the safer route.\n- **Make a conversation active before starting a turn.** `weave.start_turn()` takes the conversation ID from the active conversation in context. If none is active, the turn has no `conversation_id` and isn't grouped with other turns [S10]. The active conversation is stored in a Python `ContextVar` [S7]. I'd treat each HTTP request as needing its own `start_conversation(...)` call, but that is my inference, not something the docs state.\n- **Caveat:** If you open and close spans in different functions, call `.end()` on every object you create so the spans close and flush [S8].\n\nI didn't find documentation on concurrent turns that arrive for the same conversation, or on whether changing `agent_name` between requests affects grouping.",
+  "kind": "answer",
+  "verification": {
+    "passed": true,
+    "claims": [
+      {
+        "text": "Preserve the conversation_id and pass it to start_conversation() on each request; it must be stable, reuse adds turns, omitting generates a UUID so a later request would start a different conversation.",
+        "kind": "product",
+        "source_ids": [
+          "S7"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "Code combines documented conversation_id parameter, the `with ... as conversation` and conversation.conversation_id usage from the quickstart, and instance-method conversation.start_turn; not run.",
+        "kind": "product",
+        "source_ids": [
+          "S7",
+          "S9",
+          "S10"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "weave.start_turn() resolves the active conversation from context; with none active the turn has no conversation_id and isn't grouped. The active conversation is stored in a ContextVar.",
+        "kind": "product",
+        "source_ids": [
+          "S10",
+          "S7"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "When opening and closing spans in different functions, call .end() on every object created so spans close and flush.",
+        "kind": "product",
+        "source_ids": [
+          "S8"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "Docs don't say where to persist the ID, whether an arbitrary chat ID is accepted, or about concurrent turns/agent_name changes; per-request start_conversation is flagged as inference.",
+        "kind": "research_process",
+        "source_ids": [
+          "S7"
+        ],
+        "status": "supported",
+        "supported": true
+      }
+    ],
+    "issues": [],
+    "coverage": [],
+    "mode": "support",
+    "status": "passed"
+  },
+  "verification_attempts": [
+    {
+      "candidate": {
+        "source_ids": [
+          "S7",
+          "S8"
+        ],
+        "answer": "Preserve the `conversation_id` and pass it to `weave.start_conversation()` on every request. The docs say the ID must be stable for the life of the conversation, and reusing it adds new turns to the existing conversation. If you omit it, the SDK generates a new UUID, so a later request would start a different conversation [S7].\n\n```python\n# Request 1: let the SDK generate an ID, then save it with your chat record.\nwith weave.start_conversation(agent_name=\"my-agent\") as conv:\n    chat.weave_conversation_id = conv.conversation_id\n    ...  # start_turn(...), etc.\n\n# Later request: reuse the saved ID.\nwith weave.start_conversation(\n    agent_name=\"my-agent\",\n    conversation_id=chat.weave_conversation_id,\n):\n    with weave.start_turn(user_message=msg):\n        ...\n```\n\nI haven't run this code. It's adapted from the documented `start_conversation` signature and the `conversation.conversation_id` attribute shown in the quickstart [S7]. `chat.weave_conversation_id` is a placeholder for wherever your app stores chat state.\n\n- **Store the ID yourself.** The docs describe the ID and its reuse. They don't say where to keep it between HTTP requests, so persisting it in your chat record or session is your app's job. Alternatively, you can use your own existing chat ID as `conversation_id`. This works if it's a stable string, but the docs don't say so explicitly.\n- **Open a fresh conversation context per request.** The active conversation lives in a Python `ContextVar`, so code in the same async context can retrieve it [S7]. Don't count on that context lasting across separate HTTP requests. I didn't find documentation on carrying it over.\n- **Keep `agent_name` the same.** It identifies the agent in the UI, and omitting it means the conversation isn't grouped under a named agent [S7].\n- **Manual lifecycle:** If you open and close spans in different functions, you must call `.end()` on every object you create so the spans close and flush [S8].\n\nI didn't find documentation on resuming when the first request's conversation is still open. I also found nothing on how Weave orders turns that arrive concurrently.",
+        "kind": "answer"
+      },
+      "passed": false,
+      "claims": [
+        {
+          "text": "Preserve the conversation_id and pass it to start_conversation() on every request; ID must be stable, reuse adds turns to existing conversation; omitting generates a new UUID.",
+          "kind": "product",
+          "source_ids": [
+            "S7"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "A later request that omits the ID would start a different conversation.",
+          "kind": "product",
+          "source_ids": [
+            "S7"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Code example: `with weave.start_conversation(...) as conv:` and `conv.conversation_id` attribute; start_turn(user_message=msg) as context manager.",
+          "kind": "product",
+          "source_ids": [
+            "S7"
+          ],
+          "status": "partial",
+          "supported": false
+        },
+        {
+          "text": "The draft says the `conversation.conversation_id` attribute is shown in the quickstart [S7].",
+          "kind": "product",
+          "source_ids": [
+            "S7"
+          ],
+          "status": "unsupported",
+          "supported": false
+        },
+        {
+          "text": "Docs don't say where to keep the ID between HTTP requests; persisting is the app's job; you could use your own chat ID as conversation_id if a stable string.",
+          "kind": "product",
+          "source_ids": [
+            "S7"
+          ],
+          "status": "partial",
+          "supported": false
+        },
+        {
+          "text": "Active conversation lives in a Python ContextVar so code in same async context can retrieve it.",
+          "kind": "product",
+          "source_ids": [
+            "S7"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Open a fresh conversation context per request; don't count on context lasting across separate HTTP requests.",
+          "kind": "product",
+          "source_ids": [
+            "S7"
+          ],
+          "status": "partial",
+          "supported": false
+        },
+        {
+          "text": "Keep agent_name the same; it identifies the agent in the UI, omitting means not grouped under a named agent.",
+          "kind": "product",
+          "source_ids": [
+            "S7"
+          ],
+          "status": "partial",
+          "supported": false
+        },
+        {
+          "text": "If you open and close spans in different functions, you must call .end() on every object you create so spans close and flush.",
+          "kind": "product",
+          "source_ids": [
+            "S8"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "I didn't find documentation on resuming when the first request's conversation is still open, or on concurrent turn ordering.",
+          "kind": "research_process",
+          "source_ids": [],
+          "status": "supported",
+          "supported": true
+        }
+      ],
+      "issues": [
+        "The draft attributes the `conversation.conversation_id` attribute to \"the quickstart\" [S7]. The S7 passage doesn't show that attribute or a quickstart. It shows only the `start_conversation` signature, so that attribution is unsupported. The `as conv` / `conv.conversation_id` usage is also unsupported: S7 shows start_conversation returning a `conversation` object, but it doesn't show it used as a context manager or exposing `.conversation_id`.",
+        "The code example uses `with weave.start_turn(user_message=msg)` as a standalone context manager. S7 and S8 support `conversation.start_turn(...)` and the earlier dialogue's `weave.start_turn`, but the draft doesn't cite that.",
+        "\"Keep agent_name the same\" is a recommendation that goes beyond S7. S7 says only that omitting agent_name leaves the conversation without a named agent. It doesn't say that changing the name across requests affects resumption. Present it as a suggestion, not a requirement.",
+        "\"Open a fresh conversation context per request\" is inferred from the ContextVar passage. The docs don't say a fresh context is required. The draft partly hedges this, but it should label it clearly as an inference.",
+        "The draft says your own chat ID \"works if it's a stable string\". S7 says only that the passed ID must be stable. It doesn't say that string IDs are accepted. The draft admits the docs don't say so explicitly, but it still presents this as likely to work.",
+        "Revise partial or unsupported material claims."
+      ],
+      "coverage": [],
+      "mode": "support",
+      "status": "failed"
+    },
+    {
+      "candidate": {
+        "source_ids": [
+          "S7",
+          "S8",
+          "S9",
+          "S10"
+        ],
+        "answer": "Preserve the `conversation_id` and pass it to `weave.start_conversation()` on every request. The docs say the ID must be stable for the life of the conversation, and reusing it adds new turns to the existing conversation. If you omit it, the SDK generates a new UUID, so a later request would start a different conversation [S7].\n\n```python\n# Request 1: let the SDK generate an ID, then save it with your chat record.\nwith weave.start_conversation(agent_name=\"my-agent\") as conversation:\n    chat.weave_conversation_id = conversation.conversation_id\n    ...  # run turns\n\n# Later request: reuse the saved ID.\nwith weave.start_conversation(\n    agent_name=\"my-agent\",\n    conversation_id=chat.weave_conversation_id,\n) as conversation:\n    with conversation.start_turn(user_message=msg):\n        ...\n```\n\nI haven't run this code. It combines the documented `start_conversation(conversation_id=...)` parameter [S7], the quickstart's `with ... as conversation` and `conversation.conversation_id` usage [S9], and the instance-method form `conversation.start_turn(...)` [S10]. `chat.weave_conversation_id` is a placeholder for wherever your app stores chat state.\n\n- **Persist the ID yourself.** The docs don't say where to keep it between HTTP requests, so that choice is yours. I didn't find documentation on whether an arbitrary existing chat ID is accepted as `conversation_id`. The docs require only that it be stable [S7]. Saving the generated ID is the safer route.\n- **Make a conversation active before starting a turn.** `weave.start_turn()` takes the conversation ID from the active conversation in context. If none is active, the turn has no `conversation_id` and isn't grouped with other turns [S10]. The active conversation is stored in a Python `ContextVar` [S7]. I'd treat each HTTP request as needing its own `start_conversation(...)` call, but that is my inference, not something the docs state.\n- **Caveat:** If you open and close spans in different functions, call `.end()` on every object you create so the spans close and flush [S8].\n\nI didn't find documentation on concurrent turns that arrive for the same conversation, or on whether changing `agent_name` between requests affects grouping.",
+        "kind": "answer"
+      },
+      "passed": true,
+      "claims": [
+        {
+          "text": "Preserve the conversation_id and pass it to start_conversation() on each request; it must be stable, reuse adds turns, omitting generates a UUID so a later request would start a different conversation.",
+          "kind": "product",
+          "source_ids": [
+            "S7"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Code combines documented conversation_id parameter, the `with ... as conversation` and conversation.conversation_id usage from the quickstart, and instance-method conversation.start_turn; not run.",
+          "kind": "product",
+          "source_ids": [
+            "S7",
+            "S9",
+            "S10"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "weave.start_turn() resolves the active conversation from context; with none active the turn has no conversation_id and isn't grouped. The active conversation is stored in a ContextVar.",
+          "kind": "product",
+          "source_ids": [
+            "S10",
+            "S7"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "When opening and closing spans in different functions, call .end() on every object created so spans close and flush.",
+          "kind": "product",
+          "source_ids": [
+            "S8"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Docs don't say where to persist the ID, whether an arbitrary chat ID is accepted, or about concurrent turns/agent_name changes; per-request start_conversation is flagged as inference.",
+          "kind": "research_process",
+          "source_ids": [
+            "S7"
+          ],
+          "status": "supported",
+          "supported": true
+        }
+      ],
+      "issues": [],
+      "coverage": [],
+      "mode": "support",
+      "status": "passed"
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "S7",
+      "page_id": "guides/tracking/trace-agents",
+      "section": 4,
+      "title": "Trace your agents",
+      "heading": "Start a conversation",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+      "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+      "text": "### Start a conversation\n\n`start_conversation()` (Python) or `startConversation()` (TypeScript) stamps a `conversation_id` attribute on every child span so that turns are grouped in the Agents tab. If you pass a `conversation_id` / `conversationId`, it must be stable across the lifetime of the conversation. Reuse the same ID to add new turns to an existing conversation. When you omit it, the SDK generates a UUID automatically.\n\nThe active conversation is stored in context (a Python `ContextVar` or Node.js `AsyncLocalStorage`), so any code running in the same async context can retrieve it with `weave.get_current_conversation()` / `weave.getCurrentConversation()` without passing the conversation object explicitly.\n\n**Python**\n\n```python lines theme={\"system\"}\nconversation = weave.start_conversation(\n    agent_name=\"my-agent\",    # Optional: identifies the agent in the UI. Omit it and the conversation isn't grouped under a named agent.\n    conversation_id=\"\",       # Optional: stable ID to group turns; auto-generated when empty.\n    model=\"\",                 # Optional: default model for turns in this conversation.\n    conversation_name=\"\",     # Optional: human-readable label shown in the UI.\n    include_content=True,     # Optional: set False to omit message bodies from spans.\n    continue_parent_trace=False,  # Optional: attach to an existing OTel trace instead of starting a new one.\n)\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',  // Optional: identifies the agent in the UI. Omit it and the conversation isn't grouped under a named agent.\n  conversationId: '',     // Optional: stable ID to group turns, auto-generated when empty.\n  model: '',              // Optional: default model for turns in this conversation.\n});\n```\n\n",
+      "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Trace your agents"
+        },
+        {
+          "section": 1,
+          "heading": "Before you begin"
+        },
+        {
+          "section": 2,
+          "heading": "The agent data model"
+        },
+        {
+          "section": 3,
+          "heading": "Agent tracing APIs"
+        },
+        {
+          "section": 4,
+          "heading": "Start a conversation"
+        },
+        {
+          "section": 5,
+          "heading": "Start a turn"
+        },
+        {
+          "section": 6,
+          "heading": "Start an LLM call"
+        },
+        {
+          "section": 7,
+          "heading": "Start a tool call"
+        },
+        {
+          "section": 8,
+          "heading": "Usage patterns for agent tracing"
+        },
+        {
+          "section": 9,
+          "heading": "Context manager or try-finally pattern"
+        },
+        {
+          "section": 10,
+          "heading": "Manual start and end pattern"
+        },
+        {
+          "section": 11,
+          "heading": "Semantic conventions"
+        },
+        {
+          "section": 12,
+          "heading": "How data appears in the Weights & Biases UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S9",
+      "page_id": "custom-agents-quickstart",
+      "section": 10,
+      "title": "Quickstart: Set up custom agent observability",
+      "heading": "Link to a conversation from your app",
+      "url": "https://docs.coreweave.com/products/wandb/weave/custom-agents-quickstart",
+      "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+      "text": "## Link to a conversation from your app\n\nTo deep-link from your own UI to a conversation in the Weave Agents view, build the URL from your entity, project, and the conversation id. `weave.init()` returns a client that carries `entity` and `project`, and `start_conversation` exposes `conversation_id`.\n\n```python lines Python theme={\"system\"}\nfrom weave.trace.urls import agent_conversation_path\n\nclient = weave.init(f\"{TEAM}/{PROJECT}\")\n\nwith weave.start_conversation(agent_name=\"research-bot\") as conversation:\n    # ... run turns ...\n    url = agent_conversation_path(\n        client.entity, client.project, conversation.conversation_id\n    )\n    print(f\"View this conversation at {url}\")\n```\n\n```plaintext TypeScript lines theme={\"system\"}\nThis feature is not available in TypeScript.\n```\n\n",
+      "page_context": "# Quickstart: Set up custom agent observability\n\n> Trace a multi-turn agent with the Weave SDK. Conversations, turns, LLM calls, and tool calls render in the Agents view of your project.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/get-started/custom-agents.md).\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb) · [GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb)\n\nThe Weave SDK lets you trace agents built with popular SDKs or custom harnesses. This quickstart shows you how to manually integrate Weave into a custom-built multi-turn agent to emit and capture OpenTelemetry spans. For conceptual understanding about Weave for agents, see [Trace your agents](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents.md).\n\nIf you're looking to integrate Weave with SDKs or harnesses such as the Claude Agent SDK or Codex, see [Choose an agent integration](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md). Weave autopatches into several agent-building SDKs and agent harnesses for quick integration.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Quickstart: Set up custom agent observability"
+        },
+        {
+          "section": 1,
+          "heading": "What you'll learn"
+        },
+        {
+          "section": 2,
+          "heading": "How the Weave SDK works with agents"
+        },
+        {
+          "section": 3,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 4,
+          "heading": "Install packages"
+        },
+        {
+          "section": 5,
+          "heading": "Initialize Weave"
+        },
+        {
+          "section": 6,
+          "heading": "Define a tool"
+        },
+        {
+          "section": 7,
+          "heading": "Run a traced multi-turn agent"
+        },
+        {
+          "section": 8,
+          "heading": "Record token usage and cost"
+        },
+        {
+          "section": 9,
+          "heading": "See your agent traces in the Agents view"
+        },
+        {
+          "section": 10,
+          "heading": "Link to a conversation from your app"
+        },
+        {
+          "section": 11,
+          "heading": "Next steps"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S10",
+      "page_id": "guides/tracking/trace-agents",
+      "section": 5,
+      "title": "Trace your agents",
+      "heading": "Start a turn",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+      "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+      "text": "### Start a turn\n\n`start_turn()` (Python) and `startTurn()` (TypeScript) create a new `invoke_agent` span that becomes the root of a new OTel trace. Weave uses this span to represent one complete user-agent exchange in the timeline view.\n\nYou can call it two ways:\n\n* **As a top-level function** (`weave.start_turn(...)` / `weave.startTurn(...)`), shown in the examples below. It resolves the active conversation from context and inherits its conversation ID. If no conversation is active, the turn is created without a `conversation_id` and isn't grouped with other turns.\n* **As an instance method** on a conversation you hold a reference to (`conversation.start_turn(...)` / `conversation.startTurn(...)`). Useful when you have an explicit conversation object in scope, such as inside a context-manager block. The \"Context manager or try-finally pattern\" example below uses this form. See the data-model table above for direct links to the `Conversation`, `Turn`, `LLM`, `Tool`, and `SubAgent` reference pages in both SDKs.\n\n**Python**\n\n```python lines theme={\"system\"}\nturn = weave.start_turn(\n    user_message=\"What is the weather in Tokyo?\",  # The user's input text.\n    agent_name=\"my-agent\",   # Optional: overrides the conversation-level agent name.\n    model=\"gpt-4o\",          # Optional: model used for this turn.\n)\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nconst turn = weave.startTurn({\n  agentName: 'my-agent',  // Optional: overrides the conversation-level agent name.\n  model: 'gpt-4o',        // Optional: model used for this turn.\n});\n```\n\n",
+      "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Trace your agents"
+        },
+        {
+          "section": 1,
+          "heading": "Before you begin"
+        },
+        {
+          "section": 2,
+          "heading": "The agent data model"
+        },
+        {
+          "section": 3,
+          "heading": "Agent tracing APIs"
+        },
+        {
+          "section": 4,
+          "heading": "Start a conversation"
+        },
+        {
+          "section": 5,
+          "heading": "Start a turn"
+        },
+        {
+          "section": 6,
+          "heading": "Start an LLM call"
+        },
+        {
+          "section": 7,
+          "heading": "Start a tool call"
+        },
+        {
+          "section": 8,
+          "heading": "Usage patterns for agent tracing"
+        },
+        {
+          "section": 9,
+          "heading": "Context manager or try-finally pattern"
+        },
+        {
+          "section": 10,
+          "heading": "Manual start and end pattern"
+        },
+        {
+          "section": 11,
+          "heading": "Semantic conventions"
+        },
+        {
+          "section": 12,
+          "heading": "How data appears in the Weights & Biases UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S8",
+      "page_id": "guides/tracking/trace-agents",
+      "section": 10,
+      "title": "Trace your agents",
+      "heading": "Manual start and end pattern",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+      "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+      "text": "### Manual start and end pattern\n\nUse `.end()` explicitly when you can't use `with` blocks or `try/finally`. For example, when you open and close spans in different function calls, or when you manage async lifecycle outside a coroutine. You're responsible for calling `.end()` on every object you create, so that spans close and flush to the collector.\n\n**Python**\n\n```python lines highlight=\"1,2,4,9,15\" theme={\"system\"}\nconversation = weave.start_conversation(agent_name=\"weather-bot\")\nturn = conversation.start_turn(user_message=\"What is the weather?\")\n\nllm = weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\")\nllm.input_messages = [Message(role=\"user\", content=\"What is the weather?\")]\nllm.output(\"Let me check.\")\nllm.usage = Usage(input_tokens=100, output_tokens=20)\n\ntool = weave.start_tool(name=\"get_weather\", arguments='{\"city\": \"Tokyo\"}')\ntool.result = \"24°C, sunny\"\ntool.end()   # end() is idempotent — safe to call more than once.\n\nllm.end()\n\nllm2 = weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\")\nllm2.output(\"It is 24°C and sunny in Tokyo.\")\nllm2.usage = Usage(input_tokens=150, output_tokens=30)\nllm2.end()\n\nturn.end()\nconversation.end()\n```\n\n**TypeScript**\n\n```typescript lines highlight=\"1,2,4,9,15\" twoslash theme={\"system\"}\n// @noErrors\nconst conversation = weave.startConversation({ agentName: 'weather-bot' });\nconst turn = conversation.startTurn({ agentName: 'weather-bot' });\n\nconst llm = weave.startLLM({ model: 'gpt-4o', providerName: 'openai' });\nllm.inputMessages = [{ role: 'user', content: 'What is the weather?' }];\nllm.output('Let me check.');\nllm.usage = { inputTokens: 100, outputTokens: 20 };\n\nconst tool = weave.startTool({ name: 'get_weather', args: '{\"city\": \"Tokyo\"}' });\ntool.result = '24°C, sunny';\ntool.end();  // end() is idempotent: safe to call more than once.\n\nllm.end();\n\nconst llm2 = weave.startLLM({ model: 'gpt-4o', providerName: 'openai' });\nllm2.output('It is 24°C and sunny in Tokyo.');\nllm2.usage = { inputTokens: 150, outputTokens: 30 };\nllm2.end();\n\nturn.end();\nconversation.end();\n```\n\n",
+      "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Trace your agents"
+        },
+        {
+          "section": 1,
+          "heading": "Before you begin"
+        },
+        {
+          "section": 2,
+          "heading": "The agent data model"
+        },
+        {
+          "section": 3,
+          "heading": "Agent tracing APIs"
+        },
+        {
+          "section": 4,
+          "heading": "Start a conversation"
+        },
+        {
+          "section": 5,
+          "heading": "Start a turn"
+        },
+        {
+          "section": 6,
+          "heading": "Start an LLM call"
+        },
+        {
+          "section": 7,
+          "heading": "Start a tool call"
+        },
+        {
+          "section": 8,
+          "heading": "Usage patterns for agent tracing"
+        },
+        {
+          "section": 9,
+          "heading": "Context manager or try-finally pattern"
+        },
+        {
+          "section": 10,
+          "heading": "Manual start and end pattern"
+        },
+        {
+          "section": 11,
+          "heading": "Semantic conventions"
+        },
+        {
+          "section": 12,
+          "heading": "How data appears in the Weights & Biases UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    }
+  ],
+  "all_read_evidence": [
+    {
+      "source_id": "S7",
+      "page_id": "guides/tracking/trace-agents",
+      "section": 4,
+      "title": "Trace your agents",
+      "heading": "Start a conversation",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+      "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+      "text": "### Start a conversation\n\n`start_conversation()` (Python) or `startConversation()` (TypeScript) stamps a `conversation_id` attribute on every child span so that turns are grouped in the Agents tab. If you pass a `conversation_id` / `conversationId`, it must be stable across the lifetime of the conversation. Reuse the same ID to add new turns to an existing conversation. When you omit it, the SDK generates a UUID automatically.\n\nThe active conversation is stored in context (a Python `ContextVar` or Node.js `AsyncLocalStorage`), so any code running in the same async context can retrieve it with `weave.get_current_conversation()` / `weave.getCurrentConversation()` without passing the conversation object explicitly.\n\n**Python**\n\n```python lines theme={\"system\"}\nconversation = weave.start_conversation(\n    agent_name=\"my-agent\",    # Optional: identifies the agent in the UI. Omit it and the conversation isn't grouped under a named agent.\n    conversation_id=\"\",       # Optional: stable ID to group turns; auto-generated when empty.\n    model=\"\",                 # Optional: default model for turns in this conversation.\n    conversation_name=\"\",     # Optional: human-readable label shown in the UI.\n    include_content=True,     # Optional: set False to omit message bodies from spans.\n    continue_parent_trace=False,  # Optional: attach to an existing OTel trace instead of starting a new one.\n)\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',  // Optional: identifies the agent in the UI. Omit it and the conversation isn't grouped under a named agent.\n  conversationId: '',     // Optional: stable ID to group turns, auto-generated when empty.\n  model: '',              // Optional: default model for turns in this conversation.\n});\n```\n\n",
+      "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Trace your agents"
+        },
+        {
+          "section": 1,
+          "heading": "Before you begin"
+        },
+        {
+          "section": 2,
+          "heading": "The agent data model"
+        },
+        {
+          "section": 3,
+          "heading": "Agent tracing APIs"
+        },
+        {
+          "section": 4,
+          "heading": "Start a conversation"
+        },
+        {
+          "section": 5,
+          "heading": "Start a turn"
+        },
+        {
+          "section": 6,
+          "heading": "Start an LLM call"
+        },
+        {
+          "section": 7,
+          "heading": "Start a tool call"
+        },
+        {
+          "section": 8,
+          "heading": "Usage patterns for agent tracing"
+        },
+        {
+          "section": 9,
+          "heading": "Context manager or try-finally pattern"
+        },
+        {
+          "section": 10,
+          "heading": "Manual start and end pattern"
+        },
+        {
+          "section": 11,
+          "heading": "Semantic conventions"
+        },
+        {
+          "section": 12,
+          "heading": "How data appears in the Weights & Biases UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S8",
+      "page_id": "guides/tracking/trace-agents",
+      "section": 10,
+      "title": "Trace your agents",
+      "heading": "Manual start and end pattern",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+      "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+      "text": "### Manual start and end pattern\n\nUse `.end()` explicitly when you can't use `with` blocks or `try/finally`. For example, when you open and close spans in different function calls, or when you manage async lifecycle outside a coroutine. You're responsible for calling `.end()` on every object you create, so that spans close and flush to the collector.\n\n**Python**\n\n```python lines highlight=\"1,2,4,9,15\" theme={\"system\"}\nconversation = weave.start_conversation(agent_name=\"weather-bot\")\nturn = conversation.start_turn(user_message=\"What is the weather?\")\n\nllm = weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\")\nllm.input_messages = [Message(role=\"user\", content=\"What is the weather?\")]\nllm.output(\"Let me check.\")\nllm.usage = Usage(input_tokens=100, output_tokens=20)\n\ntool = weave.start_tool(name=\"get_weather\", arguments='{\"city\": \"Tokyo\"}')\ntool.result = \"24°C, sunny\"\ntool.end()   # end() is idempotent — safe to call more than once.\n\nllm.end()\n\nllm2 = weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\")\nllm2.output(\"It is 24°C and sunny in Tokyo.\")\nllm2.usage = Usage(input_tokens=150, output_tokens=30)\nllm2.end()\n\nturn.end()\nconversation.end()\n```\n\n**TypeScript**\n\n```typescript lines highlight=\"1,2,4,9,15\" twoslash theme={\"system\"}\n// @noErrors\nconst conversation = weave.startConversation({ agentName: 'weather-bot' });\nconst turn = conversation.startTurn({ agentName: 'weather-bot' });\n\nconst llm = weave.startLLM({ model: 'gpt-4o', providerName: 'openai' });\nllm.inputMessages = [{ role: 'user', content: 'What is the weather?' }];\nllm.output('Let me check.');\nllm.usage = { inputTokens: 100, outputTokens: 20 };\n\nconst tool = weave.startTool({ name: 'get_weather', args: '{\"city\": \"Tokyo\"}' });\ntool.result = '24°C, sunny';\ntool.end();  // end() is idempotent: safe to call more than once.\n\nllm.end();\n\nconst llm2 = weave.startLLM({ model: 'gpt-4o', providerName: 'openai' });\nllm2.output('It is 24°C and sunny in Tokyo.');\nllm2.usage = { inputTokens: 150, outputTokens: 30 };\nllm2.end();\n\nturn.end();\nconversation.end();\n```\n\n",
+      "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Trace your agents"
+        },
+        {
+          "section": 1,
+          "heading": "Before you begin"
+        },
+        {
+          "section": 2,
+          "heading": "The agent data model"
+        },
+        {
+          "section": 3,
+          "heading": "Agent tracing APIs"
+        },
+        {
+          "section": 4,
+          "heading": "Start a conversation"
+        },
+        {
+          "section": 5,
+          "heading": "Start a turn"
+        },
+        {
+          "section": 6,
+          "heading": "Start an LLM call"
+        },
+        {
+          "section": 7,
+          "heading": "Start a tool call"
+        },
+        {
+          "section": 8,
+          "heading": "Usage patterns for agent tracing"
+        },
+        {
+          "section": 9,
+          "heading": "Context manager or try-finally pattern"
+        },
+        {
+          "section": 10,
+          "heading": "Manual start and end pattern"
+        },
+        {
+          "section": 11,
+          "heading": "Semantic conventions"
+        },
+        {
+          "section": 12,
+          "heading": "How data appears in the Weights & Biases UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S9",
+      "page_id": "custom-agents-quickstart",
+      "section": 10,
+      "title": "Quickstart: Set up custom agent observability",
+      "heading": "Link to a conversation from your app",
+      "url": "https://docs.coreweave.com/products/wandb/weave/custom-agents-quickstart",
+      "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+      "text": "## Link to a conversation from your app\n\nTo deep-link from your own UI to a conversation in the Weave Agents view, build the URL from your entity, project, and the conversation id. `weave.init()` returns a client that carries `entity` and `project`, and `start_conversation` exposes `conversation_id`.\n\n```python lines Python theme={\"system\"}\nfrom weave.trace.urls import agent_conversation_path\n\nclient = weave.init(f\"{TEAM}/{PROJECT}\")\n\nwith weave.start_conversation(agent_name=\"research-bot\") as conversation:\n    # ... run turns ...\n    url = agent_conversation_path(\n        client.entity, client.project, conversation.conversation_id\n    )\n    print(f\"View this conversation at {url}\")\n```\n\n```plaintext TypeScript lines theme={\"system\"}\nThis feature is not available in TypeScript.\n```\n\n",
+      "page_context": "# Quickstart: Set up custom agent observability\n\n> Trace a multi-turn agent with the Weave SDK. Conversations, turns, LLM calls, and tool calls render in the Agents view of your project.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/get-started/custom-agents.md).\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb) · [GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb)\n\nThe Weave SDK lets you trace agents built with popular SDKs or custom harnesses. This quickstart shows you how to manually integrate Weave into a custom-built multi-turn agent to emit and capture OpenTelemetry spans. For conceptual understanding about Weave for agents, see [Trace your agents](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents.md).\n\nIf you're looking to integrate Weave with SDKs or harnesses such as the Claude Agent SDK or Codex, see [Choose an agent integration](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md). Weave autopatches into several agent-building SDKs and agent harnesses for quick integration.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Quickstart: Set up custom agent observability"
+        },
+        {
+          "section": 1,
+          "heading": "What you'll learn"
+        },
+        {
+          "section": 2,
+          "heading": "How the Weave SDK works with agents"
+        },
+        {
+          "section": 3,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 4,
+          "heading": "Install packages"
+        },
+        {
+          "section": 5,
+          "heading": "Initialize Weave"
+        },
+        {
+          "section": 6,
+          "heading": "Define a tool"
+        },
+        {
+          "section": 7,
+          "heading": "Run a traced multi-turn agent"
+        },
+        {
+          "section": 8,
+          "heading": "Record token usage and cost"
+        },
+        {
+          "section": 9,
+          "heading": "See your agent traces in the Agents view"
+        },
+        {
+          "section": 10,
+          "heading": "Link to a conversation from your app"
+        },
+        {
+          "section": 11,
+          "heading": "Next steps"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S10",
+      "page_id": "guides/tracking/trace-agents",
+      "section": 5,
+      "title": "Trace your agents",
+      "heading": "Start a turn",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+      "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+      "text": "### Start a turn\n\n`start_turn()` (Python) and `startTurn()` (TypeScript) create a new `invoke_agent` span that becomes the root of a new OTel trace. Weave uses this span to represent one complete user-agent exchange in the timeline view.\n\nYou can call it two ways:\n\n* **As a top-level function** (`weave.start_turn(...)` / `weave.startTurn(...)`), shown in the examples below. It resolves the active conversation from context and inherits its conversation ID. If no conversation is active, the turn is created without a `conversation_id` and isn't grouped with other turns.\n* **As an instance method** on a conversation you hold a reference to (`conversation.start_turn(...)` / `conversation.startTurn(...)`). Useful when you have an explicit conversation object in scope, such as inside a context-manager block. The \"Context manager or try-finally pattern\" example below uses this form. See the data-model table above for direct links to the `Conversation`, `Turn`, `LLM`, `Tool`, and `SubAgent` reference pages in both SDKs.\n\n**Python**\n\n```python lines theme={\"system\"}\nturn = weave.start_turn(\n    user_message=\"What is the weather in Tokyo?\",  # The user's input text.\n    agent_name=\"my-agent\",   # Optional: overrides the conversation-level agent name.\n    model=\"gpt-4o\",          # Optional: model used for this turn.\n)\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nconst turn = weave.startTurn({\n  agentName: 'my-agent',  // Optional: overrides the conversation-level agent name.\n  model: 'gpt-4o',        // Optional: model used for this turn.\n});\n```\n\n",
+      "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Trace your agents"
+        },
+        {
+          "section": 1,
+          "heading": "Before you begin"
+        },
+        {
+          "section": 2,
+          "heading": "The agent data model"
+        },
+        {
+          "section": 3,
+          "heading": "Agent tracing APIs"
+        },
+        {
+          "section": 4,
+          "heading": "Start a conversation"
+        },
+        {
+          "section": 5,
+          "heading": "Start a turn"
+        },
+        {
+          "section": 6,
+          "heading": "Start an LLM call"
+        },
+        {
+          "section": 7,
+          "heading": "Start a tool call"
+        },
+        {
+          "section": 8,
+          "heading": "Usage patterns for agent tracing"
+        },
+        {
+          "section": 9,
+          "heading": "Context manager or try-finally pattern"
+        },
+        {
+          "section": 10,
+          "heading": "Manual start and end pattern"
+        },
+        {
+          "section": 11,
+          "heading": "Semantic conventions"
+        },
+        {
+          "section": 12,
+          "heading": "How data appears in the Weights & Biases UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S5",
+      "page_id": "custom-agents-quickstart",
+      "section": 7,
+      "title": "Quickstart: Set up custom agent observability",
+      "heading": "Run a traced multi-turn agent",
+      "url": "https://docs.coreweave.com/products/wandb/weave/custom-agents-quickstart",
+      "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+      "text": "## Run a traced multi-turn agent\n\nWith the tool and Weave initialization in place, the next step combines them into a complete agent loop. This loop shows how conversations, turns, LLM calls, and tool calls nest together.\n\nThe following example runs three turns in a single conversation. Each turn:\n\n1. Opens a `chat` span and lets the LLM choose whether to call the tool.\n2. If the LLM requests a tool, opens an `execute_tool` span around the call and feeds the result back to the LLM.\n3. Opens a second `chat` span to produce the final answer.\n\n```python lines highlight=\"10,12,19,38,51,55,69\" Python theme={\"system\"}\nimport weave\nfrom openai import OpenAI\n\nopenai_client = OpenAI()\nMODEL = \"gpt-4o-mini\"\n\ndef run_turn(history, user_message):\n    history.append({\"role\": \"user\", \"content\": user_message})\n\n    with weave.start_turn(user_message=user_message, model=MODEL):\n        # LLM call 1: the model might decide to use a tool.\n        with weave.start_llm(model=MODEL, provider_name=\"openai\") as llm:\n            resp = openai_client.chat.completions.create(\n                model=MODEL, messages=history, tools=[wikipedia_tool_schema],\n            )\n            msg = resp.choices[0].message\n            llm.output(msg.content or \"\")\n            # record() sets usage, the priced model, and response id in one call.\n            llm.record(\n                usage=weave.Usage(\n                    input_tokens=resp.usage.prompt_tokens,\n                    output_tokens=resp.usage.completion_tokens,\n                    cache_read_input_tokens=getattr(\n                        resp.usage.prompt_tokens_details, \"cached_tokens\", 0\n                    ),\n                ),\n                response_id=resp.id,\n                response_model=resp.model,\n            )\n            history.append(msg.model_dump(exclude_none=True))\n\n        # If no tool was requested, the first LLM response is the answer.\n        if not msg.tool_calls:\n            return msg.content\n\n        # Execute each requested tool call.\n        for tc in msg.tool_calls:\n            with weave.start_tool(\n                name=tc.function.name,\n                arguments=tc.function.arguments,\n                tool_call_id=tc.id,\n            ) as tool:\n                tool.result = wikipedia_search(**json.loads(tc.function.arguments))\n                history.append({\n                    \"role\": \"tool\",\n                    \"tool_call_id\": tc.id,\n                    \"content\": tool.result,\n                })\n\n        # LLM call 2: synthesize the final answer.\n        with weave.start_llm(model=MODEL, provider_name=\"openai\") as llm:\n            resp = openai_client.chat.completions.create(model=MODEL, messages=history)\n            msg = resp.choices[0].message\n            llm.output(msg.content)\n            llm.record(\n                usage=weave.Usage(\n                    input_tokens=resp.usage.prompt_tokens,\n                    output_tokens=resp.usage.completion_tokens,\n                    cache_read_input_tokens=getattr(\n                        resp.usage.prompt_tokens_details, \"cached_tokens\", 0\n                    ),\n                ),\n                response_id=resp.id,\n                response_model=resp.model,\n            )\n            history.append({\"role\": \"assistant\", \"content\": msg.content})\n            return msg.content\n\nwith weave.start_conversation(agent_name=\"research-bot\") as conversation:\n    history = []\n    for question in [\n        \"Who founded Anthropic?\",\n        \"What is Claude (the AI assistant)?\",\n        \"Summarize what we discussed in one sentence.\",\n    ]:\n        print(f\"USER: {question}\")\n        print(f\"AGENT: {run_turn(history, question)}\\n\")\n```\n\n```typescript lines highlight=\"11,14,25,47,62,70,89\" theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\nimport OpenAI from 'openai';\n\nconst openaiClient = new OpenAI();\nconst MODEL = 'gpt-4o-mini';\n\n// history is a list of OpenAI chat messages; typed loosely for brevity.\nasync function runTurn(history: any[], userMessage: string): Promise<string | null> {\n  history.push({ role: 'user', content: userMessage });\n\n  const turn = weave.startTurn({ model: MODEL });\n  try {\n    // LLM call 1: the model might decide to use a tool.\n    const llm1 = weave.startLLM({ model: MODEL, providerName: 'openai' });\n    let msg;\n    try {\n      const resp = await openaiClient.chat.completions.create({\n        model: MODEL,\n        messages: history,\n        tools: [wikipediaToolSchema],\n      });\n      msg = resp.choices[0].message;\n      llm1.output(msg.content ?? '');\n      // record() sets usage, the priced model, and response id in one call.\n      llm1.record({\n        usage: {\n          inputTokens: resp.usage?.prompt_tokens,\n          outputTokens: resp.usage?.completion_tokens,\n          cacheReadInputTokens: resp.usage?.prompt_tokens_details?.cached_tokens,\n        },\n        responseId: resp.id,\n        responseModel: resp.model,\n      });\n      history.push(msg);\n    } finally {\n      llm1.end();\n    }\n\n    // If no tool was requested, the first LLM response is the answer.\n    if (!msg.tool_calls?.length) {\n      return msg.content ?? null;\n    }\n\n    // Execute each requested tool call.\n    for (const tc of msg.tool_calls) {\n      if (tc.type !== 'function') continue;\n      const tool = weave.startTool({\n        name: tc.function.name,\n        args: tc.function.arguments,\n        toolCallId: tc.id,\n      });\n      try {\n        const { query } = JSON.parse(tc.function.arguments);\n        tool.result = await wikipediaSearch(query);\n        history.push({ role: 'tool', tool_call_id: tc.id, content: tool.result });\n      } finally {\n        tool.end();\n      }\n    }\n\n    // LLM call 2: synthesize the final answer.\n    const llm2 = weave.startLLM({ model: MODEL, providerName: 'openai' });\n    try {\n      const resp = await openaiClient.chat.completions.create({\n        model: MODEL,\n        messages: history,\n      });\n      const msg2 = resp.choices[0].message;\n      llm2.output(msg2.content ?? '');\n      llm2.record({\n        usage: {\n          inputTokens: resp.usage?.prompt_tokens,\n          outputTokens: resp.usage?.completion_tokens,\n          cacheReadInputTokens: resp.usage?.prompt_tokens_details?.cached_tokens,\n        },\n        responseId: resp.id,\n        responseModel: resp.model,\n      });\n      history.push({ role: 'assistant', content: msg2.content });\n      return msg2.content ?? null;\n    } finally {\n      llm2.end();\n    }\n  } finally {\n    turn.end();\n  }\n}\n\nconst conversation = weave.startConversation({ agentName: 'research-bot' });\ntry {\n  const history: any[] = [];\n  for (const question of [\n    'Who founded Anthropic?',\n    'What is Claude (the AI assistant)?',\n    'Summarize what we discussed in one sentence.',\n  ]) {\n    console.log(`USER: ${question}`);\n    console.log(`AGENT: ${await runTurn(history, question)}\\n`);\n  }\n} finally {\n  conversation.end();\n}\n```\n\n",
+      "page_context": "# Quickstart: Set up custom agent observability\n\n> Trace a multi-turn agent with the Weave SDK. Conversations, turns, LLM calls, and tool calls render in the Agents view of your project.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/get-started/custom-agents.md).\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb) · [GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb)\n\nThe Weave SDK lets you trace agents built with popular SDKs or custom harnesses. This quickstart shows you how to manually integrate Weave into a custom-built multi-turn agent to emit and capture OpenTelemetry spans. For conceptual understanding about Weave for agents, see [Trace your agents](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents.md).\n\nIf you're looking to integrate Weave with SDKs or harnesses such as the Claude Agent SDK or Codex, see [Choose an agent integration](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md). Weave autopatches into several agent-building SDKs and agent harnesses for quick integration.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Quickstart: Set up custom agent observability"
+        },
+        {
+          "section": 1,
+          "heading": "What you'll learn"
+        },
+        {
+          "section": 2,
+          "heading": "How the Weave SDK works with agents"
+        },
+        {
+          "section": 3,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 4,
+          "heading": "Install packages"
+        },
+        {
+          "section": 5,
+          "heading": "Initialize Weave"
+        },
+        {
+          "section": 6,
+          "heading": "Define a tool"
+        },
+        {
+          "section": 7,
+          "heading": "Run a traced multi-turn agent"
+        },
+        {
+          "section": 8,
+          "heading": "Record token usage and cost"
+        },
+        {
+          "section": 9,
+          "heading": "See your agent traces in the Agents view"
+        },
+        {
+          "section": 10,
+          "heading": "Link to a conversation from your app"
+        },
+        {
+          "section": 11,
+          "heading": "Next steps"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S6",
+      "page_id": "custom-agents-quickstart",
+      "section": 4,
+      "title": "Quickstart: Set up custom agent observability",
+      "heading": "Install packages",
+      "url": "https://docs.coreweave.com/products/wandb/weave/custom-agents-quickstart",
+      "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+      "text": "## Install packages\n\nInstall the following packages into your developer environment:\n\n```bash Python theme={\"system\"}\npip install weave openai requests\n```\n\n```bash TypeScript theme={\"system\"}\nnpm install weave openai\n```\n\n",
+      "page_context": "# Quickstart: Set up custom agent observability\n\n> Trace a multi-turn agent with the Weave SDK. Conversations, turns, LLM calls, and tool calls render in the Agents view of your project.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/get-started/custom-agents.md).\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb) · [GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb)\n\nThe Weave SDK lets you trace agents built with popular SDKs or custom harnesses. This quickstart shows you how to manually integrate Weave into a custom-built multi-turn agent to emit and capture OpenTelemetry spans. For conceptual understanding about Weave for agents, see [Trace your agents](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents.md).\n\nIf you're looking to integrate Weave with SDKs or harnesses such as the Claude Agent SDK or Codex, see [Choose an agent integration](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md). Weave autopatches into several agent-building SDKs and agent harnesses for quick integration.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Quickstart: Set up custom agent observability"
+        },
+        {
+          "section": 1,
+          "heading": "What you'll learn"
+        },
+        {
+          "section": 2,
+          "heading": "How the Weave SDK works with agents"
+        },
+        {
+          "section": 3,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 4,
+          "heading": "Install packages"
+        },
+        {
+          "section": 5,
+          "heading": "Initialize Weave"
+        },
+        {
+          "section": 6,
+          "heading": "Define a tool"
+        },
+        {
+          "section": 7,
+          "heading": "Run a traced multi-turn agent"
+        },
+        {
+          "section": 8,
+          "heading": "Record token usage and cost"
+        },
+        {
+          "section": 9,
+          "heading": "See your agent traces in the Agents view"
+        },
+        {
+          "section": 10,
+          "heading": "Link to a conversation from your app"
+        },
+        {
+          "section": 11,
+          "heading": "Next steps"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "custom-agents-quickstart",
+      "section": 5,
+      "title": "Quickstart: Set up custom agent observability",
+      "heading": "Initialize Weave",
+      "url": "https://docs.coreweave.com/products/wandb/weave/custom-agents-quickstart",
+      "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+      "text": "## Initialize Weave\n\n`weave.init()` authenticates with Weights & Biases and configures the OTel exporter that sends agent spans to the **Agents** view. If the project doesn't exist on your team, Weave creates it the first time you write to it.\n\n```python lines Python theme={\"system\"}\nimport getpass\nimport os\n\nos.environ[\"WANDB_API_KEY\"] = getpass.getpass(\"Enter your CoreWeave Forge API key: \")\nos.environ[\"OPENAI_API_KEY\"] = getpass.getpass(\"Enter your OpenAI API key: \")\n\nTEAM = input(\"Enter your CoreWeave Forge team name: \")\nPROJECT = input(\"Enter your Weights & Biases project name: \")\n\nimport weave\nweave.init(f\"{TEAM}/{PROJECT}\")\n```\n\n```typescript lines highlight=\"4\" TypeScript twoslash theme={\"system\"}\n// @noErrors\n// Set WANDB_API_KEY, OPENAI_API_KEY in your environment before running this project\nimport * as weave from 'weave';\n\nawait weave.init(`[YOUR-TEAM]/[YOUR-PROJECT]`);\n```\n\n",
+      "page_context": "# Quickstart: Set up custom agent observability\n\n> Trace a multi-turn agent with the Weave SDK. Conversations, turns, LLM calls, and tool calls render in the Agents view of your project.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/get-started/custom-agents.md).\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb) · [GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb)\n\nThe Weave SDK lets you trace agents built with popular SDKs or custom harnesses. This quickstart shows you how to manually integrate Weave into a custom-built multi-turn agent to emit and capture OpenTelemetry spans. For conceptual understanding about Weave for agents, see [Trace your agents](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents.md).\n\nIf you're looking to integrate Weave with SDKs or harnesses such as the Claude Agent SDK or Codex, see [Choose an agent integration](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md). Weave autopatches into several agent-building SDKs and agent harnesses for quick integration.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Quickstart: Set up custom agent observability"
+        },
+        {
+          "section": 1,
+          "heading": "What you'll learn"
+        },
+        {
+          "section": 2,
+          "heading": "How the Weave SDK works with agents"
+        },
+        {
+          "section": 3,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 4,
+          "heading": "Install packages"
+        },
+        {
+          "section": 5,
+          "heading": "Initialize Weave"
+        },
+        {
+          "section": 6,
+          "heading": "Define a tool"
+        },
+        {
+          "section": 7,
+          "heading": "Run a traced multi-turn agent"
+        },
+        {
+          "section": 8,
+          "heading": "Record token usage and cost"
+        },
+        {
+          "section": 9,
+          "heading": "See your agent traces in the Agents view"
+        },
+        {
+          "section": 10,
+          "heading": "Link to a conversation from your app"
+        },
+        {
+          "section": 11,
+          "heading": "Next steps"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/tracking/trace-agents",
+      "section": 0,
+      "title": "Trace your agents",
+      "heading": "Trace your agents",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+      "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+      "text": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+      "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Trace your agents"
+        },
+        {
+          "section": 1,
+          "heading": "Before you begin"
+        },
+        {
+          "section": 2,
+          "heading": "The agent data model"
+        },
+        {
+          "section": 3,
+          "heading": "Agent tracing APIs"
+        },
+        {
+          "section": 4,
+          "heading": "Start a conversation"
+        },
+        {
+          "section": 5,
+          "heading": "Start a turn"
+        },
+        {
+          "section": 6,
+          "heading": "Start an LLM call"
+        },
+        {
+          "section": 7,
+          "heading": "Start a tool call"
+        },
+        {
+          "section": 8,
+          "heading": "Usage patterns for agent tracing"
+        },
+        {
+          "section": 9,
+          "heading": "Context manager or try-finally pattern"
+        },
+        {
+          "section": 10,
+          "heading": "Manual start and end pattern"
+        },
+        {
+          "section": 11,
+          "heading": "Semantic conventions"
+        },
+        {
+          "section": 12,
+          "heading": "How data appears in the Weights & Biases UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S1",
+      "page_id": "custom-agents-quickstart",
+      "section": 0,
+      "title": "Quickstart: Set up custom agent observability",
+      "heading": "Quickstart: Set up custom agent observability",
+      "url": "https://docs.coreweave.com/products/wandb/weave/custom-agents-quickstart",
+      "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+      "text": "# Quickstart: Set up custom agent observability\n\n> Trace a multi-turn agent with the Weave SDK. Conversations, turns, LLM calls, and tool calls render in the Agents view of your project.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/get-started/custom-agents.md).\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb) · [GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb)\n\nThe Weave SDK lets you trace agents built with popular SDKs or custom harnesses. This quickstart shows you how to manually integrate Weave into a custom-built multi-turn agent to emit and capture OpenTelemetry spans. For conceptual understanding about Weave for agents, see [Trace your agents](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents.md).\n\nIf you're looking to integrate Weave with SDKs or harnesses such as the Claude Agent SDK or Codex, see [Choose an agent integration](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md). Weave autopatches into several agent-building SDKs and agent harnesses for quick integration.\n\n",
+      "page_context": "# Quickstart: Set up custom agent observability\n\n> Trace a multi-turn agent with the Weave SDK. Conversations, turns, LLM calls, and tool calls render in the Agents view of your project.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/get-started/custom-agents.md).\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb) · [GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb)\n\nThe Weave SDK lets you trace agents built with popular SDKs or custom harnesses. This quickstart shows you how to manually integrate Weave into a custom-built multi-turn agent to emit and capture OpenTelemetry spans. For conceptual understanding about Weave for agents, see [Trace your agents](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents.md).\n\nIf you're looking to integrate Weave with SDKs or harnesses such as the Claude Agent SDK or Codex, see [Choose an agent integration](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md). Weave autopatches into several agent-building SDKs and agent harnesses for quick integration.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Quickstart: Set up custom agent observability"
+        },
+        {
+          "section": 1,
+          "heading": "What you'll learn"
+        },
+        {
+          "section": 2,
+          "heading": "How the Weave SDK works with agents"
+        },
+        {
+          "section": 3,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 4,
+          "heading": "Install packages"
+        },
+        {
+          "section": 5,
+          "heading": "Initialize Weave"
+        },
+        {
+          "section": 6,
+          "heading": "Define a tool"
+        },
+        {
+          "section": 7,
+          "heading": "Run a traced multi-turn agent"
+        },
+        {
+          "section": 8,
+          "heading": "Record token usage and cost"
+        },
+        {
+          "section": 9,
+          "heading": "See your agent traces in the Agents view"
+        },
+        {
+          "section": 10,
+          "heading": "Link to a conversation from your app"
+        },
+        {
+          "section": 11,
+          "heading": "Next steps"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    }
+  ],
+  "actions": [
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "resume conversation across requests conversation_id"
+      },
+      "result": {
+        "query": "resume conversation across requests conversation_id",
+        "results": [
+          {
+            "page_id": "cookbooks/import_from_csv",
+            "section": 3,
+            "title": "Import from CSV",
+            "heading": "Load the data",
+            "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/import_from_csv",
+            "snippet": "## Load the data\n\nWith the environment ready, you can load and shape the CSV data so that it matches the parent-child structure that Weave expects.\n\nLoad the data into a pandas DataFrame, and sort it by `conversation_id` and `turn_index` to ensure the parents and children are correctly ordered.\n\nThis results in a two-column pandas DataFrame with the conversation turns as an array under `conversation_data`.\n\n```python lines theme={\"system\"}\n## Load data and shape it\ndf = pd.read_csv(name_of_file)\n\nsorted_df = df.sort_values([\"conversation_id\", \"turn_index\"])\n\n# Function to create an array of dictionaries for each conversation\ndef create_conversation_dict_array(group):\n    return group.drop(\"conversation_id\", axis=1).to_dict(\"records\")\n\n# Group the dataframe by conversation_id and apply the aggregation\nresult_df = (\n    sorted_df.groupby(\"conversation_id\")\n    .apply(create_conversation_dict_array)\n    .reset_index()\n)\nresult_df.columns = [\"conversation_id\", \"conversation_data\"]\n\n# Show how our aggregation looks\nresult_df.head()\n```\n\n"
+          },
+          {
+            "page_id": "guides/tracking/trace-agents",
+            "section": 4,
+            "title": "Trace your agents",
+            "heading": "Start a conversation",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+            "snippet": "### Start a conversation\n\n`start_conversation()` (Python) or `startConversation()` (TypeScript) stamps a `conversation_id` attribute on every child span so that turns are grouped in the Agents tab. If you pass a `conversation_id` / `conversationId`, it must be stable across the lifetime of the conversation. Reuse the same ID to add new turns to an existing conversation. When you omit it, the SDK generates a UUID automatically.\n\nThe active conversation is stored in context (a Python `ContextVar` or Node.js `AsyncLocalStorage`), so any code running in the same async context can retrieve it with `weave.get_current_conversation()` / `weave.getCurrentConversation()` without passing the conversation object explicitly.\n\n**Python**\n\n```python lines theme={\"system\"}\nconversation = weave.start_conversation(\n    agent_name=\"my-agent\",    # Optional: identifies the agent in the UI. Omit it and the conversation isn't grouped under a named agent.\n    conversation_id=\"\",       # Optional: stable ID to group turns; auto-generated when empty.\n    model=\"\",                 # Optional: default model fo"
+          },
+          {
+            "page_id": "custom-agents-quickstart",
+            "section": 10,
+            "title": "Quickstart: Set up custom agent observability",
+            "heading": "Link to a conversation from your app",
+            "url": "https://docs.coreweave.com/products/wandb/weave/custom-agents-quickstart",
+            "snippet": "## Link to a conversation from your app\n\nTo deep-link from your own UI to a conversation in the Weave Agents view, build the URL from your entity, project, and the conversation id. `weave.init()` returns a client that carries `entity` and `project`, and `start_conversation` exposes `conversation_id`.\n\n```python lines Python theme={\"system\"}\nfrom weave.trace.urls import agent_conversation_path\n\nclient = weave.init(f\"{TEAM}/{PROJECT}\")\n\nwith weave.start_conversation(agent_name=\"research-bot\") as conversation:\n    # ... run turns ...\n    url = agent_conversation_path(\n        client.entity, client.project, conversation.conversation_id\n    )\n    print(f\"View this conversation at {url}\")\n```\n\n```plaintext TypeScript lines theme={\"system\"}\nThis feature is not available in TypeScript.\n```\n\n"
+          },
+          {
+            "page_id": "guides/tracking/threads",
+            "section": 19,
+            "title": "Trace threads",
+            "heading": "Resume a previous session",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/threads",
+            "snippet": "### Resume a previous session\n\nSometimes you must resume a previously started session and continue adding Calls to the same thread. In other cases, you may not be able to resume an existing session and must start a new thread instead.\n\nWhen implementing optional thread resumption, never leave the `thread_id` parameter as `None`, as this disables thread grouping. Instead, always provide a valid thread ID. To create a new thread, generate a unique identifier using a function like `generate_id()`.\n\nWhen no `thread_id` is specified, Weave's internal implementation automatically generates a random UUID v7. You can replicate this behavior in your own `generate_id()` function or use any unique string value you prefer.\n\n```python lines theme={\"system\"}\nimport weave\nimport uuidv7\nimport argparse\n\ndef generate_id():\n    \"\"\"Generate a unique thread ID using UUID v7.\"\"\"\n    return str(uuidv7.uuidv7())\n\n@weave.op\ndef load_history(session_id):\n    \"\"\"Load conversation history for the given session.\"\"\"\n    # Your implementation here\n    return []\n\n# Parse command line arguments for session resumpti"
+          },
+          {
+            "page_id": "reference/python-sdk/trace/weave_client",
+            "section": 56,
+            "title": "weave_client",
+            "heading": "<kbd>method</kbd> `search_agents`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/weave_client",
+            "snippet": "### <kbd>method</kbd> `search_agents`\n\n```python theme={\"system\"}\nsearch_agents(\n    query: 'str' = '',\n    agent_name: 'str | None' = None,\n    conversation_id: 'str | None' = None,\n    trace_id: 'str | None' = None,\n    limit: 'int' = 20,\n    offset: 'int' = 0\n) → AgentSearchRes\n```\n\nSearch agent messages by content, grouped by conversation.\n\nSearches message content (and/or the structured filters below) and returns matching conversations with their matched messages. An empty `query` turns this into structured retrieval over the filters.\n\n**Args:**\n\n* **`query`**: Substring to match in message content. Empty matches all.\n* **`agent_name`**: Restrict to messages from this agent.\n* **`conversation_id`**: Restrict to a single conversation.\n* **`trace_id`**: Restrict to a single trace.\n* **`limit`**: Maximum number of matching messages to consider.\n* **`offset`**: Number of matches to skip (for pagination).\n\n**Returns:**\nAn `AgentSearchRes` with `results` (matched conversations).\n\n**Example:**\n\n```python theme={\"system\"}\nclient = weave.init(\"entity/project\")\nresp = client.search_agents"
+          },
+          {
+            "page_id": "reference/python-sdk/trace/weave_client",
+            "section": 33,
+            "title": "weave_client",
+            "heading": "<kbd>method</kbd> `get_agent_turns`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/weave_client",
+            "snippet": "### <kbd>method</kbd> `get_agent_turns`\n\n```python theme={\"system\"}\nget_agent_turns(\n    conversation_id: 'str',\n    limit: 'int' = 50,\n    offset: 'int' = 0,\n    include_feedback: 'bool' = False\n) → AgentConversationChatRes\n```\n\nGet the multi-turn chat view for a conversation.\n\nEach turn corresponds to one trace.\n\n**Args:**\n\n* **`conversation_id`**: The conversation whose turns to fetch.\n* **`limit`**: Maximum number of turns to return.\n* **`offset`**: Number of most-recent turns to skip (for pagination).\n* **`include_feedback`**: If true, include feedback on the messages.\n\n**Returns:**\nAn `AgentConversationChatRes` with the ordered `turns`.\n\n**Example:**\n\n```python theme={\"system\"}\nclient = weave.init(\"entity/project\")\nresp = client.get_agent_turns(conversation_id=\"...\", limit=20)\nfor turn in resp.turns:\n     for message in turn.messages:\n         print(message.type)\n```\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/telemetry/trace_sentry.py#L888)\n\n"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      }
+    },
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "start_conversation conversation_id manual start end pattern"
+      },
+      "result": {
+        "query": "start_conversation conversation_id manual start end pattern",
+        "results": [
+          {
+            "page_id": "guides/tracking/trace-agents",
+            "section": 10,
+            "title": "Trace your agents",
+            "heading": "Manual start and end pattern",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+            "snippet": "### Manual start and end pattern\n\nUse `.end()` explicitly when you can't use `with` blocks or `try/finally`. For example, when you open and close spans in different function calls, or when you manage async lifecycle outside a coroutine. You're responsible for calling `.end()` on every object you create, so that spans close and flush to the collector.\n\n**Python**\n\n```python lines highlight=\"1,2,4,9,15\" theme={\"system\"}\nconversation = weave.start_conversation(agent_name=\"weather-bot\")\nturn = conversation.start_turn(user_message=\"What is the weather?\")\n\nllm = weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\")\nllm.input_messages = [Message(role=\"user\", content=\"What is the weather?\")]\nllm.output(\"Let me check.\")\nllm.usage = Usage(input_tokens=100, output_tokens=20)\n\ntool = weave.start_tool(name=\"get_weather\", arguments='{\"city\": \"Tokyo\"}')\ntool.result = \"24°C, sunny\"\ntool.end()   # end() is idempotent — safe to call more than once.\n\nllm.end()\n\nllm2 = weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\")\nllm2.output(\"It is 24°C and sunny in Tokyo.\")\nllm2.usage = Usage(input_tokens="
+          },
+          {
+            "page_id": "reference/python-sdk",
+            "section": 286,
+            "title": "weave",
+            "heading": "<kbd>function</kbd> `start_conversation`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+            "snippet": "### <kbd>function</kbd> `start_conversation`\n\n```python theme={\"system\"}\nstart_conversation(\n    agent_name: 'str' = '',\n    model: 'str' = '',\n    conversation_id: 'str' = '',\n    conversation_name: 'str' = '',\n    include_content: 'bool' = True,\n    continue_parent_trace: 'bool' = False,\n    attributes: 'Attributes' = None\n) → Conversation\n```\n\nCreate and activate a conversation. Sets the contextvar for cross-module access.\n\n`attributes` are stamped on every span this conversation emits (e.g. an integration identity like `weave.integration.*`). Use custom, non-semconv keys: set semantic-convention fields via the typed params (`conversation_name`, `model`, ...). A key that collides with a span's own `gen_ai.*` / `weave.*` attribute is unsupported; which value wins is path-dependent (streaming vs `log_turn`).\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/conversation/conversation.py#L1262)\n\n"
+          },
+          {
+            "page_id": "reference/python-sdk",
+            "section": 288,
+            "title": "weave",
+            "heading": "<kbd>function</kbd> `start_session`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+            "snippet": "### <kbd>function</kbd> `start_session`\n\n```python theme={\"system\"}\nstart_session(\n    agent_name: 'str' = '',\n    model: 'str' = '',\n    session_id: 'str' = '',\n    session_name: 'str' = '',\n    include_content: 'bool' = True,\n    continue_parent_trace: 'bool' = False,\n    attributes: 'Attributes' = None\n) → Conversation\n```\n\nDeprecated alias of :func:`weave.start_conversation`.\n\n`session_id` / `session_name` map to `conversation_id` / `conversation_name`.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/conversation/conversation.py#L1302)\n\n"
+          },
+          {
+            "page_id": "custom-agents-quickstart",
+            "section": 10,
+            "title": "Quickstart: Set up custom agent observability",
+            "heading": "Link to a conversation from your app",
+            "url": "https://docs.coreweave.com/products/wandb/weave/custom-agents-quickstart",
+            "snippet": "## Link to a conversation from your app\n\nTo deep-link from your own UI to a conversation in the Weave Agents view, build the URL from your entity, project, and the conversation id. `weave.init()` returns a client that carries `entity` and `project`, and `start_conversation` exposes `conversation_id`.\n\n```python lines Python theme={\"system\"}\nfrom weave.trace.urls import agent_conversation_path\n\nclient = weave.init(f\"{TEAM}/{PROJECT}\")\n\nwith weave.start_conversation(agent_name=\"research-bot\") as conversation:\n    # ... run turns ...\n    url = agent_conversation_path(\n        client.entity, client.project, conversation.conversation_id\n    )\n    print(f\"View this conversation at {url}\")\n```\n\n```plaintext TypeScript lines theme={\"system\"}\nThis feature is not available in TypeScript.\n```\n\n"
+          },
+          {
+            "page_id": "guides/tracking/trace-agents",
+            "section": 4,
+            "title": "Trace your agents",
+            "heading": "Start a conversation",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+            "snippet": "### Start a conversation\n\n`start_conversation()` (Python) or `startConversation()` (TypeScript) stamps a `conversation_id` attribute on every child span so that turns are grouped in the Agents tab. If you pass a `conversation_id` / `conversationId`, it must be stable across the lifetime of the conversation. Reuse the same ID to add new turns to an existing conversation. When you omit it, the SDK generates a UUID automatically.\n\nThe active conversation is stored in context (a Python `ContextVar` or Node.js `AsyncLocalStorage`), so any code running in the same async context can retrieve it with `weave.get_current_conversation()` / `weave.getCurrentConversation()` without passing the conversation object explicitly.\n\n**Python**\n\n```python lines theme={\"system\"}\nconversation = weave.start_conversation(\n    agent_name=\"my-agent\",    # Optional: identifies the agent in the UI. Omit it and the conversation isn't grouped under a named agent.\n    conversation_id=\"\",       # Optional: stable ID to group turns; auto-generated when empty.\n    model=\"\",                 # Optional: default model fo"
+          },
+          {
+            "page_id": "custom-agents-quickstart",
+            "section": 1,
+            "title": "Quickstart: Set up custom agent observability",
+            "heading": "What you'll learn",
+            "url": "https://docs.coreweave.com/products/wandb/weave/custom-agents-quickstart",
+            "snippet": "## What you'll learn\n\nBy the end of this quickstart, you'll have a working multi-turn agent that emits Weave-compatible OTel spans. You'll also understand how Weave maps conversations, turns, LLM calls, and tool calls onto your agent code so you can apply the same pattern to your own custom agents.\n\nThe code in this guide sets up a small research agent that can look things up on Wikipedia. It asks three questions (three turns) and uses the LLM to choose when to search Wikipedia for an answer. Weave records every step (the conversation, each question, each AI response, and each Wikipedia lookup) so you can see what happened in the Weave Agents view.\n\nThis guide shows you how to:\n\n* Initialize Weave for agent tracing with `weave.init()`.\n* Open a conversation and a turn with `start_conversation` / `startConversation` and `start_turn` / `startTurn`.\n* Wrap LLM calls with `start_llm` / `startLLM` and record usage.\n* Wrap tool executions with `start_tool` / `startTool` and record results.\n* Record complete token usage and a priceable model so token counts and cost render.\n* View the resul"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      }
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/trace-agents",
+        "section": 4
+      },
+      "result": {
+        "source_id": "S7",
+        "page_id": "guides/tracking/trace-agents",
+        "section": 4,
+        "title": "Trace your agents",
+        "heading": "Start a conversation",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+        "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+        "text": "### Start a conversation\n\n`start_conversation()` (Python) or `startConversation()` (TypeScript) stamps a `conversation_id` attribute on every child span so that turns are grouped in the Agents tab. If you pass a `conversation_id` / `conversationId`, it must be stable across the lifetime of the conversation. Reuse the same ID to add new turns to an existing conversation. When you omit it, the SDK generates a UUID automatically.\n\nThe active conversation is stored in context (a Python `ContextVar` or Node.js `AsyncLocalStorage`), so any code running in the same async context can retrieve it with `weave.get_current_conversation()` / `weave.getCurrentConversation()` without passing the conversation object explicitly.\n\n**Python**\n\n```python lines theme={\"system\"}\nconversation = weave.start_conversation(\n    agent_name=\"my-agent\",    # Optional: identifies the agent in the UI. Omit it and the conversation isn't grouped under a named agent.\n    conversation_id=\"\",       # Optional: stable ID to group turns; auto-generated when empty.\n    model=\"\",                 # Optional: default model for turns in this conversation.\n    conversation_name=\"\",     # Optional: human-readable label shown in the UI.\n    include_content=True,     # Optional: set False to omit message bodies from spans.\n    continue_parent_trace=False,  # Optional: attach to an existing OTel trace instead of starting a new one.\n)\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',  // Optional: identifies the agent in the UI. Omit it and the conversation isn't grouped under a named agent.\n  conversationId: '',     // Optional: stable ID to group turns, auto-generated when empty.\n  model: '',              // Optional: default model for turns in this conversation.\n});\n```\n\n",
+        "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Trace your agents"
+          },
+          {
+            "section": 1,
+            "heading": "Before you begin"
+          },
+          {
+            "section": 2,
+            "heading": "The agent data model"
+          },
+          {
+            "section": 3,
+            "heading": "Agent tracing APIs"
+          },
+          {
+            "section": 4,
+            "heading": "Start a conversation"
+          },
+          {
+            "section": 5,
+            "heading": "Start a turn"
+          },
+          {
+            "section": 6,
+            "heading": "Start an LLM call"
+          },
+          {
+            "section": 7,
+            "heading": "Start a tool call"
+          },
+          {
+            "section": 8,
+            "heading": "Usage patterns for agent tracing"
+          },
+          {
+            "section": 9,
+            "heading": "Context manager or try-finally pattern"
+          },
+          {
+            "section": 10,
+            "heading": "Manual start and end pattern"
+          },
+          {
+            "section": 11,
+            "heading": "Semantic conventions"
+          },
+          {
+            "section": 12,
+            "heading": "How data appears in the Weights & Biases UI"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+      }
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/trace-agents",
+        "section": 10
+      },
+      "result": {
+        "source_id": "S8",
+        "page_id": "guides/tracking/trace-agents",
+        "section": 10,
+        "title": "Trace your agents",
+        "heading": "Manual start and end pattern",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+        "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+        "text": "### Manual start and end pattern\n\nUse `.end()` explicitly when you can't use `with` blocks or `try/finally`. For example, when you open and close spans in different function calls, or when you manage async lifecycle outside a coroutine. You're responsible for calling `.end()` on every object you create, so that spans close and flush to the collector.\n\n**Python**\n\n```python lines highlight=\"1,2,4,9,15\" theme={\"system\"}\nconversation = weave.start_conversation(agent_name=\"weather-bot\")\nturn = conversation.start_turn(user_message=\"What is the weather?\")\n\nllm = weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\")\nllm.input_messages = [Message(role=\"user\", content=\"What is the weather?\")]\nllm.output(\"Let me check.\")\nllm.usage = Usage(input_tokens=100, output_tokens=20)\n\ntool = weave.start_tool(name=\"get_weather\", arguments='{\"city\": \"Tokyo\"}')\ntool.result = \"24°C, sunny\"\ntool.end()   # end() is idempotent — safe to call more than once.\n\nllm.end()\n\nllm2 = weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\")\nllm2.output(\"It is 24°C and sunny in Tokyo.\")\nllm2.usage = Usage(input_tokens=150, output_tokens=30)\nllm2.end()\n\nturn.end()\nconversation.end()\n```\n\n**TypeScript**\n\n```typescript lines highlight=\"1,2,4,9,15\" twoslash theme={\"system\"}\n// @noErrors\nconst conversation = weave.startConversation({ agentName: 'weather-bot' });\nconst turn = conversation.startTurn({ agentName: 'weather-bot' });\n\nconst llm = weave.startLLM({ model: 'gpt-4o', providerName: 'openai' });\nllm.inputMessages = [{ role: 'user', content: 'What is the weather?' }];\nllm.output('Let me check.');\nllm.usage = { inputTokens: 100, outputTokens: 20 };\n\nconst tool = weave.startTool({ name: 'get_weather', args: '{\"city\": \"Tokyo\"}' });\ntool.result = '24°C, sunny';\ntool.end();  // end() is idempotent: safe to call more than once.\n\nllm.end();\n\nconst llm2 = weave.startLLM({ model: 'gpt-4o', providerName: 'openai' });\nllm2.output('It is 24°C and sunny in Tokyo.');\nllm2.usage = { inputTokens: 150, outputTokens: 30 };\nllm2.end();\n\nturn.end();\nconversation.end();\n```\n\n",
+        "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Trace your agents"
+          },
+          {
+            "section": 1,
+            "heading": "Before you begin"
+          },
+          {
+            "section": 2,
+            "heading": "The agent data model"
+          },
+          {
+            "section": 3,
+            "heading": "Agent tracing APIs"
+          },
+          {
+            "section": 4,
+            "heading": "Start a conversation"
+          },
+          {
+            "section": 5,
+            "heading": "Start a turn"
+          },
+          {
+            "section": 6,
+            "heading": "Start an LLM call"
+          },
+          {
+            "section": 7,
+            "heading": "Start a tool call"
+          },
+          {
+            "section": 8,
+            "heading": "Usage patterns for agent tracing"
+          },
+          {
+            "section": 9,
+            "heading": "Context manager or try-finally pattern"
+          },
+          {
+            "section": 10,
+            "heading": "Manual start and end pattern"
+          },
+          {
+            "section": 11,
+            "heading": "Semantic conventions"
+          },
+          {
+            "section": 12,
+            "heading": "How data appears in the Weights & Biases UI"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+      }
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "answer": "Preserve the `conversation_id` and pass it to `weave.start_conversation()` on every request. The docs say the ID must be stable for the life of the conversation, and reusing it adds new turns to the existing conversation. If you omit it, the SDK generates a new UUID, so a later request would start a different conversation [S7].\n\n```python\n# Request 1: let the SDK generate an ID, then save it with your chat record.\nwith weave.start_conversation(agent_name=\"my-agent\") as conv:\n    chat.weave_conversation_id = conv.conversation_id\n    ...  # start_turn(...), etc.\n\n# Later request: reuse the saved ID.\nwith weave.start_conversation(\n    agent_name=\"my-agent\",\n    conversation_id=chat.weave_conversation_id,\n):\n    with weave.start_turn(user_message=msg):\n        ...\n```\n\nI haven't run this code. It's adapted from the documented `start_conversation` signature and the `conversation.conversation_id` attribute shown in the quickstart [S7]. `chat.weave_conversation_id` is a placeholder for wherever your app stores chat state.\n\n- **Store the ID yourself.** The docs describe the ID and its reuse. They don't say where to keep it between HTTP requests, so persisting it in your chat record or session is your app's job. Alternatively, you can use your own existing chat ID as `conversation_id`. This works if it's a stable string, but the docs don't say so explicitly.\n- **Open a fresh conversation context per request.** The active conversation lives in a Python `ContextVar`, so code in the same async context can retrieve it [S7]. Don't count on that context lasting across separate HTTP requests. I didn't find documentation on carrying it over.\n- **Keep `agent_name` the same.** It identifies the agent in the UI, and omitting it means the conversation isn't grouped under a named agent [S7].\n- **Manual lifecycle:** If you open and close spans in different functions, you must call `.end()` on every object you create so the spans close and flush [S8].\n\nI didn't find documentation on resuming when the first request's conversation is still open. I also found nothing on how Weave orders turns that arrive concurrently.",
+        "source_ids": [
+          "S7",
+          "S8"
+        ]
+      },
+      "result": {
+        "passed": false,
+        "claims": [
+          {
+            "text": "Preserve the conversation_id and pass it to start_conversation() on every request; ID must be stable, reuse adds turns to existing conversation; omitting generates a new UUID.",
+            "kind": "product",
+            "source_ids": [
+              "S7"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "A later request that omits the ID would start a different conversation.",
+            "kind": "product",
+            "source_ids": [
+              "S7"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Code example: `with weave.start_conversation(...) as conv:` and `conv.conversation_id` attribute; start_turn(user_message=msg) as context manager.",
+            "kind": "product",
+            "source_ids": [
+              "S7"
+            ],
+            "status": "partial",
+            "supported": false
+          },
+          {
+            "text": "The draft says the `conversation.conversation_id` attribute is shown in the quickstart [S7].",
+            "kind": "product",
+            "source_ids": [
+              "S7"
+            ],
+            "status": "unsupported",
+            "supported": false
+          },
+          {
+            "text": "Docs don't say where to keep the ID between HTTP requests; persisting is the app's job; you could use your own chat ID as conversation_id if a stable string.",
+            "kind": "product",
+            "source_ids": [
+              "S7"
+            ],
+            "status": "partial",
+            "supported": false
+          },
+          {
+            "text": "Active conversation lives in a Python ContextVar so code in same async context can retrieve it.",
+            "kind": "product",
+            "source_ids": [
+              "S7"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Open a fresh conversation context per request; don't count on context lasting across separate HTTP requests.",
+            "kind": "product",
+            "source_ids": [
+              "S7"
+            ],
+            "status": "partial",
+            "supported": false
+          },
+          {
+            "text": "Keep agent_name the same; it identifies the agent in the UI, omitting means not grouped under a named agent.",
+            "kind": "product",
+            "source_ids": [
+              "S7"
+            ],
+            "status": "partial",
+            "supported": false
+          },
+          {
+            "text": "If you open and close spans in different functions, you must call .end() on every object you create so spans close and flush.",
+            "kind": "product",
+            "source_ids": [
+              "S8"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "I didn't find documentation on resuming when the first request's conversation is still open, or on concurrent turn ordering.",
+            "kind": "research_process",
+            "source_ids": [],
+            "status": "supported",
+            "supported": true
+          }
+        ],
+        "issues": [
+          "The draft attributes the `conversation.conversation_id` attribute to \"the quickstart\" [S7]. The S7 passage doesn't show that attribute or a quickstart. It shows only the `start_conversation` signature, so that attribution is unsupported. The `as conv` / `conv.conversation_id` usage is also unsupported: S7 shows start_conversation returning a `conversation` object, but it doesn't show it used as a context manager or exposing `.conversation_id`.",
+          "The code example uses `with weave.start_turn(user_message=msg)` as a standalone context manager. S7 and S8 support `conversation.start_turn(...)` and the earlier dialogue's `weave.start_turn`, but the draft doesn't cite that.",
+          "\"Keep agent_name the same\" is a recommendation that goes beyond S7. S7 says only that omitting agent_name leaves the conversation without a named agent. It doesn't say that changing the name across requests affects resumption. Present it as a suggestion, not a requirement.",
+          "\"Open a fresh conversation context per request\" is inferred from the ContextVar passage. The docs don't say a fresh context is required. The draft partly hedges this, but it should label it clearly as an inference.",
+          "The draft says your own chat ID \"works if it's a stable string\". S7 says only that the passed ID must be stable. It doesn't say that string IDs are accepted. The draft admits the docs don't say so explicitly, but it still presents this as likely to work.",
+          "Revise partial or unsupported material claims."
+        ],
+        "coverage": [],
+        "mode": "support",
+        "status": "failed"
+      }
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "custom-agents-quickstart",
+        "section": 10
+      },
+      "result": {
+        "source_id": "S9",
+        "page_id": "custom-agents-quickstart",
+        "section": 10,
+        "title": "Quickstart: Set up custom agent observability",
+        "heading": "Link to a conversation from your app",
+        "url": "https://docs.coreweave.com/products/wandb/weave/custom-agents-quickstart",
+        "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+        "text": "## Link to a conversation from your app\n\nTo deep-link from your own UI to a conversation in the Weave Agents view, build the URL from your entity, project, and the conversation id. `weave.init()` returns a client that carries `entity` and `project`, and `start_conversation` exposes `conversation_id`.\n\n```python lines Python theme={\"system\"}\nfrom weave.trace.urls import agent_conversation_path\n\nclient = weave.init(f\"{TEAM}/{PROJECT}\")\n\nwith weave.start_conversation(agent_name=\"research-bot\") as conversation:\n    # ... run turns ...\n    url = agent_conversation_path(\n        client.entity, client.project, conversation.conversation_id\n    )\n    print(f\"View this conversation at {url}\")\n```\n\n```plaintext TypeScript lines theme={\"system\"}\nThis feature is not available in TypeScript.\n```\n\n",
+        "page_context": "# Quickstart: Set up custom agent observability\n\n> Trace a multi-turn agent with the Weave SDK. Conversations, turns, LLM calls, and tool calls render in the Agents view of your project.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/get-started/custom-agents.md).\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb) · [GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/custom-agents-quickstart.ipynb)\n\nThe Weave SDK lets you trace agents built with popular SDKs or custom harnesses. This quickstart shows you how to manually integrate Weave into a custom-built multi-turn agent to emit and capture OpenTelemetry spans. For conceptual understanding about Weave for agents, see [Trace your agents](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents.md).\n\nIf you're looking to integrate Weave with SDKs or harnesses such as the Claude Agent SDK or Codex, see [Choose an agent integration](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md). Weave autopatches into several agent-building SDKs and agent harnesses for quick integration.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Quickstart: Set up custom agent observability"
+          },
+          {
+            "section": 1,
+            "heading": "What you'll learn"
+          },
+          {
+            "section": 2,
+            "heading": "How the Weave SDK works with agents"
+          },
+          {
+            "section": 3,
+            "heading": "Prerequisites"
+          },
+          {
+            "section": 4,
+            "heading": "Install packages"
+          },
+          {
+            "section": 5,
+            "heading": "Initialize Weave"
+          },
+          {
+            "section": 6,
+            "heading": "Define a tool"
+          },
+          {
+            "section": 7,
+            "heading": "Run a traced multi-turn agent"
+          },
+          {
+            "section": 8,
+            "heading": "Record token usage and cost"
+          },
+          {
+            "section": 9,
+            "heading": "See your agent traces in the Agents view"
+          },
+          {
+            "section": 10,
+            "heading": "Link to a conversation from your app"
+          },
+          {
+            "section": 11,
+            "heading": "Next steps"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+      }
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/trace-agents",
+        "section": 5
+      },
+      "result": {
+        "source_id": "S10",
+        "page_id": "guides/tracking/trace-agents",
+        "section": 5,
+        "title": "Trace your agents",
+        "heading": "Start a turn",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+        "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+        "text": "### Start a turn\n\n`start_turn()` (Python) and `startTurn()` (TypeScript) create a new `invoke_agent` span that becomes the root of a new OTel trace. Weave uses this span to represent one complete user-agent exchange in the timeline view.\n\nYou can call it two ways:\n\n* **As a top-level function** (`weave.start_turn(...)` / `weave.startTurn(...)`), shown in the examples below. It resolves the active conversation from context and inherits its conversation ID. If no conversation is active, the turn is created without a `conversation_id` and isn't grouped with other turns.\n* **As an instance method** on a conversation you hold a reference to (`conversation.start_turn(...)` / `conversation.startTurn(...)`). Useful when you have an explicit conversation object in scope, such as inside a context-manager block. The \"Context manager or try-finally pattern\" example below uses this form. See the data-model table above for direct links to the `Conversation`, `Turn`, `LLM`, `Tool`, and `SubAgent` reference pages in both SDKs.\n\n**Python**\n\n```python lines theme={\"system\"}\nturn = weave.start_turn(\n    user_message=\"What is the weather in Tokyo?\",  # The user's input text.\n    agent_name=\"my-agent\",   # Optional: overrides the conversation-level agent name.\n    model=\"gpt-4o\",          # Optional: model used for this turn.\n)\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nconst turn = weave.startTurn({\n  agentName: 'my-agent',  // Optional: overrides the conversation-level agent name.\n  model: 'gpt-4o',        // Optional: model used for this turn.\n});\n```\n\n",
+        "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Trace your agents"
+          },
+          {
+            "section": 1,
+            "heading": "Before you begin"
+          },
+          {
+            "section": 2,
+            "heading": "The agent data model"
+          },
+          {
+            "section": 3,
+            "heading": "Agent tracing APIs"
+          },
+          {
+            "section": 4,
+            "heading": "Start a conversation"
+          },
+          {
+            "section": 5,
+            "heading": "Start a turn"
+          },
+          {
+            "section": 6,
+            "heading": "Start an LLM call"
+          },
+          {
+            "section": 7,
+            "heading": "Start a tool call"
+          },
+          {
+            "section": 8,
+            "heading": "Usage patterns for agent tracing"
+          },
+          {
+            "section": 9,
+            "heading": "Context manager or try-finally pattern"
+          },
+          {
+            "section": 10,
+            "heading": "Manual start and end pattern"
+          },
+          {
+            "section": 11,
+            "heading": "Semantic conventions"
+          },
+          {
+            "section": 12,
+            "heading": "How data appears in the Weights & Biases UI"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+      }
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "answer": "Preserve the `conversation_id` and pass it to `weave.start_conversation()` on every request. The docs say the ID must be stable for the life of the conversation, and reusing it adds new turns to the existing conversation. If you omit it, the SDK generates a new UUID, so a later request would start a different conversation [S7].\n\n```python\n# Request 1: let the SDK generate an ID, then save it with your chat record.\nwith weave.start_conversation(agent_name=\"my-agent\") as conversation:\n    chat.weave_conversation_id = conversation.conversation_id\n    ...  # run turns\n\n# Later request: reuse the saved ID.\nwith weave.start_conversation(\n    agent_name=\"my-agent\",\n    conversation_id=chat.weave_conversation_id,\n) as conversation:\n    with conversation.start_turn(user_message=msg):\n        ...\n```\n\nI haven't run this code. It combines the documented `start_conversation(conversation_id=...)` parameter [S7], the quickstart's `with ... as conversation` and `conversation.conversation_id` usage [S9], and the instance-method form `conversation.start_turn(...)` [S10]. `chat.weave_conversation_id` is a placeholder for wherever your app stores chat state.\n\n- **Persist the ID yourself.** The docs don't say where to keep it between HTTP requests, so that choice is yours. I didn't find documentation on whether an arbitrary existing chat ID is accepted as `conversation_id`. The docs require only that it be stable [S7]. Saving the generated ID is the safer route.\n- **Make a conversation active before starting a turn.** `weave.start_turn()` takes the conversation ID from the active conversation in context. If none is active, the turn has no `conversation_id` and isn't grouped with other turns [S10]. The active conversation is stored in a Python `ContextVar` [S7]. I'd treat each HTTP request as needing its own `start_conversation(...)` call, but that is my inference, not something the docs state.\n- **Caveat:** If you open and close spans in different functions, call `.end()` on every object you create so the spans close and flush [S8].\n\nI didn't find documentation on concurrent turns that arrive for the same conversation, or on whether changing `agent_name` between requests affects grouping.",
+        "source_ids": [
+          "S7",
+          "S8",
+          "S9",
+          "S10"
+        ]
+      },
+      "result": {
+        "passed": true,
+        "claims": [
+          {
+            "text": "Preserve the conversation_id and pass it to start_conversation() on each request; it must be stable, reuse adds turns, omitting generates a UUID so a later request would start a different conversation.",
+            "kind": "product",
+            "source_ids": [
+              "S7"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Code combines documented conversation_id parameter, the `with ... as conversation` and conversation.conversation_id usage from the quickstart, and instance-method conversation.start_turn; not run.",
+            "kind": "product",
+            "source_ids": [
+              "S7",
+              "S9",
+              "S10"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "weave.start_turn() resolves the active conversation from context; with none active the turn has no conversation_id and isn't grouped. The active conversation is stored in a ContextVar.",
+            "kind": "product",
+            "source_ids": [
+              "S10",
+              "S7"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "When opening and closing spans in different functions, call .end() on every object created so spans close and flush.",
+            "kind": "product",
+            "source_ids": [
+              "S8"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Docs don't say where to persist the ID, whether an arbitrary chat ID is accepted, or about concurrent turns/agent_name changes; per-request start_conversation is flagged as inference.",
+            "kind": "research_process",
+            "source_ids": [
+              "S7"
+            ],
+            "status": "supported",
+            "supported": true
+          }
+        ],
+        "issues": [],
+        "coverage": [],
+        "mode": "support",
+        "status": "passed"
+      }
+    }
+  ],
+  "conversation_id": "8ac60796-0da7-44ff-ae05-c03eb5fcbc0f",
+  "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/8ac60796-0da7-44ff-ae05-c03eb5fcbc0f",
+  "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+  "source_sha256": "f440c34381ffa5713dcccea86ae09d87130a8b31a6f3e666de1e9f9c6e10181f",
+  "prompt_sha256": "87001f6e09ba5763f84de3057fd9943beae1ca01e05d30e4ad510f422b6aa36c",
+  "config_sha256": "49cc7734a6df29a6067960601a6c8e4540ed2253038ea047df999a07cfc3400b",
+  "verify_mode": "support",
+  "cache_enabled": true,
+  "trace_id": "f4d8fc3b35e8b2690042d46aa180dcd1",
+  "model": "claude-sonnet-5-5",
+  "elapsed_seconds": 35.5,
+  "planner_usage": {
+    "input_tokens": 16,
+    "output_tokens": 3069
+  },
+  "metrics": {
+    "calls": [
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgPydowidqJT9t9EMk36T",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 953
+          },
+          "cache_creation_input_tokens": 953,
+          "cache_read_input_tokens": 2118,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 148,
+          "output_tokens_details": {
+            "thinking_tokens": 26
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 1.5424,
+        "estimated_usd": 0.0040823
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgPydvXrGEMrmzaTmMXZi",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 6355
+          },
+          "cache_creation_input_tokens": 6355,
+          "cache_read_input_tokens": 3071,
+          "inference_geo": "global",
+          "input_tokens": 2,
+          "output_tokens": 159,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 1.613,
+        "estimated_usd": 0.0177886
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgPye3Q66nzAxmomXcike",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 4371
+          },
+          "cache_creation_input_tokens": 4371,
+          "cache_read_input_tokens": 9426,
+          "inference_geo": "global",
+          "input_tokens": 2,
+          "output_tokens": 891,
+          "output_tokens_details": {
+            "thinking_tokens": 170
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 7.5956,
+        "estimated_usd": 0.0207841
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgPyebyuiZ18YpWUt3s6G",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 909
+          },
+          "cache_creation_input_tokens": 909,
+          "cache_read_input_tokens": 13797,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 799,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 4.2914,
+        "estimated_usd": 0.0116502
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgPyevuhPCviHiKd1ipGe",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 6282
+          },
+          "cache_creation_input_tokens": 6282,
+          "cache_read_input_tokens": 1911,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 1257,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 8.36,
+        "estimated_usd": 0.0284741
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgPyfZKCVNFQYwVxRSXgJ",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 2118
+          },
+          "cache_creation_input_tokens": 2118,
+          "cache_read_input_tokens": 14706,
+          "inference_geo": "global",
+          "input_tokens": 2,
+          "output_tokens": 206,
+          "output_tokens_details": {
+            "thinking_tokens": 48
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.1951,
+        "estimated_usd": 0.0088296
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgPyfhPtA1DW4pzxa7VgN",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 3550
+          },
+          "cache_creation_input_tokens": 3550,
+          "cache_read_input_tokens": 16824,
+          "inference_geo": "global",
+          "input_tokens": 2,
+          "output_tokens": 866,
+          "output_tokens_details": {
+            "thinking_tokens": 29
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 5.6296,
+        "estimated_usd": 0.0192214
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgPyg7buXmfqJVAQRBeya",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 9690
+          },
+          "cache_creation_input_tokens": 9690,
+          "cache_read_input_tokens": 1911,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 526,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 4.1911,
+        "estimated_usd": 0.0296841
+      }
+    ],
+    "model_calls": 8,
+    "tokens": {
+      "input_tokens": 24,
+      "output_tokens": 4852,
+      "cache_creation_input_tokens": 34228,
+      "cache_read_input_tokens": 63764
+    },
+    "total_input_tokens": 98016,
+    "estimated_usd": 0.1405144,
+    "known_estimated_usd": 0.1405144,
+    "unpriced_calls": 0,
+    "by_purpose": {
+      "planner": {
+        "calls": 6,
+        "known_estimated_usd": 0.08235619999999999
+      },
+      "verification": {
+        "calls": 2,
+        "known_estimated_usd": 0.0581582
+      }
+    },
+    "research": {
+      "searches": 2,
+      "passage_reads": 4,
+      "distinct_pages_read": 2,
+      "repeated_tool_requests": 0,
+      "drafts_submitted": 2,
+      "code_runs": 0
+    },
+    "pricing": {
+      "checked_at": "2026-10-25",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": {
+        "claude-sonnet-5-5": {
+          "input": 2,
+          "output": 10,
+          "write_5m": 2.5,
+          "write_1h": 4,
+          "read": 0.1
+        },
+        "claude-opus-5-5": {
+          "input": 4,
+          "output": 20,
+          "write_5m": 5,
+          "write_1h": 8,
+          "read": 0.2
+        }
+      }
+    },
+    "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+  },
+  "error_type": null
+}

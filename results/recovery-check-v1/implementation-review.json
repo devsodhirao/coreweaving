@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-10-26T01:34:51.618846+00:00",
+  "reviewed_source_sha256": "1b981419c0124987bbeae229ab733fdd036649a0166203dd860e1a96a90ac031",
+  "receipt": "results/recovery-check-v1/receipt.json",
+  "receipt_sha256": "6afeb7c6ba8313dac09696f57da8cb4cf755662a03fb99bdc87cbc48228ce4f4",
+  "method": "Read-only source/test review plus one fake-provider, inert-span reproduction. No provider/API/backend calls or source changes.",
+  "blockers": [
+    {
+      "id": "recovery_empty_claims",
+      "location": "src/coreweaving/agent.py: verify nonempty-claims guard",
+      "finding": "The nonempty-claims guard applies only to Candidate.kind=answer. partial_candidate creates kind=insufficient. A valid-shaped verdict with passed=true and claims=[] therefore passes a factual recovery candidate without identifying any checked claim.",
+      "offline_reproduction": {
+        "candidate_kind": "insufficient",
+        "candidate_answer": "**Partial answer:**\n- Initialize Weave with a team/project. [S1]",
+        "recovery": true,
+        "fake_verdict": {
+          "passed": true,
+          "claims": [],
+          "issues": []
+        },
+        "actual_result": {
+          "passed": true,
+          "claims": [],
+          "mode": "support",
+          "status": "passed"
+        }
+      },
+      "minimal_fix": "For recovery require nonempty checked product claims, or at minimum apply the existing factual nonempty-claims guard whenever recovery=True. Add a fake-verdict test showing empty claims withholds recovered text.",
+      "status": "resolved",
+      "resolution": {
+        "verified_at": "2026-10-26T01:35:30.701408+00:00",
+        "commit": "95184419b7e2b1f811277b4198720693099c5eaa",
+        "source_sha256": "e48abaac43e502c317c705f92b132253799980eef7c4b5a9f4083b305cc40e6d",
+        "change": "Recovery requires at least one checked product claim, independently of Candidate.kind. Existing partial/unsupported and cited-evidence guards still apply.",
+        "test_command": ".venv/bin/pytest tests/test_agent.py::test_partial_recovery_requires_its_own_full_check tests/test_agent.py::test_partial_recovery_excludes_bad_sources_code_and_known_coverage_gaps -q",
+        "test_result": "4 passed in 1.39s",
+        "exact_regression_case": "tests/test_agent.py::test_partial_recovery_requires_its_own_full_check[empty_claims]",
+        "independent_fake_verifier_checks": [
+          {
+            "returned_verdict": {
+              "passed": true,
+              "claims": []
+            },
+            "recovery_result": {
+              "passed": false,
+              "status": "failed",
+              "issues": [
+                "Verifier must identify the factual claims it checked."
+              ]
+            }
+          },
+          {
+            "returned_verdict": {
+              "passed": true,
+              "claims": [
+                {
+                  "kind": "research_process",
+                  "text": "I read the setup page.",
+                  "source_ids": [],
+                  "status": "supported"
+                }
+              ]
+            },
+            "recorded_research_actions_present": true,
+            "recovery_result": {
+              "passed": false,
+              "status": "failed",
+              "issues": [
+                "Verifier must identify the factual claims it checked."
+              ]
+            }
+          }
+        ],
+        "historical_receipt_sha256_unchanged": true,
+        "source_identity_note": "Original reviewed_source_sha256 and real replay receipt remain tied to 1b981419; this offline resolution is a later source version. No model/API/backend calls or source changes were made by this review."
+      }
+    }
+  ],
+  "verified_controls": [
+    "Only support-mode verdicts can produce a recovery candidate; off and support+coverage modes are excluded.",
+    "At most four supported product claims with known source entries and URLs are selected; C execution records and backtick code fences are excluded.",
+    "Candidate inline/structured citations are checked before the call.",
+    "The entire reconstructed candidate receives one additional normal verifier call, with current and relevant prior evidence.",
+    "Original failed attempts remain in verification_attempts; recovery is separately flagged and model usage is included in normal metering.",
+    "UI displays Checked points / partial answer, and kind remains insufficient; it does not label the original task completed.",
+    "Failed normal recheck withholds candidate text.",
+    "After commit 9518441, recovery also requires at least one checked product claim; empty or research-process-only verdicts cannot release factual recovered bullets."
+  ],
+  "remaining_limits": [
+    "Supported-claim labels and the new recheck remain fallible model judgments; extraction can lose useful qualifications or relevance.",
+    "The helper rejects supplied structured missing/uncertain coverage, but support-mode verify clears coverage because that mode does not perform a coverage assessment. This is not a guarantee of completeness or of detecting every already-known omission.",
+    "The no-code filter detects backtick fences and C-source observations, not every possible code representation or execution-language phrase; the final factual recheck remains necessary.",
+    "The real receipt validates one narrowed response, not recovery of a complete answer. It explicitly omits the requested relationship between the three features.",
+    "The v4 tracing answer did not use recovery, so that live case is not end-to-end recovery evidence."
+  ],
+  "open_blocker_count": 0,
+  "resolution_source_sha256": "e48abaac43e502c317c705f92b132253799980eef7c4b5a9f4083b305cc40e6d"
+}

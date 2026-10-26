@@ -1,0 +1,322 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-10-26T01:30:09.806727+00:00",
+  "method": "Independent manual review of saved answers, actual drafts/verifier feedback and supplied passages; local Corpus byte/hash/outline checks; one isolated deterministic-stub replay of the saved run_turn function. No model/API/backend calls, browser control, production edits or original score changes.",
+  "source_sha256": "f440c34381ffa5713dcccea86ae09d87130a8b31a6f3e666de1e9f9c6e10181f",
+  "prompt_sha256": "87001f6e09ba5763f84de3057fd9943beae1ca01e05d30e4ad510f422b6aa36c",
+  "plan": "results/preset-check-v1/test-plan.json",
+  "v3_plan": "results/preset-check-v3/test-plan.json",
+  "original_check_text_unchanged": true,
+  "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+  "pass_definition": "Useful pass requires every original planned task check, independently of the source-verifier flag. Partial value and factual caveats are reported separately.",
+  "cases": [
+    {
+      "case_id": "03-trace-agent",
+      "artifact": "results/preset-check-v3/03-trace-agent.json",
+      "artifact_sha256": "fc7ece1cd1eaa4b8930c97f684a7cefc09c5fe696b14d74ec9ed3f81d634da2a",
+      "answer_id": "f42b6a1e-1bad-4419-a3b5-d95f28fca6bb",
+      "trace_id": "0859744fd77bc7fa3fe290f2709d439c",
+      "conversation_id": "8ac60796-0da7-44ff-ae05-c03eb5fcbc0f",
+      "kind": "answer",
+      "source_check_passed": true,
+      "source_check_mode": "support",
+      "elapsed_seconds": 24.91,
+      "estimated_usd": 0.1174278,
+      "answer_words_excluding_code": 253,
+      "model_calls": 5,
+      "drafts_submitted": 1,
+      "agent_code_runs": 0,
+      "evidence_integrity": [
+        {
+          "source_id": "S1",
+          "page_id": "custom-agents-quickstart",
+          "section": 0,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S2",
+          "page_id": "guides/tracking/trace-agents",
+          "section": 0,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S3",
+          "page_id": "custom-agents-quickstart",
+          "section": 5,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S4",
+          "page_id": "custom-agents-quickstart",
+          "section": 6,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S5",
+          "page_id": "custom-agents-quickstart",
+          "section": 7,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S6",
+          "page_id": "custom-agents-quickstart",
+          "section": 4,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        }
+      ],
+      "useful_pass": false,
+      "quality_status": "useful_tracing_scaffold_but_incomplete_multi_turn_example",
+      "false_abstention": false,
+      "retrieval_failure": false,
+      "verifier_failure": "Passed an adapted multi-turn loop that omits assistant history, despite the cited complete quickstart containing the required append.",
+      "checks": [
+        {
+          "check": "Provides a useful Python setup and conversation/turn example.",
+          "pass": false,
+          "reason": "Provides correct tracing scaffold, but run_turn appends only user messages and returns the model answer without storing it. Unless the opaque call_your_model placeholder mutates history itself, subsequent turns cannot see earlier assistant replies. That hidden side-effect requirement is not stated."
+        },
+        {
+          "check": "Uses the current agent tracing model with correct API names.",
+          "pass": true,
+          "reason": "Uses the documented current start_conversation/start_turn/start_llm/start_tool API names and nesting; source S5 shows the full pattern."
+        },
+        {
+          "check": "Does not claim an unexecuted SDK example was run.",
+          "pass": true,
+          "reason": "Explicitly says the example was not run; no agent execution action is recorded."
+        }
+      ],
+      "repair_chronology": [
+        {
+          "action": 9,
+          "draft": 1,
+          "passed": true,
+          "reason": "Only draft passed. The verifier checked API names/nesting but did not flag the missing assistant-history append."
+        }
+      ],
+      "findings": [
+        {
+          "type": "material_code_behavior_omission",
+          "severity": "fails_original_useful_multi_turn_example_check",
+          "source_id": "S5",
+          "page_id": "custom-agents-quickstart",
+          "section": 7,
+          "source_evidence": "The full quickstart appends the first assistant message via msg.model_dump(exclude_none=True), and the final assistant reply via history.append({role: assistant, content: msg.content}).",
+          "answer_evidence": "The adapted run_turn only appends {role: user, content: user_message}; llm.output(answer) records tracing output and is not an append to the local history list.",
+          "assessment": "This bug was caught and repaired in v2, then recurred and passed in v3. The observed difference does not establish prompt causation; it demonstrates verifier variability on a real semantic issue."
+        },
+        {
+          "type": "ux_process_bookkeeping",
+          "severity": "minor",
+          "assessment": "The trailing note about unread manual lifecycle/semantic-convention sections does not help the requested task. Optional quickstart package/integration guidance makes the answer longer than the requested core pattern."
+        }
+      ],
+      "offline_reproduction": {
+        "method": "Extracted only the saved run_turn AST and executed it with inert context managers plus a deterministic pure call_your_model stub. Did not execute imports, weave.init, top-level snippet, actual SDK spans or provider calls.",
+        "stub_side_effects": "Returns a fixed assistant string and captures a deep copy of supplied history; does not mutate history.",
+        "second_model_input": [
+          {
+            "role": "user",
+            "content": "First question"
+          },
+          {
+            "role": "user",
+            "content": "Follow-up"
+          }
+        ],
+        "history_after_two_turns": [
+          {
+            "role": "user",
+            "content": "First question"
+          },
+          {
+            "role": "user",
+            "content": "Follow-up"
+          }
+        ],
+        "contains_assistant_message": false,
+        "limit": "A user-supplied placeholder could deliberately mutate history, but the example neither implements nor documents that responsibility."
+      }
+    },
+    {
+      "case_id": "04-resume-followup",
+      "artifact": "results/preset-check-v3/04-resume-followup.json",
+      "artifact_sha256": "75a91f91270fea2e3abfb5ec1cb2985d6d27eb709fea101eb99cc86cf8aab033",
+      "answer_id": "83b8516a-5d00-43b0-814c-e05d953b07c2",
+      "trace_id": "f4d8fc3b35e8b2690042d46aa180dcd1",
+      "conversation_id": "8ac60796-0da7-44ff-ae05-c03eb5fcbc0f",
+      "kind": "answer",
+      "source_check_passed": true,
+      "source_check_mode": "support",
+      "elapsed_seconds": 35.5,
+      "estimated_usd": 0.1405144,
+      "answer_words_excluding_code": 261,
+      "model_calls": 8,
+      "drafts_submitted": 2,
+      "agent_code_runs": 0,
+      "evidence_integrity": [
+        {
+          "source_id": "S7",
+          "page_id": "guides/tracking/trace-agents",
+          "section": 4,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S8",
+          "page_id": "guides/tracking/trace-agents",
+          "section": 10,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S9",
+          "page_id": "custom-agents-quickstart",
+          "section": 10,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S10",
+          "page_id": "guides/tracking/trace-agents",
+          "section": 5,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S5",
+          "page_id": "custom-agents-quickstart",
+          "section": 7,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S6",
+          "page_id": "custom-agents-quickstart",
+          "section": 4,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S3",
+          "page_id": "custom-agents-quickstart",
+          "section": 5,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S2",
+          "page_id": "guides/tracking/trace-agents",
+          "section": 0,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        },
+        {
+          "source_id": "S1",
+          "page_id": "custom-agents-quickstart",
+          "section": 0,
+          "text_matches_locked_corpus": true,
+          "page_hash_matches": true,
+          "outline_matches": true
+        }
+      ],
+      "useful_pass": true,
+      "quality_status": "useful_with_unnecessary_caveats",
+      "false_abstention": false,
+      "retrieval_failure": false,
+      "checks": [
+        {
+          "check": "Explains stable conversation_id reuse in the prior Python context.",
+          "pass": true,
+          "reason": "Explains stable conversation_id reuse and shows generating/storing it on the first request, then passing the saved value on a later request. Source S7 expressly states that same-ID reuse adds turns to an existing conversation."
+        },
+        {
+          "check": "Does not imply metadata alone stores user chat history or grants persistence.",
+          "pass": true,
+          "reason": "Describes persistence of the ID in application chat state and grouping of trace turns; never claims this restores the model message history or arbitrary application state. It could explain the distinction more directly but does not imply automatic restoration."
+        },
+        {
+          "check": "Uses supported APIs or clearly states evidence limits.",
+          "pass": true,
+          "reason": "After a source-specific first rejection, it reads S9 for the returned conversation_id attribute and context-manager usage, plus S10 for instance start_turn. Final API usage is supported; it explicitly labels the example unexecuted and per-request recommendation as inference."
+        }
+      ],
+      "conversation_checks": {
+        "same_conversation_id_as_03": true,
+        "exact_prior_question_and_answer_retained": true,
+        "retained_evidence_count": 5,
+        "new_evidence_count": 4
+      },
+      "repair_chronology": [
+        {
+          "action": 5,
+          "draft": 1,
+          "passed": false,
+          "reason": "Draft cited S7 for returned object attribute/context-manager usage absent from that passage, relied on an uncited turn API, and made stronger assertions about arbitrary string IDs and per-request setup than the narrow cited evidence."
+        },
+        {
+          "actions": [
+            6,
+            7
+          ],
+          "reason": "Read quickstart section10 (S9) and tracing section5 (S10), adding the missing API evidence."
+        },
+        {
+          "action": 8,
+          "draft": 2,
+          "passed": true,
+          "reason": "Final code uses saved generated ID and documented instance method, with the added API sources cited."
+        }
+      ],
+      "findings": [
+        {
+          "type": "real_research_after_feedback",
+          "assessment": "Unlike a wording-only repair, the second draft follows two new relevant reads supplying the attribute and method evidence needed for the final example."
+        },
+        {
+          "type": "excessive_scope_caveats",
+          "severity": "minor",
+          "assessment": "Caveats about arbitrary application IDs, concurrent turns and changed agent_name are not needed to answer preserving an existing conversation. The core approach remains useful. Source S7 already invites supplied stable IDs; saving a generated ID is valid but not demonstrated to be intrinsically safer than an application ID."
+        }
+      ],
+      "comparison_to_v2": "Still delivers correct stable-ID guidance but takes an additional research/repair cycle and adds longer caveats. These selected executions are not an efficiency benchmark."
+    }
+  ],
+  "totals": {
+    "reviewed": 2,
+    "useful_pass": 1,
+    "all_planned_checks_pass": 1,
+    "planned_checks_passed": 5,
+    "planned_checks_total": 6,
+    "source_check_passed": 2,
+    "false_abstentions": 0,
+    "estimated_usd": 0.2579422,
+    "elapsed_seconds_sum": 60.41
+  },
+  "limits": [
+    "Two selected questions in one conversation, one execution each; no causal inference about prompt changes or population accuracy.",
+    "The isolated stub replay establishes local history-list behavior under a nonmutating model wrapper, not end-to-end SDK/provider behavior.",
+    "Support mode does not guarantee code completeness; the supplied S5 evidence had the missing history append.",
+    "Original drafts, audit verdicts and scores remain untouched."
+  ]
+}
