@@ -172,6 +172,29 @@ def show_result(result):
                 f"[Pricing source]({metrics['pricing']['source']}) · checked "
                 f"{metrics['pricing']['checked_at']}. Returned call usage is also recorded in Weave."
             )
+    with st.expander("Which version made this answer?"):
+        if not result.get("source_sha256"):
+            st.caption(
+                "Implementation version unknown. This earlier record predates code, prompt "
+                "and configuration fingerprints; its original evidence is preserved."
+            )
+        else:
+            st.caption(
+                "These identifiers record the code build, prompts, settings and documentation "
+                "used for this answer. A different version does not make an old answer wrong."
+            )
+        st.json(
+            {
+                "code_build": result.get("source_sha256", "unknown"),
+                "prompt_bundle": result.get("prompt_sha256", "unknown"),
+                "configuration": result.get("config_sha256", "unknown"),
+                "documentation_snapshot": result.get("snapshot_id", "unknown"),
+                "model": result.get("model", "unknown"),
+                "check_mode": result.get("verify_mode", "unknown"),
+            },
+            expanded=False,
+        )
+        st.caption("Your review is separate from this original record and its source check.")
     with st.expander("Research steps"):
         for action in result["actions"]:
             st.markdown(f"**{action['tool']}**")
@@ -333,6 +356,7 @@ with st.sidebar:
     with st.expander("About this demo"):
         st.caption(f"{len(corpus.pages)} saved Weave documentation pages")
         st.caption(f"Snapshot: {corpus.snapshot_id[:12]}")
+        st.caption(f"Answer check: {config.verify_mode}")
         st.caption(f"Model: {config.agent_model}")
         st.caption("Code examples run in an offline Python container when needed.")
         st.caption("New conversations and server restarts clear conversation memory.")

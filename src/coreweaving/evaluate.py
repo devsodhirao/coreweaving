@@ -20,14 +20,14 @@ import weave
 from pydantic import BaseModel, ConfigDict, Field
 from weave.trace.context import call_context
 
-from coreweaving.agent import Agent, Session, cited_ids
+from coreweaving.agent import Agent, Session, cited_ids, malformed_citations
 from coreweaving.budget import current_budget, model_budget
 from coreweaving.config import ROOT, Settings, init_weave, settings, source_fingerprint
 from coreweaving.corpus import Corpus
 from coreweaving.metrics import MeteredModel, summarize
 
 RUN_DIRECTORY: Path | None = None
-RUBRIC_VERSION = "2-assertions"
+RUBRIC_VERSION = "2.1-assertions"
 VERIFY_MODES = ("off", "support", "support+coverage")
 
 RUBRIC = """Evaluate the FINAL documentation answer in its conversation context.
@@ -120,6 +120,7 @@ def parse_grade(response: dict, assertions: list[dict]) -> Grade:
 def integrity(output: dict, minimum_pages: int, require_code: bool) -> dict:
     """Structural answer checks; verification and page count are not quality gates."""
     ids = set(cited_ids(output["answer"]))
+    malformed = malformed_citations(output["answer"])
     sources = output.get("sources", [])
     known = {source["source_id"] for source in sources}
     pages = {source["page_id"] for source in sources if "page_id" in source}
@@ -132,7 +133,8 @@ def integrity(output: dict, minimum_pages: int, require_code: bool) -> dict:
         for action in turn.get("actions", [])
     )
     checks = {
-        "citations_resolve": ids.issubset(known),
+        "citations_resolve": not malformed and ids.issubset(known),
+        "citation_format_valid": not malformed,
         "code_executed_when_required": not require_code or executed,
         "no_runtime_error": all(turn.get("error_type") is None for turn in turns),
         "answer_present": bool(output["answer"].strip()),
@@ -140,6 +142,7 @@ def integrity(output: dict, minimum_pages: int, require_code: bool) -> dict:
     return {
         **checks,
         "passed": all(checks.values()),
+        "malformed_citations": malformed,
         "source_pages": len(pages),
         "page_coverage_met": len(pages) >= minimum_pages,
         "page_coverage_is_diagnostic": True,

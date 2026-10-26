@@ -261,8 +261,41 @@ class Session:
         return item
 
 
+def citation_markers(answer: str) -> list[str]:
+    """Find source-like prose brackets, excluding common code/link syntax.
+
+    This is a bounded citation check, not a complete Markdown parser. Bare prose
+    brackets beginning S/C plus digits are reserved for source citations.
+    """
+    prose = re.sub(
+        r"(?ms)^ {0,3}`{3,}[^\n]*\n.*?^ {0,3}`{3,}[ \t]*(?:\n|$)"
+        r"|^ {0,3}~{3,}[^\n]*\n.*?^ {0,3}~{3,}[ \t]*(?:\n|$)",
+        "",
+        answer,
+    )
+    prose = re.sub(r"`+[^`]*`+", "", prose)
+    prose = re.sub(r"!?\[[^\]\n]*\](?:\([^\n)]*\)|\[(?![SC][0-9]+\])[^\]\n]*\])", "", prose)
+    return re.findall(r"(?<!\\)\[[ \t]*[SC][0-9]+[^\]\[\n]*(?:\]|(?=[\[\n]|$))", prose)
+
+
+def malformed_citations(answer: str) -> list[str]:
+    return list(
+        dict.fromkeys(
+            marker
+            for marker in citation_markers(answer)
+            if not re.fullmatch(r"\[[SC][0-9]+\]", marker)
+        )
+    )
+
+
 def cited_ids(answer: str) -> list[str]:
-    return list(dict.fromkeys(re.findall(r"\[([SC]\d+)\]", answer)))
+    return list(
+        dict.fromkeys(
+            marker[1:-1]
+            for marker in citation_markers(answer)
+            if re.fullmatch(r"\[[SC][0-9]+\]", marker)
+        )
+    )
 
 
 def relevant_evidence(session: Session, actions: list[dict], answer: str = "") -> list[dict]:
@@ -303,6 +336,11 @@ class Agent:
         def failed(issue: str) -> Verification:
             return Verification(passed=False, mode=mode, issues=[issue])
 
+        malformed = malformed_citations(candidate.answer)
+        if malformed:
+            return failed(
+                "Malformed source citations; use [Snumber] or [Cnumber]: " + repr(malformed)[:500]
+            )
         ids = cited_ids(candidate.answer)
         missing = [source_id for source_id in ids if source_id not in session.evidence]
         if missing:
@@ -559,9 +597,10 @@ class Agent:
                             break
                     if not answer:
                         answer = (
-                            "I couldn't establish a source-supported answer within this turn's "
-                            "research limit. Please narrow the question or specify the Weave "
-                            "feature you want to work with."
+                            "I reached this turn's research limit without a draft passing all "
+                            "checks. Research may be incomplete, or the verifier may have rejected "
+                            "a useful draft; this does not establish that the docs lack an answer. "
+                            "Inspect the trace for the stopping reason."
                         )
                         verdict = Verification(
                             passed=False,

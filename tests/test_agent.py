@@ -3,7 +3,15 @@ from dataclasses import replace
 
 import pytest
 
-from coreweaving.agent import Agent, Candidate, Claim, Session, Verification
+from coreweaving.agent import (
+    Agent,
+    Candidate,
+    Claim,
+    Session,
+    Verification,
+    cited_ids,
+    malformed_citations,
+)
 from coreweaving.config import Settings
 from coreweaving.corpus import Corpus
 
@@ -79,6 +87,63 @@ def test_invented_citation_is_rejected_and_repaired(corpus):
     assert [check["passed"] for check in result["verification_attempts"]] == [False, True]
     assert "S999" not in result["answer"]
     assert result["verification"]["passed"]
+
+
+@pytest.mark.parametrize("mode", ["support", "support+coverage"])
+def test_malformed_citation_requires_repair_before_auditor_runs(corpus, mode):
+    """Given a malformed source marker, checked modes request repair before auditing."""
+    malformed = ("submit_answer", {"answer": "Initialize Weave. [S1-UI details]", "kind": "answer"})
+    fake = FakeModel(
+        [
+            response(READ, malformed),
+            response(ANSWER),
+            audit(coverage=[obligation(source_ids=["S1"])]),
+        ]
+    )
+    result = Agent(corpus, Settings(project="test/test", verify_mode=mode), fake).run(
+        "How do I initialize Weave?"
+    )
+    assert "Malformed source citations" in result["verification_attempts"][0]["issues"][0]
+    assert result["answer"] == ANSWER[1]["answer"]
+    assert [request["purpose"] for request in fake.requests] == [
+        "planner",
+        "planner",
+        "verification",
+    ]
+
+
+def test_off_mode_still_releases_malformed_citations_without_a_verifier(corpus):
+    draft = "Initialize Weave. [S8-UI details were not read]"
+    fake = FakeModel([response(("submit_answer", {"answer": draft, "kind": "answer"}))])
+    result = Agent(corpus, Settings(project="test/test", verify_mode="off"), fake).run(
+        "How do I initialize Weave?"
+    )
+    assert result["answer"] == draft
+    assert result["verification"]["status"] == "not_run"
+    assert result["verification_attempts"] == []
+    assert [request["purpose"] for request in fake.requests] == ["planner"]
+
+
+@pytest.mark.parametrize(
+    "marker", ["[S8-UI details]", "[C2 explanation]", "[S1, S2]", "[S1", "[ S1 ]"]
+)
+def test_source_like_malformed_brackets_are_not_valid_citations(marker):
+    assert malformed_citations(marker) == [marker]
+    assert cited_ids(marker) == []
+
+
+def test_citations_distinguish_prose_markers_from_markdown_links_and_code_arrays():
+    answer = r"""Use sources [S1] and [C2], then [S1][C2] again.
+[Weave docs](https://example.test/docs) and [S8-UI guide](https://example.test/ui).
+[S9](https://example.test/page) and [C3][example-link] are link labels.
+Arrays: [1, 2], [scorer], ["weave.genai.turn_ended"], and `[S10, S11]`.
+Literal escaped notation: \[S12].
+```python
+values = [S13, S14]
+```
+"""
+    assert cited_ids(answer) == ["S1", "C2"]
+    assert malformed_citations(answer) == []
 
 
 def test_semantically_unsupported_draft_cannot_bypass_verifier(corpus):

@@ -180,6 +180,32 @@ def test_integrity_catches_unknown_citations_and_prior_turn_failures_but_counts_
     assert not evaluate.integrity(output, 1, False)["citations_resolve"]
 
 
+@pytest.mark.parametrize("mode", ["off", "support", "support+coverage"])
+def test_independent_integrity_rejects_malformed_citations_without_changing_assertions(mode):
+    output = answer(mode)
+    output["answer"] += " Use the UI. [S8-UI details were not read]"
+    checks = evaluate.integrity(output, 1, False)
+    assert not checks["citations_resolve"]
+    assert not checks["citation_format_valid"]
+    assert checks["malformed_citations"] == ["[S8-UI details were not read]"]
+    result = evaluate.quality_result(evaluate.parse_grade(judge_response(), ASSERTIONS), checks)
+    assert not result["passed"]
+    assert result["answer_quality_passed"]  # Judge verdicts remain separate from integrity.
+    assert result["assertion_fraction_passed"] == 1
+
+
+def test_integrity_accepts_valid_citations_with_ordinary_links_and_arrays():
+    output = answer()
+    output["answer"] += (
+        " [S8-UI guide](https://example.test/ui) [S99](https://example.test/docs)"
+        ' [1, 2] [scorer] ["weave.genai.turn_ended"] `[S2, S3]`'
+    )
+    checks = evaluate.integrity(output, 1, False)
+    assert checks["passed"]
+    assert checks["citation_format_valid"]
+    assert checks["malformed_citations"] == []
+
+
 def test_trial_rows_are_stable_across_arms_and_offsets_not_predictions():
     rows = [{"case_id": "a"}, {"case_id": "b"}]
     first = evaluate.trial_rows(rows, 2, seed=7)
