@@ -12,6 +12,22 @@ Read the [README](../README.md) for setup and measured results. Use this map to 
 
 The verifier participates in answer release. The evaluation judge and online Signal do not block the user response. A passing source check can still leave the task incomplete.
 
+## Design rationale and open questions
+
+These are engineering reasons for the choices, with the evidence needed to reconsider them. Only the verifier policies received a paired comparison; the project has no model, retrieval-method or general-assistant benchmark.
+
+| Choice and code | Why it serves the task | Tradeoff and what would change the decision |
+| --- | --- | --- |
+| Sonnet and one explicit loop — `Agent.run`, `LanguageModel.call` | The agent can search, read several pages and revise a draft as evidence arrives. Direct Python keeps decisions and permissions visible. Sonnet used the available provider account. | Repeated calls add latency and cost. Compare task success, cost and time before claiming this model or a specialist-agent design is better. |
+| Frozen structured corpus and BM25 — `Corpus`, `fetch_docs.py` | Stable passages, URLs and hashes make citations inspectable and experiments repeatable. Lexical search needs no embedding service and handles literal API names directly. | Snapshot freshness and paraphrases are weaknesses. Use source-labeled retrieval failures to test contextual chunks or hybrid search; a live-site check is useful when freshness matters. |
+| Separate grounded verifier — `Agent.verify`, `citation_contract` | A second call checks the draft against actual passages, while deterministic checks catch malformed and unknown citations. Specific rejection feedback supports repair. | The verifier adds work and can miss omissions or reject useful drafts. The [pilot](../results/coverage-pilot-v1/review.md) supports keeping support mode as this prototype's default; it is too small to establish a general winner. |
+| Traces, offline evaluation and online Signals — `llm.py`, `evaluate.py`, `signals.py` | Traces explain a turn; frozen tasks compare changes; Signals identify completed turns for review. Together they connect a failure to the behavior that produced it. | Instrumentation and backend reconciliation add maintenance. The judge shares the agent's model family, and Signal detection accuracy is unmeasured. [Observed use](#weave-use-and-evidence) explains the value already obtained. |
+| Answer first, separate analysis — `show_result`, `show_analysis` | A readable answer serves the user; sources, checks, usage and trace links remain available for inspection without another model call. | Another window adds a navigation step. [Browser checks](../results/final-readonly-ui.json) establish mechanics, not adoption or a usability-study result. |
+| Bounded tools and deliberate memory — `Agent.execute`, `Session`, `sandbox.py`, `library.py` | Application code defines capabilities. Original source evidence travels with follow-ups; human reviews remain separate from source facts. | Containers and credential masking reduce specific risks without making a general security guarantee. Working memory is process-local and its source ledger still needs a size bound. |
+| Research and recovery limits — `Settings`, `Agent.run`, `partial_candidate` | Limits bound repeated work; one strictly rechecked partial recovery can preserve useful supported facts when the task remains incomplete. | Ten planning calls, eighteen tool calls, two repairs and four recovery facts are heuristics. Calibrate against completion, refusal rate, latency and cost before calling them optimal. |
+
+**Scope discipline:** the assistant, tracing, Signal and required evaluation are the core submission. The library, cost accounting, experiment reconciliation and artifacts explain development choices but increase the code to maintain. Voice, adaptive UI, specialist routing and graph retrieval remain proposals. The build exceeded the brief's time budget; [dated milestones](AI_BUILD_LOG.md) make that explicit.
+
 ## Follow one question
 
 | Step | Function to open | Input → output, and the boundary it owns |

@@ -7,7 +7,7 @@ The repository and recorded evidence should explain the work without the chat tr
 
 The preset investigation corrected citation parsing and evidence handoff, separated answer inspection, and added a bounded, strictly rechecked partial recovery. [Recorded browser checks](../results/preset-check-summary.json) cost $2.8676069 including one recovery replay. The final two questions both delivered useful answers, but met 5/6 manual checks: the overview omitted monitoring timing. Its tracing example is a condensed scaffold. The empty-verdict recovery guard and saved-answer selection fix followed those live checks. Both have local tests; final desktop/mobile inspection on `a4b6f4d3` confirms the selected answer and trace remain paired without model calls.
 
-Historical full regression remains 11/13 on `179a052`; the 36-run pilot remains support 10/12, coverage 8/12, off 7/12. There is no full regression on final source. No further paid runs are planned. Latest commits and artifact changes remain local and unpublished.
+Historical full regression remains 11/13 on `179a052`; the 36-run pilot remains support 10/12, coverage 8/12, off 7/12. There is no full regression on final source. No further paid runs are planned. Compare this checkout with [public main](https://github.com/devsodhirao/coreweaving/commits/main/) for delivery status; email submission is a separate owner action.
 <!-- HANDOFF_STATUS_END -->
 
 ## Objective and constraints

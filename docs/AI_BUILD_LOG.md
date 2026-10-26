@@ -57,4 +57,4 @@ Weave supplies the inspectable conversation/evaluation/feedback record; the agen
 
 The 196 local tests check control flow and boundaries. Browser reviews independently inspect usefulness: the final overview remains overqualified and omits monitoring timing. Its source check passes, which demonstrates why we keep a separate quality measure. Backend readbacks reconcile returned usage, source identity and verifier structure. The final empty-verdict guard and library selection fix were locally tested after the last live answers; final library inspection also passed in the browser. The full regression remains attached to its older source version.
 
-The owner still needs to walk through the code and explain these decisions before the interview. AI assistance does not substitute for that understanding. [Reviewer handoff](REVIEWER_HANDOFF.md) · [All evidence](../results/README.md)
+The [design rationale](CODE_MAP.md#design-rationale-and-open-questions) links implementation choices to their purpose, tradeoffs and untested assumptions. [Reviewer handoff](REVIEWER_HANDOFF.md) · [All evidence](../results/README.md)

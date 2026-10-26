@@ -16,7 +16,7 @@ An agentic assistant that answers complex questions about **Weave documentation*
 | New Weave agent tracing | Conversation → turn → model/tool spans, with a verifier subagent. [Backend readback](results/preset-check-v4/backend.json) |
 | Online Signals | A filtered completed-turn monitor flagged a real failure. [Observed feedback](results/coverage-pilot-v1/live-signal-review.json) |
 | `weave.Evaluation` and LLM judge | Thirteen regression questions plus six capability cases; results and failure analysis appear below. |
-| Runnable public submission | Local setup and UI verified; a public repository and Weave project exist. **Latest commits await publication**, followed by owner email submission. |
+| Runnable public submission | [Public source](https://github.com/devsodhirao/coreweaving), local setup, architecture and recorded UI/evaluation checks. Email submission is a separate owner action. |
 
 ## Run locally
 
@@ -47,7 +47,9 @@ Questions, answers, evidence and executed snippets are traced to your project. *
 
 For personal documentation questions, Claude or ChatGPT is a simpler starting point: both support project sources ([Claude retrieval](https://support.claude.com/en/articles/11473015-retrieval-augmented-generation-rag-for-projects), [ChatGPT projects](https://learn.chatgpt.com/docs/projects)). This assignment makes the implementation inspectable: explicit tool permissions, exact source evidence, repeatable evaluation and monitoring.
 
-Weave connects those records across the agent, judge and monitor. That helps explain failures and compare changes; it does not establish better answers than general assistants. OpenAI's platform also offers [tracing](https://developers.openai.com/api/docs/guides/agents-api/tracing) and [evaluations](https://developers.openai.com/api/docs/guides/agent-evals).
+Weave connects those records across the agent, judge and monitor, helping a developer explain failures and compare changes. We have not compared answer quality against Claude or ChatGPT. OpenAI's platform also offers [tracing](https://developers.openai.com/api/docs/guides/agents-api/tracing) and [evaluations](https://developers.openai.com/api/docs/guides/agent-evals).
+
+The design serves three needs: **useful answers** with evidence nearby, **bounded behavior** whose permissions are explicit, and **measurable improvement** through recorded failures. The [design rationale](docs/CODE_MAP.md#design-rationale-and-open-questions) maps each choice to its purpose, tradeoff and evidence. Sonnet, BM25 and the research limits are practical starting choices; their alternatives have not been benchmarked here.
 
 ## Architecture
 
@@ -154,6 +156,6 @@ uv run ruff check src app.py tests scripts
 
 Ask a question, change an assumption, inspect sources/cost, then open its trace and an evaluation failure. [Field guide](walkthrough.html) · [Reviewer handoff](docs/REVIEWER_HANDOFF.md)
 
-Work expanded beyond the brief's approximately three hours; the [build log](docs/AI_BUILD_LOG.md) records dated milestones. The requested cost/memory features, library and artifacts remain. Voice, adaptive layouts, routing and graphs are [future ideas](research.html).
+Work expanded beyond the brief's approximately three hours; the [build log](docs/AI_BUILD_LOG.md) records dated milestones. The cost/memory features, library and artifacts add maintenance and explanation work beyond the core brief. Voice, adaptive layouts, routing and graphs are [future ideas](research.html).
 
 Further work, if separately chosen: check API existence against the pinned SDK, improve retrieval where failures justify it, connect deliberate reviews to Weave feedback, and test a different judge family and larger trials. Voice, specialist routing and graph retrieval remain future work.
