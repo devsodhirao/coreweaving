@@ -6,6 +6,18 @@ A conversational Weave documentation assistant for the CoreWeave Developer Relat
 
 ![The local assistant](docs/images/app-start.png)
 
+## How this meets the brief
+
+| Requirement | Implementation and evidence |
+| --- | --- |
+| Go beyond a single retrieval step | The model repeatedly chooses search, page reads, offline Python or draft submission; [recorded answers](results/preset-check-summary.json) preserve the sequence. |
+| Multi-turn conversation | Six exchanges plus original source evidence; contextual follow-ups were exercised in the browser and evaluation. |
+| Self-verification | Citation validation, a separate source-check call, repair feedback and strictly rechecked partial recovery. [Behavior contracts](docs/BEHAVIOR_CONTRACT.md) |
+| New Weave agent tracing | Conversation → turn → model/tool spans, with a verifier subagent. [Backend readback](results/preset-check-v4/backend.json) |
+| Online Signals | A filtered completed-turn monitor flagged a real failure. [Observed feedback](results/coverage-pilot-v1/live-signal-review.json) |
+| `weave.Evaluation` and LLM judge | Thirteen regression questions plus six capability cases; results and failure analysis appear below. |
+| Runnable public submission | Local setup and UI verified; a public repository and Weave project exist. **Latest commits await publication**, followed by owner email submission. |
+
 ## Run locally
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/). You need Anthropic and W&B/Forge API keys, a Weave project, and access to Sonnet 5.5 and Opus 5.5. Docker enables the optional Python tool and its evaluation case.
