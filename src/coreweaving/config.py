@@ -97,6 +97,8 @@ def source_fingerprint() -> str:
 
 @dataclass(frozen=True)
 class Settings:
+    """Immutable turn policy and model names; no credentials are stored here."""
+
     project: str
     agent_model: str = "claude-sonnet-5-5"
     judge_model: str = "claude-opus-5-5"
@@ -114,6 +116,7 @@ class Settings:
 
 
 def settings() -> Settings:
+    """Load local credentials into the environment and return validated settings."""
     load_dotenv(ROOT / ".env")
     missing = [
         key for key in ("ANTHROPIC_API_KEY", "WANDB_API_KEY", "WEAVE_PROJECT") if not os.getenv(key)
@@ -134,6 +137,7 @@ def settings() -> Settings:
 
 @lru_cache(maxsize=1)
 def init_weave():
+    """Initialize once per process before emitting explicit agent spans."""
     config = settings()
     # We emit the new conversation/turn/chat/tool model explicitly. Autopatching
     # would add duplicate legacy Calls for the same provider requests.

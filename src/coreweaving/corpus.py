@@ -54,6 +54,8 @@ class Passage:
 
 
 class Corpus:
+    """Validate a frozen snapshot, then index its sections for local BM25 search."""
+
     def __init__(self, directory: Path = ROOT / "data/docs"):
         manifest = json.loads((directory / "manifest.json").read_text())
         # The reference page's source tag does not establish every guide's compatibility.
@@ -106,6 +108,7 @@ class Corpus:
         )
 
     def search(self, query: str, limit: int = 6) -> dict:
+        """Return ranked navigation hints, with at most two hits per page."""
         scores = self.index.get_scores(tokens(query[:500]))
         ranked = sorted(range(len(scores)), key=lambda i: (-scores[i], i))
         results, page_counts = [], {}
@@ -133,6 +136,7 @@ class Corpus:
         }
 
     def read(self, page_id: str, section: int = 0) -> Passage:
+        """Return an exact indexed passage; never fetch a model-supplied URL."""
         if page_id not in self.pages:
             raise ValueError("Unknown page_id. Use an exact page_id from search_docs.")
         if section < 0 or section >= len(self.pages[page_id]):
@@ -140,4 +144,5 @@ class Corpus:
         return self.pages[page_id][section]
 
     def outline(self, page_id: str) -> list[dict]:
+        """List section headings for navigation, without exposing unread bodies."""
         return [{"section": p.section, "heading": p.heading} for p in self.pages[page_id]]

@@ -12,6 +12,7 @@ from coreweaving.config import redact_sensitive, safe_exception
 
 
 def trace_message(message: dict) -> weave.Message:
+    """Translate provider text/tool blocks without losing tool-call identities."""
     content = message["content"]
     if isinstance(content, str):
         return weave.Message(role=message["role"], content=content)
@@ -31,6 +32,8 @@ def trace_message(message: dict) -> weave.Message:
 
 
 class LanguageModel:
+    """Anthropic transport for the planner/verifier, instrumented exactly once."""
+
     def __init__(self):
         # Anthropic 2.x also emits native OTel spans. We record each request once
         # ourselves, with full messages and a named purpose, to avoid double usage.
@@ -51,6 +54,12 @@ class LanguageModel:
         cache_enabled: bool = True,
         span_parent=None,
     ) -> dict:
+        """Make one request and return raw usage alongside redacted output blocks.
+
+        Explicit subagent parenting preserves verifier ownership in Weave. The
+        tracing adapter uses inclusive input counts; cost receipts keep Anthropic's
+        original disjoint cache buckets. Experiment budgets disable hidden retries.
+        """
         system, messages, tools = redact_sensitive((system, messages, tools))
         if required_tool:
             # Sonnet/Opus 5.5 reject forced tool_choice. Ask for the schema tool

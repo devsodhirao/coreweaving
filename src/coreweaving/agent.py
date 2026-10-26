@@ -1,4 +1,10 @@
-"""The whole agent loop: choose tools, gather evidence, verify, repair, answer."""
+"""Research and release one documentation answer, with explicit evidence checks.
+
+Read Agent.run first: it owns one turn and calls execute/verify. Session holds
+conversation state; the pure citation/recovery helpers define release boundaries.
+Prompts and schemas live together below so the model's contract is inspectable.
+UI persistence belongs to app.py/library.py; independent grading to evaluate.py.
+"""
 
 import hashlib
 import html
@@ -29,6 +35,7 @@ from coreweaving.llm import LanguageModel
 from coreweaving.metrics import MeteredModel, summarize
 from coreweaving.sandbox import run_python
 
+# Model instructions. These strings are fingerprinted with the tool schemas.
 SYSTEM = """You are Coreweaving, a careful Weave documentation assistant.
 Your purpose is to help users understand and use Weave documentation, including
 related small offline Python examples. For unrelated requests, briefly explain
@@ -141,6 +148,8 @@ return at least one coverage item, including for clarification/insufficient answ
 """
 
 
+# Typed model output. Class docstrings would change the generated tool schemas;
+# keep explanatory comments outside these models to preserve the model contract.
 class Claim(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -276,11 +285,18 @@ VERDICT_TOOL = {
 
 @dataclass
 class Session:
+    """One conversation's identity, completed dialogue and original source ledger.
+
+    Agent.run trims dialogue to six exchanges. Evidence IDs remain stable for the
+    session; their ledger is not size-capped or populated from the review library.
+    """
+
     conversation_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     history: list[dict] = field(default_factory=list)
     evidence: dict[str, dict] = field(default_factory=dict)
 
     def add_passage(self, passage, outline: list[dict] | None = None) -> dict:
+        """Reuse a passage's source ID or assign one after an actual page read."""
         for item in self.evidence.values():
             if item.get("page_id") == passage.page_id and item.get("section") == passage.section:
                 if outline is not None:
@@ -306,6 +322,7 @@ class Session:
         )
 
 
+# Deterministic checks: formatting/provenance before any model-based judgment.
 def _citation_prose(answer: str) -> str:
     # Code is literal data. Source-like link labels remain visible to validation.
     prose = re.sub(
@@ -363,6 +380,7 @@ def cited_ids(answer: str) -> list[str]:
 
 
 def citation_contract(answer: str, kind: str, source_ids, evidence: dict) -> list[str]:
+    """Check marker syntax and exact source-ID agreement, not factual truth."""
     issues = []
     malformed = malformed_citations(answer)
     if malformed:
@@ -446,6 +464,12 @@ def partial_candidate(verdict: Verification, session: Session) -> Candidate | No
 
 
 class Agent:
+    """Shared runtime for the web app, CLI and evaluation adapter.
+
+    execute enforces tool capabilities; verify checks proposed answers; run owns
+    the bounded loop, trace lifecycle, history and complete per-turn receipt.
+    """
+
     def __init__(self, corpus: Corpus, config: Settings, llm=None):
         self.corpus, self.config = corpus, config
         self.llm = MeteredModel(llm or LanguageModel())
@@ -459,6 +483,12 @@ class Agent:
         *,
         recovery: bool = False,
     ) -> Verification:
+        """Validate citations, ask a separate auditor, then enforce its verdict.
+
+        Support mode sees cited passages. Coverage mode and partial recovery also
+        see relevant reads/history; only coverage mode assesses task obligations.
+        The model's passed flag cannot override missing or unsupported claims.
+        """
         mode = self.config.verify_mode
         if mode == "off":
             return Verification(passed=False, mode=mode)
@@ -569,6 +599,11 @@ class Agent:
             return verdict
 
     def execute(self, name: str, arguments: dict, session: Session) -> dict:
+        """Dispatch the three research tools with exact, application-owned arguments.
+
+        submit_answer is handled by run because it can end the turn. Page/code
+        reads add evidence here; search snippets alone never become citations.
+        """
         allowed = {
             "search_docs": {"query"},
             "read_page": {"page_id", "section"},
@@ -600,6 +635,13 @@ class Agent:
         *,
         eval_attributes: dict | None = None,
     ) -> dict:
+        """Complete one turn and return its answer, evidence, checks and usage.
+
+        Mutates only the supplied session. The on_event callback reports progress;
+        callers own UI rendering and disk persistence. Operational failures become
+        labeled results, while invalid user input raises before tracing starts.
+        """
+        # 1. Mask input and bind this turn to its history, prompts and source bytes.
         question = redact_sensitive(question)
         if not question.strip() or len(question) > 12000:
             raise ValueError("Enter a question between 1 and 12,000 characters.")
@@ -646,6 +688,7 @@ class Agent:
         error_type = None
         recovery_attempted = False
         recovered_partial = False
+        # 2. Keep every model/tool operation inside one traced conversation turn.
         with weave.start_conversation(
             agent_name=AGENT_NAME,
             conversation_id=session.conversation_id,
@@ -747,8 +790,8 @@ class Agent:
                         ):
                             break
                     if not answer and checks and (candidate := partial_candidate(verdict, session)):
-                        # One bounded final check of a narrower answer. The same release
-                        # policy applies, including material omissions in coverage mode.
+                        # Only support mode can propose this narrower answer. It
+                        # still needs a fresh strict check before any facts are shown.
                         recovery_attempted = True
                         verdict = self.verify(candidate, session, question, actions, recovery=True)
                         checks.append(
@@ -804,6 +847,7 @@ class Agent:
                         "coreweaving.price_checked_at": metrics["pricing"]["checked_at"],
                     }
                 )
+        # 3. Retain completed dialogue and return the receipt; the caller saves it.
         all_read_evidence = relevant_evidence(session, actions, answer)
         session.history.extend(
             [{"role": "user", "content": question}, {"role": "assistant", "content": answer}]

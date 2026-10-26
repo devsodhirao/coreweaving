@@ -36,6 +36,11 @@ specific evidence, and "confidence" from 0.0 to 1.0. Otherwise return an empty
 
 
 def setup() -> dict:
+    """Activate a server-side monitor for this agent's completed turns.
+
+    This is an explicit setup command, not part of app startup. Sampling is 100%;
+    scoring consumes CoreWeave inference credits separately from Anthropic usage.
+    """
     client = init_weave()
     model = LLMStructuredCompletionModel(
         name="coreweaving-signal-model",
@@ -73,6 +78,7 @@ def setup() -> dict:
 
 
 def fixture() -> dict:
+    """Emit a labeled synthetic failure to exercise online scoring after setup."""
     client = init_weave()
     conversation_id = "signal-fixture-" + uuid.uuid4().hex
     with weave.start_conversation(

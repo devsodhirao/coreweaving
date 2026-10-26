@@ -1,4 +1,10 @@
-"""Source-referenced, assertion-based comparisons with durable per-trial evidence."""
+"""Grade the real agent with independent references and preserve every attempt.
+
+Reading route: dataset_rows -> DocumentationModel.predict -> QualityJudge.score
+-> run_evaluation. The first half defines the rubric and scoring helpers; the
+last section aggregates receipts and reconciles Weave delivery. Neither the judge
+nor the online Signal participates in the agent's answer-release decision.
+"""
 
 import argparse
 import asyncio
@@ -374,6 +380,7 @@ def evidence_name(output: dict) -> str:
 
 
 def persist_record(directory: Path | None, area: str, output: dict, record: dict) -> None:
+    """Write a redacted attempt atomically without replacing earlier evidence."""
     if directory is None:
         return
     output, record = redact_sensitive((output, record))
@@ -404,6 +411,7 @@ def all_turn_metrics(turns: list[dict]) -> dict:
     )
 
 
+# Weave adapters: predictions use the same runtime as the app; grading is separate.
 class DocumentationModel(weave.Model):
     agent_model: str
     snapshot_id: str
@@ -416,6 +424,7 @@ class DocumentationModel(weave.Model):
     async def predict(
         self, prompts: list[str], case_id: str, trial_index: int = 1, example_id: str = ""
     ) -> dict:
+        """Run one case's prompts in a fresh session, retaining every turn and cost."""
         prompts = redact_sensitive(prompts)
         identity = {
             "case_id": case_id,
@@ -511,6 +520,11 @@ class QualityJudge(weave.Scorer):
         require_code: bool,
         assertions: list[dict] | None = None,
     ) -> dict:
+        """Judge against frozen assertions/references, independently of self-checks.
+
+        Structural integrity also gates success. Retrieval overlap and verifier
+        adherence are diagnostics; neither substitutes for the judge's assessment.
+        """
         output, prompts, expected_behavior, reference_evidence, assertions = redact_sensitive(
             (output, prompts, expected_behavior, reference_evidence, assertions)
         )
@@ -601,6 +615,11 @@ class QualityJudge(weave.Scorer):
 def dataset_rows(
     corpus: Corpus, only: list[str] | None = None, suite: str = "regression"
 ) -> list[dict]:
+    """Resolve frozen questions/assertions to reference passages for the judge.
+
+    Weave routes fields by argument name: predict receives prompts and identity,
+    while score receives the references. The agent must retrieve its own evidence.
+    """
     if suite not in ("regression", "capability"):
         raise ValueError("Unknown evaluation suite.")
     path = ROOT / "evals" / ("cases.json" if suite == "regression" else "capability.json")
@@ -647,6 +666,7 @@ def dataset_rows(
 def trial_rows(
     rows: list[dict], trials: int, seed: int = 20261026, trial_offset: int = 0
 ) -> list[dict]:
+    """Give each case/repeat a stable identity shared across experimental arms."""
     if not 1 <= trials <= 100 or trial_offset < 0:
         raise ValueError("Trials must be 1–100 and trial offset nonnegative.")
     expanded = [
@@ -765,6 +785,12 @@ def sync_completed_evaluation(client, project: str, result: dict) -> dict:
 
 
 async def run_evaluation(args):
+    """Publish a dataset, run weave.Evaluation and reconcile saved/remote results.
+
+    This entry point spends model credits. Materialized case/repeat rows use
+    Evaluation.trials=1 to avoid multiplying repeats a second time. A new run
+    directory preserves original evidence; delivery recovery never reruns answers.
+    """
     global RUN_DIRECTORY
     # Small paid pilots need predictable budget reservations and trace inspection.
     os.environ["WEAVE_PARALLELISM"] = "1"

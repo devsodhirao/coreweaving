@@ -1,4 +1,9 @@
-"""A small interface that shows both the answer and the evidence behind it."""
+"""Render conversation/library views around the shared agent runtime.
+
+run_question owns background execution and saves before rendering; show_result
+and show_analysis only inspect returned data. The bottom of this file wires
+Streamlit controls to one pending job per session. No UI callback chooses tools.
+"""
 
 import json
 from concurrent.futures import ThreadPoolExecutor
@@ -70,6 +75,7 @@ def run_question(corpus, config, client, question, session, events):
 
 @st.fragment(run_every="1s")
 def show_pending_turn():
+    """Poll progress and consume a worker's completed result exactly once."""
     job = st.session_state.get("job")
     if job is None:
         return
@@ -106,6 +112,7 @@ def show_pending_turn():
 
 
 def show_result(result):
+    """Show the answer first and link its saved data to the analysis dialog."""
     verification = result["verification"]
     passed = verification["passed"]
     status = verification.get("status", "passed" if passed else "failed")
@@ -302,6 +309,7 @@ def show_analysis(result):
 
 
 def show_library(corpus):
+    """Inspect immutable saved answers and record separate human review notes."""
     st.caption("COREWEAVING / OUR ANSWER LIBRARY")
     st.title("Keep the evidence. Improve the answer.")
     st.write("Real agent responses, saved locally for us to review together.")

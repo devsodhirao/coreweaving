@@ -10,6 +10,11 @@ IMAGE = "python:3.12-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5
 
 
 def run_python(code: str, timeout: float = 8, max_output: int = 12000) -> dict:
+    """Run stdlib code offline with fixed container limits and bounded output.
+
+    No host mounts or credentials enter the container. Results describe only this
+    execution; the tool cannot validate SDK examples whose packages are absent.
+    """
     if len(code.encode()) > 6000:
         return {"error": "Code exceeds the 6 KB limit."}
     name = "coreweaving-" + uuid.uuid4().hex[:12]

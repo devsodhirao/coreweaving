@@ -33,6 +33,7 @@ def database(path: Path | None = None):
 
 
 def save_answer(question: str, result: dict, path: Path | None = None) -> None:
+    """Save once by answer ID; repeated rendering cannot overwrite the original."""
     question, result = redact_sensitive((question, result))
     with database(path) as db:
         db.execute(
@@ -62,6 +63,7 @@ def list_answers(path: Path | None = None) -> list[dict]:
 
 
 def review_answer(answer_id: str, state: str, notes: str, path: Path | None = None) -> None:
+    """Append an explicit human assessment without altering the agent's answer."""
     notes = redact_sensitive(notes)
     if state not in REVIEW_STATES:
         raise ValueError("Unknown review state.")
