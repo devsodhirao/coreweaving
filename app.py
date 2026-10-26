@@ -1,11 +1,14 @@
 """A small interface that shows both the answer and the evidence behind it."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor
+from importlib.metadata import version
+from queue import Empty, Queue
 
 import streamlit as st
 
 from coreweaving.agent import Agent, Session
-from coreweaving.config import init_weave, settings
+from coreweaving.config import init_weave, redact_sensitive, settings
 from coreweaving.corpus import Corpus
 from coreweaving.library import list_answers, review_answer, save_answer
 
@@ -39,6 +42,67 @@ st.markdown(
 @st.cache_resource
 def resources():
     return Corpus(), init_weave()
+
+
+@st.cache_resource
+def worker_pool():
+    return ThreadPoolExecutor(max_workers=2, thread_name_prefix="coreweaving")
+
+
+def run_question(corpus, config, client, question, session, events):
+    """No Streamlit calls: UI reruns cannot interrupt research or persistence."""
+    result = redact_sensitive(Agent(corpus, config).run(question, session, events.put))
+    warning = None
+    try:
+        save_answer(result.get("question", question), result)
+    except Exception as exc:
+        warning = (
+            f"The answer is ready, but its local copy could not be saved ({type(exc).__name__})."
+        )
+    try:
+        client.flush()
+    except Exception as exc:
+        warning = (warning + " " if warning else "") + (
+            f"Trace delivery needs checking ({type(exc).__name__})."
+        )
+    return result, warning
+
+
+@st.fragment(run_every="1s")
+def show_pending_turn():
+    job = st.session_state.get("job")
+    if job is None:
+        return
+    if job["future"].done():
+        # Remove ownership before a UI rerun so completion is consumed once.
+        st.session_state.job = None
+        try:
+            result, warning = job["future"].result()
+        except Exception as exc:
+            st.session_state.library_warning = f"This turn could not finish ({type(exc).__name__})."
+        else:
+            st.session_state.turns.append((job["question"], result))
+            if warning:
+                st.session_state.library_warning = warning
+        st.rerun()
+    while True:
+        try:
+            event = job["events"].get_nowait()
+        except Empty:
+            break
+        stage, detail = event["stage"], event["detail"]
+        if stage == "thinking":
+            job["progress"] = detail
+        elif stage == "search_docs":
+            job["progress"] = "Searching: " + detail.get("query", "")
+        elif stage == "read_page":
+            job["progress"] = "Reading: " + detail.get("page_id", "documentation")
+        elif stage == "verification":
+            job["progress"] = "Checking finished." if detail["passed"] else "Revising the draft."
+    st.info("Working on your question · " + job["progress"])
+    st.caption(
+        "You can browse the answer library while this finishes. One question runs at a time."
+    )
 
 
 def show_result(result):
@@ -314,7 +378,7 @@ try:
     corpus, weave_client = resources()
     config = settings()
 except Exception as exc:
-    st.error(f"Setup needs attention: {type(exc).__name__}: {exc}")
+    st.error(f"Setup needs attention: {type(exc).__name__}: {redact_sensitive(str(exc))}")
     st.info("Follow the README setup steps, then reload this page.")
     st.stop()
 
@@ -328,11 +392,14 @@ if config.verify_mode == "off":
 if "session" not in st.session_state:
     st.session_state.session = Session()
     st.session_state.turns = []
+    st.session_state.job = None
+
+busy = st.session_state.get("job") is not None
 
 with st.sidebar:
     st.markdown("### coreweaving")
     st.write("Your companion to the Weave docs.")
-    if st.button("New conversation", width="stretch"):
+    if st.button("New conversation", width="stretch", disabled=busy):
         st.session_state.session = Session()
         st.session_state.turns = []
         st.session_state.workspace_view = "Conversation"
@@ -358,9 +425,19 @@ with st.sidebar:
         st.caption(f"Snapshot: {corpus.snapshot_id[:12]}")
         st.caption(f"Answer check: {config.verify_mode}")
         st.caption(f"Model: {config.agent_model}")
+        reference_version = getattr(corpus, "docs_sdk_version", "unknown")
+        runtime_version = version("weave")
+        if reference_version != "unknown" and reference_version != runtime_version:
+            st.warning(
+                f"Python reference source: {reference_version}; installed Weave: {runtime_version}. "
+                "Newer APIs may be covered by guides rather than that reference page."
+            )
         st.caption("Code examples run in an offline Python container when needed.")
         st.caption("New conversations and server restarts clear conversation memory.")
         st.caption("The local answer library persists across restarts. It is excluded from Git.")
+
+if busy:
+    show_pending_turn()
 
 if view == "Answer library":
     show_library(corpus)
@@ -380,12 +457,12 @@ if not st.session_state.turns:
     # An inline welcome field avoids the pinned chat layout scrolling a narrow
     # first screen past its heading. Conversation input stays pinned below.
     with st.container(key="welcome_input"):
-        question = st.chat_input("Ask about Weave…", key="welcome_question")
+        question = st.chat_input("Ask about Weave…", key="welcome_question", disabled=busy)
 else:
-    question = st.chat_input("Ask about Weave…", key="conversation_question")
+    question = st.chat_input("Ask about Weave…", key="conversation_question", disabled=busy)
 
 starter_area = st.empty()
-if not st.session_state.turns:
+if not st.session_state.turns and not busy:
     examples = [
         (
             "learn",
@@ -418,46 +495,16 @@ for previous_question, previous_result in st.session_state.turns:
         show_result(previous_result)
 
 question = question or st.session_state.pop("pending_question", None)
-if question:
-    starter_area.empty()
-    with st.chat_message("user"):
-        st.markdown(question)
-    with st.chat_message("assistant"):
-        with st.status("Finding and checking evidence…", expanded=True) as progress:
-
-            def update(event):
-                stage = event["stage"]
-                if stage == "thinking":
-                    st.write(event["detail"])
-                elif stage in ("search_docs", "read_page", "run_python"):
-                    detail = event["detail"]
-                    if stage == "search_docs":
-                        st.write(f"Searching: {detail.get('query', '')}")
-                    elif stage == "read_page":
-                        page = corpus.pages.get(detail.get("page_id"))
-                        st.write(f"Reading: {page[0].title if page else 'a documentation page'}")
-                    else:
-                        st.write("Trying a small Python example in the offline container.")
-                elif stage == "verification":
-                    st.write(
-                        "Source check passed."
-                        if event["detail"]["passed"]
-                        else "Draft needs revision; returning feedback to the agent."
-                    )
-
-            result = Agent(corpus, config).run(question, st.session_state.session, update)
-            progress.update(
-                label="Answer checked"
-                if result["verification"]["passed"]
-                else "Turn finished with a limitation",
-                state="complete",
-                expanded=False,
-            )
-        show_result(result)
-    st.session_state.turns.append((question, result))
-    try:
-        save_answer(question, result)
-    except Exception as exc:
-        st.session_state.library_warning = f"The answer is ready, but its local library copy could not be saved ({type(exc).__name__})."
-    weave_client.flush()
+if question and not busy:
+    question = redact_sensitive(question)
+    events = Queue()
+    future = worker_pool().submit(
+        run_question, corpus, config, weave_client, question, st.session_state.session, events
+    )
+    st.session_state.job = {
+        "question": question,
+        "future": future,
+        "events": events,
+        "progress": "Starting research…",
+    }
     st.rerun()

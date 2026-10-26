@@ -1,5 +1,6 @@
 """UI reruns must never turn conversation history into another paid request."""
 
+from concurrent.futures import Future
 from types import SimpleNamespace
 
 import streamlit as st
@@ -10,6 +11,17 @@ from coreweaving.config import ROOT, Settings
 
 def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch, tmp_path):
     requests = []
+
+    class ImmediatePool:
+        def __init__(self, **kwargs):
+            pass
+
+        def submit(self, function, *args):
+            future = Future()
+            future.set_result(function(*args))
+            return future
+
+    monkeypatch.setattr("concurrent.futures.ThreadPoolExecutor", ImmediatePool)
 
     class FakeAgent:
         def __init__(self, *args):
@@ -103,5 +115,77 @@ def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch, 
         assert any("Verification was disabled" in x.value for x in app.warning)
         app.run()
         assert len(requests) == 3
+    finally:
+        st.cache_resource.clear()
+
+
+def test_pending_work_survives_navigation_and_saves_before_display(monkeypatch, tmp_path):
+    pending = []
+    requests = []
+
+    class DeferredPool:
+        def __init__(self, **kwargs):
+            pass
+
+        def submit(self, function, *args):
+            future = Future()
+            pending.append((future, function, args))
+            return future
+
+    class FakeAgent:
+        def __init__(self, *args):
+            pass
+
+        def run(self, question, session, notify):
+            requests.append(question)
+            notify({"stage": "thinking", "detail": "Research step 1"})
+            return {
+                "answer_id": "navigation-survivor",
+                "answer": "Checked answer.",
+                "verification": {"passed": True, "issues": []},
+                "verification_attempts": [],
+                "sources": [],
+                "actions": [],
+                "elapsed_seconds": 0.1,
+                "trace_url": "https://example.test/trace",
+                "snapshot_id": "test-snapshot",
+            }
+
+    monkeypatch.setattr("concurrent.futures.ThreadPoolExecutor", DeferredPool)
+    monkeypatch.setattr("coreweaving.agent.Agent", FakeAgent)
+    monkeypatch.setattr("coreweaving.library.LIBRARY_PATH", tmp_path / "answers.sqlite3")
+    monkeypatch.setattr(
+        "coreweaving.corpus.Corpus", lambda: SimpleNamespace(pages={}, snapshot_id="test-snapshot")
+    )
+    monkeypatch.setattr("coreweaving.config.settings", lambda: Settings(project="test/test"))
+    monkeypatch.setattr(
+        "coreweaving.config.init_weave", lambda: SimpleNamespace(flush=lambda: None)
+    )
+    st.cache_resource.clear()
+    try:
+        app = AppTest.from_file(ROOT / "app.py", default_timeout=10).run()
+        app.chat_input[0].set_value("Explain tracing.").run()
+        assert not app.exception
+        assert len(pending) == 1
+        assert app.chat_input[0].disabled
+        assert next(b for b in app.button if b.label == "New conversation").disabled
+        app.radio[0].set_value("Answer library").run()
+        app.run()
+        assert not app.exception
+        assert len(pending) == 1 and requests == []
+
+        future, function, args = pending[0]
+        future.set_result(function(*args))
+        from coreweaving.library import list_answers
+
+        assert len(list_answers()) == 1  # Worker persisted before another UI render.
+        app.run()
+        app.radio[0].set_value("Conversation").run()
+        app.run()
+        assert not app.exception
+        assert requests == ["Explain tracing."]
+        assert len(list_answers()) == 1 and len(pending) == 1
+        assert any("Checked answer." in item.value for item in app.markdown)
+        assert not app.chat_input[0].disabled
     finally:
         st.cache_resource.clear()
