@@ -1,6 +1,6 @@
 # Coreweaving
 
-A conversational Weave documentation assistant for the CoreWeave Developer Relations take-home. It researches across pages and checks drafts before answering. A separate **Sources & analysis** window contains the evidence, checks, cost and Weave trace.
+An agentic assistant that answers complex questions about **Weave documentation**. It uses a **multi-step tool-calling loop**, retains **multi-turn context**, and **verifies drafts against sources** before responding. It implements Weave's **new agent tracing model**, **online Signals**, and a completed **`weave.Evaluation` suite with 13 varied questions and an LLM judge**. The web app runs locally for the interview; recorded results include failures and their analysis.
 
 **[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving)** · [Results](results/README.md) · [Product plan](plan.html) · [AI build log](docs/AI_BUILD_LOG.md)
 
@@ -53,27 +53,33 @@ Weave connects those records across the agent, judge and monitor. That helps exp
 
 ```mermaid
 flowchart LR
-    Q[Question + recent conversation] --> A[Tool-calling loop]
+    Q[Web UI or CLI + recent conversation] --> A[Agent.run tool loop]
     A --> T[Search / read / offline Python]
     T --> A
     A --> D[Submit draft]
     D --> V[Source verifier]
     V -->|repair feedback| A
     V -->|accepted| U[Answer + sources + usage + trace]
+    E[Weave Evaluation: cases + independent judge] --> A
+    A -. conversations, turns, model and tool spans .-> W[Weave Agents]
+    W --> S[Signal scores completed turns]
 ```
 
 Sonnet 5.5 chooses tools in a direct Python loop and performs a separate verification call. Opus 5.5 judges evaluation answers against references withheld from the agent. These models used the available account; we did not run a model-selection contest. Local BM25 search avoids an embedding service and makes API-name matches inspectable, with weaker paraphrase matching as a tradeoff.
 
-| Component | Responsibility |
-| --- | --- |
-| [agent.py](src/coreweaving/agent.py) | Tool loop, six exchanges of context, verification and repair limits. |
-| [corpus.py](src/coreweaving/corpus.py) | Search, passage evidence and source identity. |
-| [llm.py](src/coreweaving/llm.py) | Anthropic requests, usage and Weave model spans. |
-| [evaluate.py](src/coreweaving/evaluate.py) | `weave.Evaluation`, assertion judge and saved results. |
-| [app.py](app.py) | Streamlit chat, background work and separate answer inspection. |
-| [config.py](src/coreweaving/config.py) / [sandbox.py](src/coreweaving/sandbox.py) | Configuration, credential masking and bounded offline execution. |
-| [metrics.py](src/coreweaving/metrics.py) / [library.py](src/coreweaving/library.py) | All-call usage accounting and persistent review records. |
-| [signals.py](src/coreweaving/signals.py) | Configure the online monitor and inspect its feedback. |
+| File | Start with | Responsibility and choice |
+| --- | --- | --- |
+| [app.py](app.py) | `run_question`, `show_result`, `show_analysis` | Background execution and persistence before rendering; answers first, diagnostics in a separate window. |
+| [agent.py](src/coreweaving/agent.py) | `Agent.run` → `execute` / `verify`; `Session` | One explicit loop and source ledger; inspectable control flow without an orchestration framework. |
+| [corpus.py](src/coreweaving/corpus.py) | `Corpus.search`, `read`, `outline` | BM25 over hashed sections; navigation hints become evidence only after a read. |
+| [llm.py](src/coreweaving/llm.py) | `LanguageModel.call` | One Anthropic boundary with explicit Weave messages, usage and verifier parenting. |
+| [evaluate.py](src/coreweaving/evaluate.py) | `dataset_rows`, `DocumentationModel.predict`, `QualityJudge.score`, `run_evaluation` | Same agent, separately supplied judge references, frozen assertions and durable results. |
+| [signals.py](src/coreweaving/signals.py) | `setup`, `SIGNAL_DEFINITION` | Explicit monitor setup; completed-turn review runs asynchronously in Weave. |
+| [config.py](src/coreweaving/config.py) | `Settings`, `redact_sensitive`, `init_weave` | Immutable limits, credential masking and one-time trace initialization. |
+| [sandbox.py](src/coreweaving/sandbox.py) | `run_python` | Offline Docker execution with application-owned resource limits. |
+| [metrics.py](src/coreweaving/metrics.py) / [library.py](src/coreweaving/library.py) | `MeteredModel`, `summarize` / `save_answer`, `review_answer` | Account for failed/repaired work; preserve original answers separately from human reviews. |
+
+**Reading route:** follow `app.run_question` → `Agent.run` → `LanguageModel.call` → `Agent.execute` / `Agent.verify` → `save_answer` → `show_result`. Then read the evaluation and Signal paths. The [detailed code map](docs/CODE_MAP.md) connects functions, data, Weave operations, tests and evidence, including CLI/setup/experiment files.
 
 Scripts support setup and recorded experiments; they do not add runtime agent tools. The agent has 10 planning calls, 18 tool calls and two repair opportunities. In default support mode, an exhausted attempt can make one final strict check of up to four supported documentation facts. A passing recovery is labeled **partial**, never a completed task; a failed recheck withholds the text. Coverage mode does not use this recovery. Python runs in a non-root, offline container without host mounts or credentials. There is no general shell or account-administration tool. [Behavior contract](docs/BEHAVIOR_CONTRACT.md)
 
@@ -88,6 +94,10 @@ Completed answers are saved before UI rendering. The local SQLite library retain
 The [agent tracing model](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents) records conversations, turns, model calls, tools and a verifier subagent. Each answer links to its trace; evaluations retain datasets, scores and failure explanations.
 
 The **`coreweaving-review-signal`** uses CoreWeave Serverless Inference after completed turns, filtered to this agent. It tagged a real failed TypeScript follow-up `needs-review`, confirmed through readback. [Observed feedback](results/coverage-pilot-v1/live-signal-review.json) · [Signals guide](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals)
+
+**How Weave informed the build:** traces exposed citation/evidence failures; the evaluation compared three verifier policies; coverage-mode refusals informed the decision to keep support mode as default; Signals surfaced a failed live turn. Dataset/model/scorer records and source/prompt/configuration hashes connect each measurement to its inputs. [Implementation-to-evidence map](docs/CODE_MAP.md#weave-use-and-evidence)
+
+Human reviews currently remain in SQLite, and prompts are source-controlled strings with hashes. Weave feedback integration, `StringPrompt` versions and a Leaderboard are future work. The configured Signal detects visible review needs; it is not a general factual-accuracy scorer.
 
 The assistant and offline judge use Anthropic. CoreWeave supplies Weave and Signal inference; this project does not use its GPU training or application hosting. With inference credits available, configure the Signal and a labeled synthetic fixture:
 
@@ -135,7 +145,7 @@ uv run ruff check src app.py tests scripts
 ## Known limits
 
 1. **Evaluation scope:** six selected tasks and a same-family judge cannot establish general or causal superiority. Reviews identified an overly narrow API assertion and an inherited normative caveat. One Signal flag does not establish monitoring accuracy. The overview can overqualify relationships, and illustrative SDK code needs review; one experimental response omitted assistant history despite passing its verifier.
-2. **Final-source coverage:** the 11/13 run predates the later app fixes. The final two-question UI check and recovery replay used source `1b981419`; later tested changes reject empty recovery verdicts and keep saved-answer selection stable. There is no full regression on final source `a4b6f4d3`.
+2. **Final-source coverage:** the 11/13 run predates the later app fixes. The final two-question UI check and recovery replay used source `1b981419`; later tested changes reject empty recovery verdicts and keep saved-answer selection stable. The readability pass produces source `8e41f124` with unchanged executable logic, prompts and schemas. No full quality evaluation has run on this source. [Readability verification](results/readability-review.json)
 3. **Freshness:** the downloaded Python SDK reference identifies 0.53.1; runtime is pinned to 0.54.0. The sidebar exposes this mismatch. That reference version does not date every guide, and API compatibility is not automatically validated.
 4. **Privacy:** configured secrets and common credential formats are masked before model requests, traces, history, SQLite and exports. This is not general PII detection; encoded or unfamiliar secrets may escape it.
 5. **Process lifetime:** background jobs and working conversation memory are in process. A restart can lose unfinished work; completed library records persist. The session source ledger is not yet size-limited.

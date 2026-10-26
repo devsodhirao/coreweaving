@@ -22,6 +22,7 @@ The manifest records `reference_sdk_version=0.53.1` from the Python reference pa
 ## Changes should trigger proportionate evidence
 
 - **Presentation-only:** open the artifact, inspect desktop and mobile, exercise the changed control, and check markup/links/browser errors. Reuse existing answer records; do not pay for a new evaluation merely to change a heading.
+- **Python comments/docstrings:** the source hash still changes. Compare executable syntax and model-facing prompts/schemas, run local checks and refresh code excerpts. A Pydantic model docstring can change a generated tool description, so it must not be assumed behavior-neutral. Keep historical evaluations tied to their original hashes.
 - **Prompt, permissions, tool behavior or memory policy:** change the relevant Given/When/Then contract, test the boundary, then run targeted real cases. Record a new behavior identity. An expanded capability needs an explicit permission decision; a new version number cannot grant authority.
 - **Model, retrieval or documentation snapshot:** preserve the previous input, run the relevant regression and difficult cases, and compare quality, cost and latency. Existing answers remain historical; a freshness warning is a reason to review, not proof they are false.
 - **Dataset or judge rule:** assign a new dataset identity or rubric version. Preserve old scores and disclose why the instrument changed. If rescoring stored answers, label it as a rescore with the original prediction identity; it is not a fresh agent run.
