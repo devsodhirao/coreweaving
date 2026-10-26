@@ -115,6 +115,10 @@ def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch, 
         app.radio[0].set_value("Answer library").run()
         assert not app.exception
         assert len(requests) == 2
+        app.button(key="analysis_test-2").click().run()
+        assert not app.exception
+        assert any("Explain the requested Signal setup." in x.value for x in app.markdown)
+        assert len(requests) == 2  # Saved-answer inspection must not submit a new question.
         next(item for item in app.selectbox if item.label == "Your assessment").set_value("useful")
         app.text_area[0].set_value("Reviewed in the isolated UI test.")
         next(button for button in app.button if button.label == "Save my review").click().run()
@@ -232,5 +236,74 @@ def test_pending_work_survives_navigation_and_saves_before_display(monkeypatch, 
         assert len(list_answers()) == 1 and len(pending) == 1
         assert any("Checked answer." in item.value for item in app.markdown)
         assert not app.chat_input[0].disabled
+    finally:
+        st.cache_resource.clear()
+
+
+def test_library_duplicate_questions_keep_selected_answer_when_inspecting(monkeypatch):
+    """Given duplicate questions, inspecting the newest answer keeps its identity."""
+    agent_calls = []
+
+    class UnexpectedAgent:
+        def __init__(self, *args, **kwargs):
+            agent_calls.append("constructed")
+            raise AssertionError("Inspecting a saved answer must not call the agent.")
+
+    records = []
+    for answer_id in ("newer-answer", "older-answer"):
+        records.append(
+            {
+                "id": answer_id,
+                "created_at": "2026-10-26T01:00:00+00:00",
+                "question": "How do I trace a custom multi-turn agent in Python?",
+                "review_state": "unreviewed",
+                "notes": "",
+                "result": {
+                    "answer_id": answer_id,
+                    "answer": f"Saved response: {answer_id}",
+                    "kind": "answer",
+                    "verification": {"passed": True, "issues": []},
+                    "verification_attempts": [],
+                    "sources": [],
+                    "actions": [],
+                    "elapsed_seconds": 0.1,
+                    "trace_url": f"https://example.test/{answer_id}",
+                    "snapshot_id": "test-snapshot",
+                },
+            }
+        )
+
+    monkeypatch.setattr("coreweaving.agent.Agent", UnexpectedAgent)
+    monkeypatch.setattr("coreweaving.library.list_answers", lambda: records)
+    monkeypatch.setattr(
+        "coreweaving.corpus.Corpus", lambda: SimpleNamespace(pages={}, snapshot_id="test-snapshot")
+    )
+    monkeypatch.setattr("coreweaving.config.settings", lambda: Settings(project="test/test"))
+    monkeypatch.setattr(
+        "coreweaving.config.init_weave", lambda: SimpleNamespace(flush=lambda: None)
+    )
+    st.cache_resource.clear()
+    try:
+        app = AppTest.from_file(ROOT / "app.py", default_timeout=10).run()
+        app.radio[0].set_value("Answer library").run()
+        assert not app.exception
+        selected = next(item for item in app.selectbox if item.label == "Saved question")
+        assert selected.value == "newer-answer"
+
+        # When inspection reruns the app, the identical question must not select
+        # the other record and discard the clicked answer's button event.
+        app.button(key="analysis_newer-answer").click().run()
+
+        # Then the chosen record, rendered response and trace all stay together.
+        assert not app.exception
+        selected = next(item for item in app.selectbox if item.label == "Saved question")
+        assert selected.value == "newer-answer"
+        assert any(item.value == "Saved response: newer-answer" for item in app.markdown)
+        assert not any(item.value == "Saved response: older-answer" for item in app.markdown)
+        dialogs = app.get("dialog")
+        assert len(dialogs) == 1 and dialogs[0].proto.dialog.is_open
+        links = app.get("link_button")
+        assert len(links) == 1 and links[0].proto.url == "https://example.test/newer-answer"
+        assert agent_calls == []
     finally:
         st.cache_resource.clear()
