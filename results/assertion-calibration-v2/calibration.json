@@ -1,0 +1,925 @@
+{
+  "source_sha256": "a6621741d5868bdb88ee64137a5e4c459d222898c28ad50702545ebeafb2da81",
+  "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+  "basis": {
+    "case_id": "cap-06-current-conversation",
+    "category": "obscure-api",
+    "family": "obscure-real-api",
+    "prompts": [
+      "I'm inside a nested Python helper called by my instrumented agent. I saw weave.get_current_conversation() in a reference and want to use it instead of passing the conversation object through every function. Is it a real documented API, what does it return, and what happens when no conversation is active? Show a small usage example."
+    ],
+    "expected_behavior": "Answer the documented question directly. weave.get_current_conversation() retrieves the active Conversation from context and returns None if none is active. A small helper can retrieve it and check for None; no mandatory clarification or refusal is warranted. Do not substitute get_current_session as the preferred API, invent a required argument, claim it starts a conversation, or claim the example was executed against Weave. The agent may qualify the answer as applying to the saved documentation snapshot.",
+    "reference_evidence": [
+      {
+        "source_id": "reference",
+        "page_id": "reference/python-sdk",
+        "section": 263,
+        "title": "weave",
+        "heading": "<kbd>function</kbd> `get_current_conversation`",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+        "page_sha256": "458bbcdb9cd103df8921fe985c50079ed7db53b5fad7a5077de2ab9f2c667d2d",
+        "text": "### <kbd>function</kbd> `get_current_conversation`\n\n```python theme={\"system\"}\nget_current_conversation() \u2192 Conversation | None\n```\n\nReturn the active conversation from contextvar, or None.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/conversation/conversation.py#L1348)\n\n",
+        "page_context": "# weave\n\n> Python SDK reference for weave\n\n"
+      },
+      {
+        "source_id": "reference",
+        "page_id": "reference/python-sdk",
+        "section": 265,
+        "title": "weave",
+        "heading": "<kbd>function</kbd> `get_current_session`",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+        "page_sha256": "458bbcdb9cd103df8921fe985c50079ed7db53b5fad7a5077de2ab9f2c667d2d",
+        "text": "### <kbd>function</kbd> `get_current_session`\n\n```python theme={\"system\"}\nget_current_session() \u2192 Conversation | None\n```\n\nDeprecated alias of :func:`weave.get_current_conversation`.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/conversation/conversation.py#L1343)\n\n",
+        "page_context": "# weave\n\n> Python SDK reference for weave\n\n"
+      },
+      {
+        "source_id": "reference",
+        "page_id": "guides/tracking/trace-agents",
+        "section": 4,
+        "title": "Trace your agents",
+        "heading": "Start a conversation",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+        "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+        "text": "### Start a conversation\n\n`start_conversation()` (Python) or `startConversation()` (TypeScript) stamps a `conversation_id` attribute on every child span so that turns are grouped in the Agents tab. If you pass a `conversation_id` / `conversationId`, it must be stable across the lifetime of the conversation. Reuse the same ID to add new turns to an existing conversation. When you omit it, the SDK generates a UUID automatically.\n\nThe active conversation is stored in context (a Python `ContextVar` or Node.js `AsyncLocalStorage`), so any code running in the same async context can retrieve it with `weave.get_current_conversation()` / `weave.getCurrentConversation()` without passing the conversation object explicitly.\n\n**Python**\n\n```python lines theme={\"system\"}\nconversation = weave.start_conversation(\n    agent_name=\"my-agent\",    # Optional: identifies the agent in the UI. Omit it and the conversation isn't grouped under a named agent.\n    conversation_id=\"\",       # Optional: stable ID to group turns; auto-generated when empty.\n    model=\"\",                 # Optional: default model for turns in this conversation.\n    conversation_name=\"\",     # Optional: human-readable label shown in the UI.\n    include_content=True,     # Optional: set False to omit message bodies from spans.\n    continue_parent_trace=False,  # Optional: attach to an existing OTel trace instead of starting a new one.\n)\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',  // Optional: identifies the agent in the UI. Omit it and the conversation isn't grouped under a named agent.\n  conversationId: '',     // Optional: stable ID to group turns, auto-generated when empty.\n  model: '',              // Optional: default model for turns in this conversation.\n});\n```\n\n",
+        "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n"
+      },
+      {
+        "source_id": "reference",
+        "page_id": "guides/tracking/trace-agents",
+        "section": 9,
+        "title": "Trace your agents",
+        "heading": "Context manager or try-finally pattern",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+        "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+        "text": "### Context manager or try-finally pattern\n\nFor most agents, use a context manager pattern in Python or a try-finally pattern in TypeScript. The span closes and sends at the end of the block, even if an exception occurs.\n\nWeave stores the active conversation, turn, and LLM call in context, so any function called within a block can call `start_llm()` / `startLLM()` or `start_tool()` / `startTool()` without holding an explicit reference to the parent. This works across module boundaries as long as the code runs in the same async context. To retrieve the active objects from anywhere in the call stack, use `weave.get_current_conversation()` / `weave.getCurrentConversation()`, `weave.get_current_turn()` / `weave.getCurrentTurn()`, and `weave.get_current_llm()` / `weave.getCurrentLLM()`.\n\n**Python**\n\n```python lines highlight=\"13,14,17,25,29\" theme={\"system\"}\nimport weave\nfrom weave.conversation import Message, Usage\n\n# Placeholder functions: replace with your own implementations.\ndef call_openai(*args, **kwargs):\n    pass  # Replace with your LLM client call.\n\ndef get_weather_api(city: str) -> str:\n    return \"24\u00b0C, sunny\"  # Replace with your weather API call.\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\nwith weave.start_conversation(agent_name=\"weather-bot\") as conversation:\n    with conversation.start_turn(user_message=\"What is the weather in Tokyo?\") as turn:\n\n        # First LLM call: returns a tool call.\n        with weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\") as llm:\n            response = call_openai(...)\n            llm.input_messages = [Message(role=\"user\", content=\"What is the weather?\")]\n            llm.think(\"User wants weather data, I should call get_weather.\")\n            llm.output(\"Let me check the weather for you.\")\n            llm.usage = Usage(input_tokens=100, output_tokens=20)\n\n            # Tool call: child of the LLM call that requested it.\n            with weave.start_tool(name=\"get_weather\", arguments='{\"city\":\"Tokyo\"}') as tool:\n                tool.result = get_weather_api(\"Tokyo\")  # Returns \"24\u00b0C, sunny\".\n\n        # Second LLM call: synthesizes the final answer.\n        with weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\") as llm:\n            llm.input_messages = [Message(role=\"user\", content=\"What is the weather?\")]\n            llm.output(\"It is 24\u00b0C and sunny in Tokyo today.\")\n            llm.usage = Usage(input_tokens=150, output_tokens=30)\n```\n\n**TypeScript**\n\n```typescript lines highlight=\"11,13,16,24,35\" twoslash theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\nimport type { Message, Usage } from 'weave';\n\n// Placeholder function: replace with your own implementation.\nasync function getWeatherApi(city: string): Promise<string> {\n  return '24\u00b0C, sunny';  // Replace with your weather API call.\n}\n\nawait weave.init('[YOUR-TEAM]/[YOUR-PROJECT]');\n\nconst conversation = weave.startConversation({ agentName: 'weather-bot' });\ntry {\n  const turn = conversation.startTurn({ agentName: 'weather-bot' });\n  try {\n    // First LLM call: returns a tool call.\n    const llm = weave.startLLM({ model: 'gpt-4o', providerName: 'openai' });\n    try {\n      llm.inputMessages = [{ role: 'user', content: 'What is the weather?' }];\n      llm.think('User wants weather data, I should call get_weather.');\n      llm.output('Let me check the weather for you.');\n      llm.usage = { inputTokens: 100, outputTokens: 20 };\n\n      // Tool call: child of the LLM call that requested it.\n      const tool = weave.startTool({ name: 'get_weather', args: '{\"city\":\"Tokyo\"}' });\n      try {\n        tool.result = await getWeatherApi('Tokyo');  // Returns \"24\u00b0C, sunny\".\n      } finally {\n        tool.end();\n      }\n    } finally {\n      llm.end();\n    }\n\n    // Second LLM call: synthesizes the final answer.\n    const llm2 = weave.startLLM({ model: 'gpt-4o', providerName: 'openai' });\n    try {\n      llm2.inputMessages = [{ role: 'user', content: 'What is the weather?' }];\n      llm2.output('It is 24\u00b0C and sunny in Tokyo today.');\n      llm2.usage = { inputTokens: 150, outputTokens: 30 };\n    } finally {\n      llm2.end();\n    }\n  } finally {\n    turn.end();\n  }\n} finally {\n  conversation.end();\n}\n```\n\n",
+        "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n"
+      }
+    ],
+    "minimum_pages": 1,
+    "require_code": false,
+    "assertions": [
+      {
+        "id": "cap-06-a1",
+        "description": "Confirms and uses the documented no-argument weave.get_current_conversation() API to retrieve the currently active conversation."
+      },
+      {
+        "id": "cap-06-a2",
+        "description": "States that the return value is the active Conversation or None when no conversation is active."
+      },
+      {
+        "id": "cap-06-a3",
+        "description": "Provides a small Python example retrieving the active conversation inside a helper, without inventing required arguments or starting a new conversation merely to retrieve the existing one."
+      }
+    ]
+  },
+  "sources": [
+    {
+      "source_id": "S1",
+      "page_id": "reference/python-sdk",
+      "section": 263,
+      "title": "weave",
+      "heading": "<kbd>function</kbd> `get_current_conversation`",
+      "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+      "page_sha256": "458bbcdb9cd103df8921fe985c50079ed7db53b5fad7a5077de2ab9f2c667d2d",
+      "text": "### <kbd>function</kbd> `get_current_conversation`\n\n```python theme={\"system\"}\nget_current_conversation() \u2192 Conversation | None\n```\n\nReturn the active conversation from contextvar, or None.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/conversation/conversation.py#L1348)\n\n",
+      "page_context": "# weave\n\n> Python SDK reference for weave\n\n"
+    },
+    {
+      "source_id": "S2",
+      "page_id": "reference/python-sdk",
+      "section": 265,
+      "title": "weave",
+      "heading": "<kbd>function</kbd> `get_current_session`",
+      "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+      "page_sha256": "458bbcdb9cd103df8921fe985c50079ed7db53b5fad7a5077de2ab9f2c667d2d",
+      "text": "### <kbd>function</kbd> `get_current_session`\n\n```python theme={\"system\"}\nget_current_session() \u2192 Conversation | None\n```\n\nDeprecated alias of :func:`weave.get_current_conversation`.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/conversation/conversation.py#L1343)\n\n",
+      "page_context": "# weave\n\n> Python SDK reference for weave\n\n"
+    },
+    {
+      "source_id": "S3",
+      "page_id": "guides/tracking/trace-agents",
+      "section": 4,
+      "title": "Trace your agents",
+      "heading": "Start a conversation",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+      "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+      "text": "### Start a conversation\n\n`start_conversation()` (Python) or `startConversation()` (TypeScript) stamps a `conversation_id` attribute on every child span so that turns are grouped in the Agents tab. If you pass a `conversation_id` / `conversationId`, it must be stable across the lifetime of the conversation. Reuse the same ID to add new turns to an existing conversation. When you omit it, the SDK generates a UUID automatically.\n\nThe active conversation is stored in context (a Python `ContextVar` or Node.js `AsyncLocalStorage`), so any code running in the same async context can retrieve it with `weave.get_current_conversation()` / `weave.getCurrentConversation()` without passing the conversation object explicitly.\n\n**Python**\n\n```python lines theme={\"system\"}\nconversation = weave.start_conversation(\n    agent_name=\"my-agent\",    # Optional: identifies the agent in the UI. Omit it and the conversation isn't grouped under a named agent.\n    conversation_id=\"\",       # Optional: stable ID to group turns; auto-generated when empty.\n    model=\"\",                 # Optional: default model for turns in this conversation.\n    conversation_name=\"\",     # Optional: human-readable label shown in the UI.\n    include_content=True,     # Optional: set False to omit message bodies from spans.\n    continue_parent_trace=False,  # Optional: attach to an existing OTel trace instead of starting a new one.\n)\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',  // Optional: identifies the agent in the UI. Omit it and the conversation isn't grouped under a named agent.\n  conversationId: '',     // Optional: stable ID to group turns, auto-generated when empty.\n  model: '',              // Optional: default model for turns in this conversation.\n});\n```\n\n",
+      "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n"
+    },
+    {
+      "source_id": "S4",
+      "page_id": "guides/tracking/trace-agents",
+      "section": 9,
+      "title": "Trace your agents",
+      "heading": "Context manager or try-finally pattern",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+      "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+      "text": "### Context manager or try-finally pattern\n\nFor most agents, use a context manager pattern in Python or a try-finally pattern in TypeScript. The span closes and sends at the end of the block, even if an exception occurs.\n\nWeave stores the active conversation, turn, and LLM call in context, so any function called within a block can call `start_llm()` / `startLLM()` or `start_tool()` / `startTool()` without holding an explicit reference to the parent. This works across module boundaries as long as the code runs in the same async context. To retrieve the active objects from anywhere in the call stack, use `weave.get_current_conversation()` / `weave.getCurrentConversation()`, `weave.get_current_turn()` / `weave.getCurrentTurn()`, and `weave.get_current_llm()` / `weave.getCurrentLLM()`.\n\n**Python**\n\n```python lines highlight=\"13,14,17,25,29\" theme={\"system\"}\nimport weave\nfrom weave.conversation import Message, Usage\n\n# Placeholder functions: replace with your own implementations.\ndef call_openai(*args, **kwargs):\n    pass  # Replace with your LLM client call.\n\ndef get_weather_api(city: str) -> str:\n    return \"24\u00b0C, sunny\"  # Replace with your weather API call.\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\nwith weave.start_conversation(agent_name=\"weather-bot\") as conversation:\n    with conversation.start_turn(user_message=\"What is the weather in Tokyo?\") as turn:\n\n        # First LLM call: returns a tool call.\n        with weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\") as llm:\n            response = call_openai(...)\n            llm.input_messages = [Message(role=\"user\", content=\"What is the weather?\")]\n            llm.think(\"User wants weather data, I should call get_weather.\")\n            llm.output(\"Let me check the weather for you.\")\n            llm.usage = Usage(input_tokens=100, output_tokens=20)\n\n            # Tool call: child of the LLM call that requested it.\n            with weave.start_tool(name=\"get_weather\", arguments='{\"city\":\"Tokyo\"}') as tool:\n                tool.result = get_weather_api(\"Tokyo\")  # Returns \"24\u00b0C, sunny\".\n\n        # Second LLM call: synthesizes the final answer.\n        with weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\") as llm:\n            llm.input_messages = [Message(role=\"user\", content=\"What is the weather?\")]\n            llm.output(\"It is 24\u00b0C and sunny in Tokyo today.\")\n            llm.usage = Usage(input_tokens=150, output_tokens=30)\n```\n\n**TypeScript**\n\n```typescript lines highlight=\"11,13,16,24,35\" twoslash theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\nimport type { Message, Usage } from 'weave';\n\n// Placeholder function: replace with your own implementation.\nasync function getWeatherApi(city: string): Promise<string> {\n  return '24\u00b0C, sunny';  // Replace with your weather API call.\n}\n\nawait weave.init('[YOUR-TEAM]/[YOUR-PROJECT]');\n\nconst conversation = weave.startConversation({ agentName: 'weather-bot' });\ntry {\n  const turn = conversation.startTurn({ agentName: 'weather-bot' });\n  try {\n    // First LLM call: returns a tool call.\n    const llm = weave.startLLM({ model: 'gpt-4o', providerName: 'openai' });\n    try {\n      llm.inputMessages = [{ role: 'user', content: 'What is the weather?' }];\n      llm.think('User wants weather data, I should call get_weather.');\n      llm.output('Let me check the weather for you.');\n      llm.usage = { inputTokens: 100, outputTokens: 20 };\n\n      // Tool call: child of the LLM call that requested it.\n      const tool = weave.startTool({ name: 'get_weather', args: '{\"city\":\"Tokyo\"}' });\n      try {\n        tool.result = await getWeatherApi('Tokyo');  // Returns \"24\u00b0C, sunny\".\n      } finally {\n        tool.end();\n      }\n    } finally {\n      llm.end();\n    }\n\n    // Second LLM call: synthesizes the final answer.\n    const llm2 = weave.startLLM({ model: 'gpt-4o', providerName: 'openai' });\n    try {\n      llm2.inputMessages = [{ role: 'user', content: 'What is the weather?' }];\n      llm2.output('It is 24\u00b0C and sunny in Tokyo today.');\n      llm2.usage = { inputTokens: 150, outputTokens: 30 };\n    } finally {\n      llm2.end();\n    }\n  } finally {\n    turn.end();\n  }\n} finally {\n  conversation.end();\n}\n```\n\n",
+      "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n"
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "supported",
+      "synthetic": true,
+      "answer": "Yes. `weave.get_current_conversation()` takes no arguments and retrieves the active Conversation; it returns `None` when no conversation is active. [S1]\n```python\nimport weave\ndef current_conversation_id():\n    conversation = weave.get_current_conversation()\n    return None if conversation is None else conversation.conversation_id\n```\nThis illustrates the documented API; I have not executed it against Weave.",
+      "expected_pass": true,
+      "scores": {
+        "critique": "The answer correctly confirms that `weave.get_current_conversation()` is a real, no-argument API. It also states the documented return behavior, Conversation or None, and cites S1 (the Python SDK reference heading for `get_current_conversation`). The helper example retrieves the conversation and checks for None. It doesn't start a conversation or use the deprecated `get_current_session` alias. The answer also says honestly that the code wasn't executed. One minor issue: the example reads `conversation.conversation_id` as an attribute of the object. The cited passages document `conversation_id` only as a `start_conversation` parameter and a span attribute, not as a property on the Conversation object, so that part isn't directly supported. The answer also leaves out S3's caveat that retrieval only works within the same async context, which matters for nested helpers.",
+        "assertions": [
+          {
+            "id": "cap-06-a1",
+            "critique": "The answer confirms that `weave.get_current_conversation()` exists, says it takes no arguments, and says it retrieves the active Conversation. This matches the S1 signature `get_current_conversation() \u2192 Conversation | None`.",
+            "passed": true
+          },
+          {
+            "id": "cap-06-a2",
+            "critique": "The answer says it returns the active Conversation and returns `None` when no conversation is active. This matches S1: \"Return the active conversation from contextvar, or None.\"",
+            "passed": true
+          },
+          {
+            "id": "cap-06-a3",
+            "critique": "The small helper calls `weave.get_current_conversation()` with no arguments and checks for None. It doesn't start a new conversation. Reading `.conversation_id` isn't directly documented as an object attribute, but that doesn't break the assertion.",
+            "passed": true
+          }
+        ],
+        "correctness": 3,
+        "completeness": 3,
+        "grounding": 3,
+        "uncertainty": 4,
+        "explanation": "The answer is accurate, direct and supported by citations for the API signature and its None behavior. There are two minor issues: the example uses a `conversation_id` attribute that the cited sources don't document, and the answer omits the same-async-context caveat. It correctly says the example wasn't executed.",
+        "failures": [
+          "Example accesses `conversation.conversation_id` as an object attribute, which the cited passages don't document",
+          "Omits the documented caveat that retrieval works only within the same async context (S3/S4)"
+        ],
+        "answer_quality_passed": true,
+        "assertion_count": 3,
+        "assertions_passed": 3,
+        "assertion_fraction_passed": 1.0,
+        "integrity": {
+          "citations_resolve": true,
+          "code_executed_when_required": true,
+          "no_runtime_error": true,
+          "answer_present": true,
+          "passed": true,
+          "source_pages": 2,
+          "page_coverage_met": true,
+          "page_coverage_is_diagnostic": true
+        },
+        "passed": true,
+        "judge_error": null,
+        "expected_assertion_count": 3,
+        "verification_adherence": {
+          "turns": [
+            {
+              "mode": "off",
+              "status": "not_run",
+              "policy_followed": true
+            }
+          ],
+          "policy_followed": true
+        },
+        "retrieval_diagnostics": {
+          "selected_reference_count": 4,
+          "selected_reference_read_count": 0,
+          "selected_reference_cited_count": 1,
+          "selected_reference_read_recall": 0.0,
+          "selected_reference_cited_recall": 0.25,
+          "read_sections": [],
+          "cited_sections": [
+            [
+              "reference/python-sdk",
+              263
+            ]
+          ],
+          "uncited_selected_sections": [
+            [
+              "guides/tracking/trace-agents",
+              4
+            ],
+            [
+              "guides/tracking/trace-agents",
+              9
+            ],
+            [
+              "reference/python-sdk",
+              265
+            ]
+          ],
+          "alternative_cited_sections": [],
+          "scope": "Exact overlap with preselected page/section references, not semantic recall. Valid alternative passages may support a correct answer. These are diagnostics, never quality gates. Read coverage includes relevant evidence from earlier turns."
+        },
+        "judge_metrics": {
+          "calls": [
+            {
+              "purpose": "evaluation-judge",
+              "requested_model": "claude-opus-5-5",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgPt9uicb1bLZEKu5gGtC",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 12196
+                },
+                "cache_creation_input_tokens": 12196,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 1060,
+                "output_tokens_details": {
+                  "thinking_tokens": 155
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 10.3872,
+              "estimated_usd": 0.082196
+            }
+          ],
+          "model_calls": 1,
+          "tokens": {
+            "input_tokens": 4,
+            "output_tokens": 1060,
+            "cache_creation_input_tokens": 12196,
+            "cache_read_input_tokens": 0
+          },
+          "total_input_tokens": 12200,
+          "estimated_usd": 0.082196,
+          "known_estimated_usd": 0.082196,
+          "unpriced_calls": 0,
+          "by_purpose": {
+            "evaluation-judge": {
+              "calls": 1,
+              "known_estimated_usd": 0.082196
+            }
+          },
+          "research": {
+            "searches": 0,
+            "passage_reads": 0,
+            "distinct_pages_read": 0,
+            "repeated_tool_requests": 0,
+            "drafts_submitted": 0,
+            "code_runs": 0
+          },
+          "pricing": {
+            "checked_at": "2026-10-25",
+            "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+            "rates": {
+              "claude-sonnet-5-5": {
+                "input": 2,
+                "output": 10,
+                "write_5m": 2.5,
+                "write_1h": 4,
+                "read": 0.1
+              },
+              "claude-opus-5-5": {
+                "input": 4,
+                "output": 20,
+                "write_5m": 5,
+                "write_1h": 8,
+                "read": 0.2
+              }
+            }
+          },
+          "scope": "Only this evaluation judge's provider-reported usage, including invalid verdicts. Dated list-price estimate; excludes agent, Signals and unreturned usage."
+        },
+        "rubric_version": "2-assertions"
+      },
+      "matched": true,
+      "judge_call_id": "01a1758e-58ed-75af-b749-a6386aa8059d"
+    },
+    {
+      "fixture": "missing-none-behavior",
+      "synthetic": true,
+      "answer": "`weave.get_current_conversation()` retrieves the currently active Conversation. [S1]\n```python\nimport weave\ndef current_context():\n    return weave.get_current_conversation()\n```",
+      "expected_pass": false,
+      "scores": {
+        "critique": "The answer correctly names weave.get_current_conversation() as a no-argument call that gets the active conversation, and S1 supports this. It doesn't fully answer the question, though. It never says plainly that this is a documented API, beyond citing it. It skips the documented behaviour that the function returns None when no conversation is active, which S1 states (\"Return the active conversation from contextvar, or None\"). It also never explains that the conversation is stored in a ContextVar, so the call only works when the code runs in the same async context. The example just returns the call's result and doesn't handle None. The answer doesn't claim the example was run or invent any arguments, but it is too thin overall.",
+        "assertions": [
+          {
+            "id": "cap-06-a1",
+            "critique": "The answer uses the no-argument weave.get_current_conversation() call and says it retrieves the active Conversation, which S1 supports. It doesn't explicitly say the API is documented, but the citation stands in for that.",
+            "passed": true
+          },
+          {
+            "id": "cap-06-a2",
+            "critique": "The answer says it returns the active Conversation but never mentions that it returns None when no conversation is active. That is documented in S1 and was asked for directly.",
+            "passed": false
+          },
+          {
+            "id": "cap-06-a3",
+            "critique": "The small helper calls get_current_conversation() with no arguments and doesn't start a new conversation, so it meets the minimum. It doesn't check for None, but the assertion doesn't require that.",
+            "passed": true
+          }
+        ],
+        "correctness": 3,
+        "completeness": 1,
+        "grounding": 3,
+        "uncertainty": 1,
+        "explanation": "What the answer says is accurate and supported by S1, but it leaves out the documented None behaviour, which the user asked about directly. It also skips the context and async caveats, and the example doesn't handle the case where no conversation is active.",
+        "failures": [
+          "Omits that get_current_conversation() returns None when no conversation is active, which is documented in S1 and was asked about directly.",
+          "Does not explicitly confirm that this is a real documented API.",
+          "The example does not check for None.",
+          "Does not mention that the conversation is stored in a ContextVar and that the call only works in the same async context."
+        ],
+        "answer_quality_passed": false,
+        "assertion_count": 3,
+        "assertions_passed": 2,
+        "assertion_fraction_passed": 0.6666666666666666,
+        "integrity": {
+          "citations_resolve": true,
+          "code_executed_when_required": true,
+          "no_runtime_error": true,
+          "answer_present": true,
+          "passed": true,
+          "source_pages": 2,
+          "page_coverage_met": true,
+          "page_coverage_is_diagnostic": true
+        },
+        "passed": false,
+        "judge_error": null,
+        "expected_assertion_count": 3,
+        "verification_adherence": {
+          "turns": [
+            {
+              "mode": "off",
+              "status": "not_run",
+              "policy_followed": true
+            }
+          ],
+          "policy_followed": true
+        },
+        "retrieval_diagnostics": {
+          "selected_reference_count": 4,
+          "selected_reference_read_count": 0,
+          "selected_reference_cited_count": 1,
+          "selected_reference_read_recall": 0.0,
+          "selected_reference_cited_recall": 0.25,
+          "read_sections": [],
+          "cited_sections": [
+            [
+              "reference/python-sdk",
+              263
+            ]
+          ],
+          "uncited_selected_sections": [
+            [
+              "guides/tracking/trace-agents",
+              4
+            ],
+            [
+              "guides/tracking/trace-agents",
+              9
+            ],
+            [
+              "reference/python-sdk",
+              265
+            ]
+          ],
+          "alternative_cited_sections": [],
+          "scope": "Exact overlap with preselected page/section references, not semantic recall. Valid alternative passages may support a correct answer. These are diagnostics, never quality gates. Read coverage includes relevant evidence from earlier turns."
+        },
+        "judge_metrics": {
+          "calls": [
+            {
+              "purpose": "evaluation-judge",
+              "requested_model": "claude-opus-5-5",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgPtAfqiUWFjLJ43cpcze",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 10621
+                },
+                "cache_creation_input_tokens": 10621,
+                "cache_read_input_tokens": 1426,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 839,
+                "output_tokens_details": {
+                  "thinking_tokens": 0
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 8.4033,
+              "estimated_usd": 0.0701862
+            }
+          ],
+          "model_calls": 1,
+          "tokens": {
+            "input_tokens": 4,
+            "output_tokens": 839,
+            "cache_creation_input_tokens": 10621,
+            "cache_read_input_tokens": 1426
+          },
+          "total_input_tokens": 12051,
+          "estimated_usd": 0.0701862,
+          "known_estimated_usd": 0.0701862,
+          "unpriced_calls": 0,
+          "by_purpose": {
+            "evaluation-judge": {
+              "calls": 1,
+              "known_estimated_usd": 0.0701862
+            }
+          },
+          "research": {
+            "searches": 0,
+            "passage_reads": 0,
+            "distinct_pages_read": 0,
+            "repeated_tool_requests": 0,
+            "drafts_submitted": 0,
+            "code_runs": 0
+          },
+          "pricing": {
+            "checked_at": "2026-10-25",
+            "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+            "rates": {
+              "claude-sonnet-5-5": {
+                "input": 2,
+                "output": 10,
+                "write_5m": 2.5,
+                "write_1h": 4,
+                "read": 0.1
+              },
+              "claude-opus-5-5": {
+                "input": 4,
+                "output": 20,
+                "write_5m": 5,
+                "write_1h": 8,
+                "read": 0.2
+              }
+            }
+          },
+          "scope": "Only this evaluation judge's provider-reported usage, including invalid verdicts. Dated list-price estimate; excludes agent, Signals and unreturned usage."
+        },
+        "rubric_version": "2-assertions"
+      },
+      "matched": true,
+      "judge_call_id": "01a1758e-819d-7f73-90af-32210213adce"
+    },
+    {
+      "fixture": "fabricated-api",
+      "synthetic": true,
+      "answer": "Use `weave.get_current_conversation(create_if_missing=True)`; it always creates a conversation. [S1]",
+      "expected_pass": false,
+      "scores": {
+        "critique": "The final answer says to call `weave.get_current_conversation(create_if_missing=True)` and claims \"it always creates a conversation.\" Its own cited source S1 contradicts this. S1 documents the signature as `get_current_conversation() \u2192 Conversation | None`, with no arguments: it returns the active conversation from the contextvar, or None. The `create_if_missing` parameter is invented. The claim that the function creates a conversation is false. The answer never says what happens when no conversation is active, and it gives no helper example.",
+        "assertions": [
+          {
+            "id": "cap-06-a1",
+            "critique": "S1 documents a no-argument function. The answer adds an invented `create_if_missing=True` argument instead of confirming the no-argument API.",
+            "passed": false
+          },
+          {
+            "id": "cap-06-a2",
+            "critique": "The answer says the function always creates a conversation. S1 says it returns the active Conversation or None, so this is wrong and the None case is not mentioned.",
+            "passed": false
+          },
+          {
+            "id": "cap-06-a3",
+            "critique": "There is no helper example. The single line given uses an invented argument and implies a conversation gets created.",
+            "passed": false
+          }
+        ],
+        "correctness": 0,
+        "completeness": 0,
+        "grounding": 0,
+        "uncertainty": 0,
+        "explanation": "The answer invents a parameter and a creation behavior that its own cited source contradicts. It leaves out the None return case and the requested example.",
+        "failures": [
+          "Invented `create_if_missing` argument not in documented signature",
+          "Falsely claims the function always creates a conversation",
+          "Omits that it returns None when no conversation is active",
+          "No small helper usage example provided",
+          "Citation S1 contradicts the claims it is attached to"
+        ],
+        "answer_quality_passed": false,
+        "assertion_count": 3,
+        "assertions_passed": 0,
+        "assertion_fraction_passed": 0.0,
+        "integrity": {
+          "citations_resolve": true,
+          "code_executed_when_required": true,
+          "no_runtime_error": true,
+          "answer_present": true,
+          "passed": true,
+          "source_pages": 2,
+          "page_coverage_met": true,
+          "page_coverage_is_diagnostic": true
+        },
+        "passed": false,
+        "judge_error": null,
+        "expected_assertion_count": 3,
+        "verification_adherence": {
+          "turns": [
+            {
+              "mode": "off",
+              "status": "not_run",
+              "policy_followed": true
+            }
+          ],
+          "policy_followed": true
+        },
+        "retrieval_diagnostics": {
+          "selected_reference_count": 4,
+          "selected_reference_read_count": 0,
+          "selected_reference_cited_count": 1,
+          "selected_reference_read_recall": 0.0,
+          "selected_reference_cited_recall": 0.25,
+          "read_sections": [],
+          "cited_sections": [
+            [
+              "reference/python-sdk",
+              263
+            ]
+          ],
+          "uncited_selected_sections": [
+            [
+              "guides/tracking/trace-agents",
+              4
+            ],
+            [
+              "guides/tracking/trace-agents",
+              9
+            ],
+            [
+              "reference/python-sdk",
+              265
+            ]
+          ],
+          "alternative_cited_sections": [],
+          "scope": "Exact overlap with preselected page/section references, not semantic recall. Valid alternative passages may support a correct answer. These are diagnostics, never quality gates. Read coverage includes relevant evidence from earlier turns."
+        },
+        "judge_metrics": {
+          "calls": [
+            {
+              "purpose": "evaluation-judge",
+              "requested_model": "claude-opus-5-5",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgPtBJDVJXd9zEUJLPDwv",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 10565
+                },
+                "cache_creation_input_tokens": 10565,
+                "cache_read_input_tokens": 1426,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 692,
+                "output_tokens_details": {
+                  "thinking_tokens": 0
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 7.1414,
+              "estimated_usd": 0.0669662
+            }
+          ],
+          "model_calls": 1,
+          "tokens": {
+            "input_tokens": 4,
+            "output_tokens": 692,
+            "cache_creation_input_tokens": 10565,
+            "cache_read_input_tokens": 1426
+          },
+          "total_input_tokens": 11995,
+          "estimated_usd": 0.0669662,
+          "known_estimated_usd": 0.0669662,
+          "unpriced_calls": 0,
+          "by_purpose": {
+            "evaluation-judge": {
+              "calls": 1,
+              "known_estimated_usd": 0.0669662
+            }
+          },
+          "research": {
+            "searches": 0,
+            "passage_reads": 0,
+            "distinct_pages_read": 0,
+            "repeated_tool_requests": 0,
+            "drafts_submitted": 0,
+            "code_runs": 0
+          },
+          "pricing": {
+            "checked_at": "2026-10-25",
+            "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+            "rates": {
+              "claude-sonnet-5-5": {
+                "input": 2,
+                "output": 10,
+                "write_5m": 2.5,
+                "write_1h": 4,
+                "read": 0.1
+              },
+              "claude-opus-5-5": {
+                "input": 4,
+                "output": 20,
+                "write_5m": 5,
+                "write_1h": 8,
+                "read": 0.2
+              }
+            }
+          },
+          "scope": "Only this evaluation judge's provider-reported usage, including invalid verdicts. Dated list-price estimate; excludes agent, Signals and unreturned usage."
+        },
+        "rubric_version": "2-assertions"
+      },
+      "matched": true,
+      "judge_call_id": "01a1758e-a27c-70fa-a23a-c1a9ac8d3deb"
+    },
+    {
+      "fixture": "unnecessary-refusal",
+      "synthetic": true,
+      "answer": "I cannot confirm this API. Please tell me which programming language you use.",
+      "expected_pass": false,
+      "scores": {
+        "critique": "The answer says it can't confirm the API and asks which language the user is using. Both moves are wrong. The user already said they're in a nested Python helper and named weave.get_current_conversation(). The cited S1 (Python SDK reference, `get_current_conversation`) documents it as `get_current_conversation() \u2192 Conversation | None`, \"Return the active conversation from contextvar, or None.\" S3 and S4 also say any code in the same async context can retrieve it. The question could be answered directly, so this unnecessary abstention fails. The answer doesn't say what the function returns, doesn't say what happens with no active conversation, and gives no example. Its citations support the opposite of its claim.",
+        "assertions": [
+          {
+            "id": "cap-06-a1",
+            "critique": "The answer says \"I cannot confirm this API.\" It does not confirm or use the no-argument weave.get_current_conversation(), even though S1 documents it.",
+            "passed": false
+          },
+          {
+            "id": "cap-06-a2",
+            "critique": "The answer never says the function returns Conversation | None. S1 states this, but the answer doesn't.",
+            "passed": false
+          },
+          {
+            "id": "cap-06-a3",
+            "critique": "The answer gives no Python example. It only asks the user what language they use.",
+            "passed": false
+          }
+        ],
+        "correctness": 0,
+        "completeness": 0,
+        "grounding": 0,
+        "uncertainty": 0,
+        "explanation": "The answer wrongly refuses a documented, answerable question and asks to clarify a language the user already gave. None of the requested parts are present, and the cited sources contradict the claim that the API can't be confirmed.",
+        "failures": [
+          "Falsely claims the documented API cannot be confirmed despite S1 documenting it",
+          "Asks an unnecessary clarification question; the user already said Python",
+          "Omits the return value (Conversation | None) and the behavior when no conversation is active",
+          "Provides no usage example",
+          "Cited evidence contradicts the answer"
+        ],
+        "answer_quality_passed": false,
+        "assertion_count": 3,
+        "assertions_passed": 0,
+        "assertion_fraction_passed": 0.0,
+        "integrity": {
+          "citations_resolve": true,
+          "code_executed_when_required": true,
+          "no_runtime_error": true,
+          "answer_present": true,
+          "passed": true,
+          "source_pages": 2,
+          "page_coverage_met": true,
+          "page_coverage_is_diagnostic": true
+        },
+        "passed": false,
+        "judge_error": null,
+        "expected_assertion_count": 3,
+        "verification_adherence": {
+          "turns": [
+            {
+              "mode": "off",
+              "status": "not_run",
+              "policy_followed": true
+            }
+          ],
+          "policy_followed": true
+        },
+        "retrieval_diagnostics": {
+          "selected_reference_count": 4,
+          "selected_reference_read_count": 0,
+          "selected_reference_cited_count": 0,
+          "selected_reference_read_recall": 0.0,
+          "selected_reference_cited_recall": 0.0,
+          "read_sections": [],
+          "cited_sections": [],
+          "uncited_selected_sections": [
+            [
+              "guides/tracking/trace-agents",
+              4
+            ],
+            [
+              "guides/tracking/trace-agents",
+              9
+            ],
+            [
+              "reference/python-sdk",
+              263
+            ],
+            [
+              "reference/python-sdk",
+              265
+            ]
+          ],
+          "alternative_cited_sections": [],
+          "scope": "Exact overlap with preselected page/section references, not semantic recall. Valid alternative passages may support a correct answer. These are diagnostics, never quality gates. Read coverage includes relevant evidence from earlier turns."
+        },
+        "judge_metrics": {
+          "calls": [
+            {
+              "purpose": "evaluation-judge",
+              "requested_model": "claude-opus-5-5",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgPtBpPhT1HJVrqWFBHXu",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 10532
+                },
+                "cache_creation_input_tokens": 10532,
+                "cache_read_input_tokens": 1426,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 765,
+                "output_tokens_details": {
+                  "thinking_tokens": 0
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 7.3699,
+              "estimated_usd": 0.0682612
+            }
+          ],
+          "model_calls": 1,
+          "tokens": {
+            "input_tokens": 4,
+            "output_tokens": 765,
+            "cache_creation_input_tokens": 10532,
+            "cache_read_input_tokens": 1426
+          },
+          "total_input_tokens": 11962,
+          "estimated_usd": 0.0682612,
+          "known_estimated_usd": 0.0682612,
+          "unpriced_calls": 0,
+          "by_purpose": {
+            "evaluation-judge": {
+              "calls": 1,
+              "known_estimated_usd": 0.0682612
+            }
+          },
+          "research": {
+            "searches": 0,
+            "passage_reads": 0,
+            "distinct_pages_read": 0,
+            "repeated_tool_requests": 0,
+            "drafts_submitted": 0,
+            "code_runs": 0
+          },
+          "pricing": {
+            "checked_at": "2026-10-25",
+            "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+            "rates": {
+              "claude-sonnet-5-5": {
+                "input": 2,
+                "output": 10,
+                "write_5m": 2.5,
+                "write_1h": 4,
+                "read": 0.1
+              },
+              "claude-opus-5-5": {
+                "input": 4,
+                "output": 20,
+                "write_5m": 5,
+                "write_1h": 8,
+                "read": 0.2
+              }
+            }
+          },
+          "scope": "Only this evaluation judge's provider-reported usage, including invalid verdicts. Dated list-price estimate; excludes agent, Signals and unreturned usage."
+        },
+        "rubric_version": "2-assertions"
+      },
+      "matched": true,
+      "judge_call_id": "01a1758e-be6e-73f1-bd47-4a64965270f9"
+    }
+  ],
+  "all_matched": true,
+  "budget": {
+    "limit_usd": 1.0,
+    "estimated_usd": 0.2876096,
+    "known_estimated_usd": 0.2876096,
+    "unpriced_calls": 0,
+    "estimate_complete": true,
+    "reserved_usd": 0.0,
+    "remaining_usd": 0.7123904,
+    "stopped_reason": null,
+    "calls": [
+      {
+        "purpose": "evaluation-judge",
+        "model": "claude-opus-5-5",
+        "response_id": "msg_011CgPt9uicb1bLZEKu5gGtC",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 12196
+          },
+          "cache_creation_input_tokens": 12196,
+          "cache_read_input_tokens": 0,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 1060,
+          "output_tokens_details": {
+            "thinking_tokens": 155
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "estimated_usd": 0.082196,
+        "reservation_usd": 0.24677
+      },
+      {
+        "purpose": "evaluation-judge",
+        "model": "claude-opus-5-5",
+        "response_id": "msg_011CgPtAfqiUWFjLJ43cpcze",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 10621
+          },
+          "cache_creation_input_tokens": 10621,
+          "cache_read_input_tokens": 1426,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 839,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "estimated_usd": 0.0701862,
+        "reservation_usd": 0.2444
+      },
+      {
+        "purpose": "evaluation-judge",
+        "model": "claude-opus-5-5",
+        "response_id": "msg_011CgPtBJDVJXd9zEUJLPDwv",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 10565
+          },
+          "cache_creation_input_tokens": 10565,
+          "cache_read_input_tokens": 1426,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 692,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "estimated_usd": 0.0669662,
+        "reservation_usd": 0.24352
+      },
+      {
+        "purpose": "evaluation-judge",
+        "model": "claude-opus-5-5",
+        "response_id": "msg_011CgPtBpPhT1HJVrqWFBHXu",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 10532
+          },
+          "cache_creation_input_tokens": 10532,
+          "cache_read_input_tokens": 1426,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 765,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "estimated_usd": 0.0682612,
+        "reservation_usd": 0.24329
+      }
+    ],
+    "scope": "Returned agent and judge usage at dated standard API prices. Conservative reservations before requests; SDK retries disabled by experiment adapters. Stops on unpriced usage or failed provider calls. Excludes Signals, hosting, taxes and unreturned charges. This is not an account billing cap."
+  },
+  "scope": "Four labeled synthetic fixtures for judge calibration, not agent performance or independent evidence of general judge reliability."
+}

@@ -1,0 +1,1629 @@
+{
+  "case_id": "cap-02-sampling-swap",
+  "trial_index": 2,
+  "example_id": "cap-02-sampling-swap:trial:2",
+  "prediction_id": "ecb9ee9d-7a5a-4927-a020-421599007cfa",
+  "verify_mode": "support+coverage",
+  "suite": "capability",
+  "source_sha256": "a6621741d5868bdb88ee64137a5e4c459d222898c28ad50702545ebeafb2da81",
+  "evaluation_call_id": "01a175a2-8f41-7e63-9f74-81d6d8d67f35",
+  "predict_and_score_call_id": "01a175a8-3e7f-74f0-8e51-735dfeb143a2",
+  "predict_call_id": "01a175a8-3e80-7bc8-940c-1d00c574bc4d",
+  "output": {
+    "answer_id": "ee7e1f50-a174-4c27-9eed-8c7cc51facb1",
+    "conversation_context": [],
+    "answer": "**No. `@weave.op(tracing_sample_rate=0.1)` controls tracing, not how many turns a Signal scores, and it would also drop traces you want to keep.**\n\n**Why it's the wrong control**\n- `tracing_sample_rate` sets how often Weave traces an Op's calls. At 0.1, about 10% of calls are traced [S1].\n- For the unsampled calls, the function still runs. Weave receives no trace data and doesn't trace child Ops [S1]. That contradicts your goal of keeping all traces.\n- The rate applies only to outer-most Ops. A nested Op's rate is ignored when a parent Op calls it first [S1].\n\n**What to change**\n1. Remove `tracing_sample_rate` or leave it at the default of `1.0`, which always traces [S1].\n2. Set the sample rate on the Signal itself. In the Agents view, open the **Signals** tab and edit the signal. The editor shows the same fields as a custom signal [S5].\n3. Expand **Advanced** and set **Sample rate**. For custom signals, this is the fraction of matching agent turns the signal scores [S2]. Remote scorer signals have the same field [S3]. Setting `0.1` should score about one in ten matching turns. The docs describe a fraction but don't promise an exact count, so treat 10% as approximate.\n4. Optionally use **Only score turns matching** in the same Advanced section to narrow which turns are eligible, for example by agent or operation. Multiple filters combine with `AND` logic [S2]. The sample rate then applies to the turns that match [S2].\n\n**Caveat about \"human-review Signal\"**\n- I didn't find a Signal type called \"human review\" in the Agents/Signals docs I read. The Signals documentation I found covers custom signals (scored by an LLM judge) [S2] and remote scorer signals (scored by your own HTTP endpoint) [S3].\n- Both of those have a **Sample rate** field. I'm assuming your signal is one of them, but I couldn't confirm that for a signal built another way.\n- If your human review runs through a different mechanism, such as annotation queues, that's a separate workflow. I didn't verify how it handles sampling.\n- Check that your signal's editor shows **Sample rate** under **Advanced**. If it doesn't, tell me how the signal is set up and I'll look again.\n- I didn't find a documented Python SDK parameter for the Signal sample rate in the pages I read. The documented path is the UI.\n\n**Next step:** Set `tracing_sample_rate` back to `1.0` (or remove it), then set the Signal's **Sample rate** to `0.1`.",
+    "kind": "answer",
+    "verification": {
+      "passed": true,
+      "claims": [
+        {
+          "text": "tracing_sample_rate controls how often Weave traces an Op's calls; 0.1 traces about 10%.",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Unsampled calls still run, but Weave gets no trace data and doesn't trace child Ops, which conflicts with keeping all traces.",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Sampling applies only to outer-most Ops; a nested Op's rate is ignored when a parent calls it first.",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Default tracing_sample_rate is 1.0, which always traces.",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Edit a signal from the Signals/Agents UI; the editor shows the same fields as a custom signal.",
+          "source_ids": [
+            "S5"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Under Advanced, Sample rate sets the fraction of matching turns a custom signal scores; remote scorer signals have the same field.",
+          "source_ids": [
+            "S2",
+            "S3"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Only score turns matching filters combine with AND, and sample rate applies to matching turns.",
+          "source_ids": [
+            "S2"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Docs cover custom signals (LLM judge) and remote scorer signals (own HTTP endpoint); no human review signal type found; no Python SDK parameter found for signal sample rate.",
+          "source_ids": [
+            "S2",
+            "S3"
+          ],
+          "status": "supported",
+          "supported": true
+        }
+      ],
+      "issues": [],
+      "coverage": [
+        {
+          "obligation": "Answer whether tracing_sample_rate is the right control for sampling Signal-scored turns while keeping all traces",
+          "status": "covered",
+          "reason": "Clearly says no and explains that it samples traces, dropping unsampled ones.",
+          "source_ids": [
+            "S1"
+          ],
+          "material": true
+        },
+        {
+          "obligation": "Explain what to change",
+          "status": "covered",
+          "reason": "Restore the default rate and set the Signal's Sample rate to 0.1 under Advanced, with optional filters.",
+          "source_ids": [
+            "S2",
+            "S3",
+            "S5"
+          ],
+          "material": true
+        },
+        {
+          "obligation": "Note uncertainty about the 'human-review Signal' type and limits",
+          "status": "covered",
+          "reason": "Caveat states the assumption, that the docs don't mention human review, and that the sample rate is approximate.",
+          "source_ids": [
+            "S2",
+            "S3"
+          ],
+          "material": true
+        }
+      ],
+      "mode": "support+coverage",
+      "status": "passed"
+    },
+    "verification_attempts": [
+      {
+        "candidate": {
+          "answer": "**No. `@weave.op(tracing_sample_rate=0.1)` controls tracing, not Signal scoring, and it would also drop traces you want to keep.**\n\n**Why it's the wrong control**\n- `tracing_sample_rate` sets how often Weave traces an Op's calls. At 0.1, about 10% of calls are traced [S1].\n- For the 90% of calls that aren't sampled, the function still runs. Weave receives no trace data and doesn't trace child Ops [S1]. That contradicts your goal of keeping all traces.\n- Your Signal can only act on turns that were traced. Sampling at the Op level would therefore shrink the traces you keep and the turns the Signal can see.\n- The rate applies only to outer-most Ops. A nested Op's rate is ignored when a parent Op calls it first [S1].\n\n**What to change**\n1. Remove `tracing_sample_rate` or leave it at the default of `1.0`, which always traces [S1].\n2. Set the sample rate on the Signal itself. In the Agents view, open the **Signals** tab and edit the signal. The editor shows the same fields as a custom signal [S5].\n3. Expand **Advanced** and set **Sample rate**. For custom signals this is the fraction of matching agent turns the signal scores [S2]. Remote scorer signals have the same field [S3]. Set it to `0.1` for roughly one in ten matching turns.\n4. Optionally use **Only score turns matching** in the same Advanced section to narrow which turns are eligible, for example by agent or operation. Multiple filters combine with `AND` logic [S2]. The sample rate applies to the turns that match these filters [S2].\n\n**Caveats**\n- I didn't find documentation on a Signal type called \"human review\". I'm assuming yours is a custom or remote-scorer signal, which both have a **Sample rate** field. If it is a different kind of signal, check that its editor has the same field.\n- The docs I read describe the sample rate as a fraction of matching turns. They don't promise an exact one-in-ten selection, so treat 10% as approximate.\n- The **Sample rate** field is documented in the UI. I didn't find a documented Python SDK parameter for it in the pages I read.\n- If you run a self-managed Weave instance, ingest sampling is a separate server-side setting. It drops incoming traces, so it would also reduce what you keep [S1].\n\n**Next step:** Set `tracing_sample_rate` back to `1.0`, then set the Signal's **Sample rate** to `0.1`.",
+          "kind": "answer"
+        },
+        "passed": false,
+        "claims": [
+          {
+            "text": "tracing_sample_rate controls how often Weave traces an Op's calls; at 0.1 about 10% are traced.",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Unsampled calls run normally, Weave receives no trace data, and child Ops aren't traced; this contradicts keeping all traces.",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Your Signal can only act on turns that were traced, so Op-level sampling would shrink the turns the Signal can see.",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "partial",
+            "supported": false
+          },
+          {
+            "text": "Sampling rate applies only to outer-most Ops; a nested Op's rate is ignored when a parent calls it first.",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Remove tracing_sample_rate or leave it at the default of 1.0, which always traces.",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "In the Agents view Signals tab you can edit a signal, and the editor shows the same fields as a custom signal.",
+            "source_ids": [
+              "S5"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Under Advanced, Sample rate is the fraction of matching agent turns a custom signal scores; remote scorer signals have the same field.",
+            "source_ids": [
+              "S2",
+              "S3"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Only score turns matching filters combine with AND; the sample rate applies to the turns that match those filters.",
+            "source_ids": [
+              "S2"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Self-managed Weave ingest sampling is a separate server-side setting that drops incoming traces.",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "unsupported",
+            "supported": false
+          },
+          {
+            "text": "Setting Sample rate to 0.1 gives roughly one in ten matching turns.",
+            "source_ids": [
+              "S2",
+              "S3"
+            ],
+            "status": "partial",
+            "supported": false
+          }
+        ],
+        "issues": [
+          "The self-managed ingest sampling claim is cited to S1, but S1 contains no passage about server-side ingest sampling. Remove it or support it with a source.",
+          "The statement that a Signal can only act on traced turns is plausible but isn't stated in S1. Mark it as an inference or cite a source.",
+          "The answer assumes a 'human review' Signal is a custom or remote-scorer signal. It discloses this assumption, but the main answer depends on it. A human-review signal may not expose a Sample rate field, so confirm the signal type first.",
+          "Sample rate as a fraction is documented, but the answer's 'roughly one in ten' for 0.1 is an interpretation. It is hedged as approximate, which is acceptable once the claim is qualified.",
+          "Revise partial or unsupported material claims.",
+          "Handle the 'human-review Signal' type and any limits on sample-rate applicability: The answer assumes the signal type and discloses it, but the evidence doesn't confirm that a human-review signal has the field."
+        ],
+        "coverage": [
+          {
+            "obligation": "Answer whether tracing_sample_rate is the right control for sampling Signal inspection while keeping all traces",
+            "status": "covered",
+            "reason": "Says no and explains that Op sampling drops traces.",
+            "source_ids": [
+              "S1"
+            ],
+            "material": true
+          },
+          {
+            "obligation": "Say what to change: use the Signal's own sample rate and leave tracing at 1.0",
+            "status": "covered",
+            "reason": "Gives the UI steps and the Sample rate field for custom and remote-scorer signals.",
+            "source_ids": [
+              "S2",
+              "S3",
+              "S5"
+            ],
+            "material": true
+          },
+          {
+            "obligation": "Handle the 'human-review Signal' type and any limits on sample-rate applicability",
+            "status": "uncertain",
+            "reason": "The answer assumes the signal type and discloses it, but the evidence doesn't confirm that a human-review signal has the field.",
+            "source_ids": [
+              "S2",
+              "S3",
+              "S4"
+            ],
+            "material": true
+          },
+          {
+            "obligation": "Avoid unsupported claims about the server-side ingest sampling alternative",
+            "status": "missing",
+            "reason": "The ingest sampling claim has no support in S1.",
+            "source_ids": [
+              "S1"
+            ],
+            "material": false
+          }
+        ],
+        "mode": "support+coverage",
+        "status": "failed"
+      },
+      {
+        "candidate": {
+          "answer": "**No. `@weave.op(tracing_sample_rate=0.1)` controls tracing, not how many turns a Signal scores, and it would also drop traces you want to keep.**\n\n**Why it's the wrong control**\n- `tracing_sample_rate` sets how often Weave traces an Op's calls. At 0.1, about 10% of calls are traced [S1].\n- For the unsampled calls, the function still runs. Weave receives no trace data and doesn't trace child Ops [S1]. That contradicts your goal of keeping all traces.\n- The rate applies only to outer-most Ops. A nested Op's rate is ignored when a parent Op calls it first [S1].\n\n**What to change**\n1. Remove `tracing_sample_rate` or leave it at the default of `1.0`, which always traces [S1].\n2. Set the sample rate on the Signal itself. In the Agents view, open the **Signals** tab and edit the signal. The editor shows the same fields as a custom signal [S5].\n3. Expand **Advanced** and set **Sample rate**. For custom signals, this is the fraction of matching agent turns the signal scores [S2]. Remote scorer signals have the same field [S3]. Setting `0.1` should score about one in ten matching turns. The docs describe a fraction but don't promise an exact count, so treat 10% as approximate.\n4. Optionally use **Only score turns matching** in the same Advanced section to narrow which turns are eligible, for example by agent or operation. Multiple filters combine with `AND` logic [S2]. The sample rate then applies to the turns that match [S2].\n\n**Caveat about \"human-review Signal\"**\n- I didn't find a Signal type called \"human review\" in the Agents/Signals docs I read. The Signals documentation I found covers custom signals (scored by an LLM judge) [S2] and remote scorer signals (scored by your own HTTP endpoint) [S3].\n- Both of those have a **Sample rate** field. I'm assuming your signal is one of them, but I couldn't confirm that for a signal built another way.\n- If your human review runs through a different mechanism, such as annotation queues, that's a separate workflow. I didn't verify how it handles sampling.\n- Check that your signal's editor shows **Sample rate** under **Advanced**. If it doesn't, tell me how the signal is set up and I'll look again.\n- I didn't find a documented Python SDK parameter for the Signal sample rate in the pages I read. The documented path is the UI.\n\n**Next step:** Set `tracing_sample_rate` back to `1.0` (or remove it), then set the Signal's **Sample rate** to `0.1`.",
+          "kind": "answer"
+        },
+        "passed": true,
+        "claims": [
+          {
+            "text": "tracing_sample_rate controls how often Weave traces an Op's calls; 0.1 traces about 10%.",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Unsampled calls still run, but Weave gets no trace data and doesn't trace child Ops, which conflicts with keeping all traces.",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Sampling applies only to outer-most Ops; a nested Op's rate is ignored when a parent calls it first.",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Default tracing_sample_rate is 1.0, which always traces.",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Edit a signal from the Signals/Agents UI; the editor shows the same fields as a custom signal.",
+            "source_ids": [
+              "S5"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Under Advanced, Sample rate sets the fraction of matching turns a custom signal scores; remote scorer signals have the same field.",
+            "source_ids": [
+              "S2",
+              "S3"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Only score turns matching filters combine with AND, and sample rate applies to matching turns.",
+            "source_ids": [
+              "S2"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Docs cover custom signals (LLM judge) and remote scorer signals (own HTTP endpoint); no human review signal type found; no Python SDK parameter found for signal sample rate.",
+            "source_ids": [
+              "S2",
+              "S3"
+            ],
+            "status": "supported",
+            "supported": true
+          }
+        ],
+        "issues": [],
+        "coverage": [
+          {
+            "obligation": "Answer whether tracing_sample_rate is the right control for sampling Signal-scored turns while keeping all traces",
+            "status": "covered",
+            "reason": "Clearly says no and explains that it samples traces, dropping unsampled ones.",
+            "source_ids": [
+              "S1"
+            ],
+            "material": true
+          },
+          {
+            "obligation": "Explain what to change",
+            "status": "covered",
+            "reason": "Restore the default rate and set the Signal's Sample rate to 0.1 under Advanced, with optional filters.",
+            "source_ids": [
+              "S2",
+              "S3",
+              "S5"
+            ],
+            "material": true
+          },
+          {
+            "obligation": "Note uncertainty about the 'human-review Signal' type and limits",
+            "status": "covered",
+            "reason": "Caveat states the assumption, that the docs don't mention human review, and that the sample rate is approximate.",
+            "source_ids": [
+              "S2",
+              "S3"
+            ],
+            "material": true
+          }
+        ],
+        "mode": "support+coverage",
+        "status": "passed"
+      }
+    ],
+    "sources": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/ops",
+        "section": 4,
+        "title": "Customize Ops",
+        "heading": "Control sampling rate",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+        "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+        "text": "## Control sampling rate\n\n**Python**\n\nTo control how frequently Weave traces an Op's calls, set the `tracing_sample_rate` parameter in the `@weave.op` decorator. Use this for high-frequency Ops where you only need to trace a subset of calls.\n\nCollect all traces during agent development to help you shape and understand its behavior. In production, configure trace sampling to lower costs while maintaining observability into your agent's behavior.\n\nWeave applies sampling rates only to outer-most Ops. If a nested Op has a sample rate but a parent Op calls it first, Weave ignores the sampling rate of the nested Op.\n\n```python lines theme={\"system\"}\n@weave.op(tracing_sample_rate=0.1)  # Only trace ~10% of calls\ndef high_frequency_op(x: int) -> int:\n    return x + 1\n\n@weave.op(tracing_sample_rate=1.0)  # Always trace (default)\ndef always_traced_op(x: int) -> int:\n    return x + 1\n```\n\nWhen Weave doesn't sample an Op's call:\n\n* The function executes normally.\n* Weave receives no trace data.\n* Weave doesn't trace child Ops for that call.\n\nThe sampling rate must be between 0.0 and 1.0 inclusive.\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+        "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n"
+      },
+      {
+        "source_id": "S5",
+        "page_id": "guides/tracking/view-agent-signals",
+        "section": 10,
+        "title": "Monitor your agents with signals",
+        "heading": "Manage and edit signals",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+        "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+        "text": "## Manage and edit signals\n\nIf you have at least one created signal, select the active signals button in the toolbar\u2014labeled with the number of active signals, such as **1 active signals**\u2014to open a drawer that lists all active signals for the project. From there you can toggle signals on or off, delete them, or edit any signal. The editor shows the same configuration fields as a custom signal.\n\n",
+        "page_context": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n"
+      },
+      {
+        "source_id": "S2",
+        "page_id": "guides/tracking/create-custom-signal",
+        "section": 1,
+        "title": "Create a custom signal",
+        "heading": "Create a custom tag signal",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-custom-signal",
+        "page_sha256": "46707d727829827286368364d26903d966f43948e795a5227bdfa91aa46b5cca",
+        "text": "## Create a custom tag signal\n\nTo create a custom tag signal:\n\n1. Navigate to [Forge](https://forge.coreweave.com/wandb) and select your project.\n\n2. In the **Weave project sidebar**, click **Agents**.\n\n3. In the tab bar, click **Signals**.\n\n4. On the Signals tab, click **+ Create your first signal**, or **New signal**.\n\n5. In the drawer, click **Custom Signal**.\n\n   ![The Custom tags drawer with Tag name, Definition, Scorer name, and Inference model fields for creating a custom signal.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/custom-signal.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=b01a4b83a0ef2c7717d78efc406a1de0)\n\n6. In the **Custom tags** drawer, configure the following fields:\n   * **Tag name**: The label that appears in the Agents view for the behavior you want to monitor.\n   * **Definition**: A prompt that describes the behavior you want the signal to detect. Weave sends this prompt to an LLM judge, which scores each agent turn and applies the tag when the turn matches the behavior. For example, to catch a specific product failure: \"The user is discussing errors or issues regarding Product X.\"\n   * **+ Add tag** (Optional): Click to define another tag on the same signal. For example, if you support multiple products, add a separate tag for each product so you can track frustration per product instead of only in aggregate.\n   * **Scorer name**: The name for the underlying scorer object.\n   * **Inference model or custom runtime**: The model used to score matching turns. [Serverless Inference](https://docs.coreweave.com/products/inference/serverless.md) is the default. CoreWeave Serverless Inference consumes credits from your CoreWeave Forge account.\n   * **Include tool calls** (Optional): Expand **Advanced**, then check the box to include the turn's tool calls in the context sent to the scoring model.\n   * **Only score turns matching** (Optional): Expand **Advanced**, then add one or more filters to restrict which turns the signal scores, for example by agent, operation, tool, or model. Leave empty to score every agent turn. Weave combines multiple filters with `AND` logic.\n   * **Sample rate** (Optional): Expand **Advanced**, then set the fraction of matching agent turns the signal scores. For high-traffic agents, lower the sample rate to score a fraction of matching turns instead of every turn and reduce cost.\n\n7. In the **Custom tags** drawer, click **Create signal**.\n\nAfter you create the signal, Weave scores matching turns. The tag appears in the Agents view, including on the Signals tab.\n",
+        "page_context": "# Create a custom signal\n\n> Create a custom Weave signal to tag agent turns for a behavior you define.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nA custom signal scores agent turns against a behavior you define, then shows that result as a tag in the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md). Weave also provides [built-in signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md) for common cases, such as user frustration and jailbreaking. When those built-in signals don't cover what you want to monitor, create a custom signal. This page shows you how to create that custom tag signal in the Weights & Biases UI.\n\n"
+      },
+      {
+        "source_id": "S3",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 8,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Weave UI",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "### Weave UI\n\nCreate the signal from the Agents view:\n\n1. In the Weave project sidebar, click **Agents**.\n2. In the tab bar, click **Signals**.\n3. Click **New signal**, then click **Remote scorer**.\n4. In the **Remote scorer** drawer, **Scored by** is set to **Remote scorer**. Configure the following fields:\n   * **Scorer name**: The name shown in the **Scorer** column of the Signals table. Up to 128 characters.\n   * **Scoring endpoint URL**: The URL Weave sends the `POST` to.\n   * **Authentication**: **Static bearer** or **OAuth client credentials**. For static bearer, select or enter the **Bearer token secret name**. For OAuth, enter the **Token endpoint URL**, **Client ID**, **Client secret name**, and optional **Scope**. Secret fields take team secret names, not values.\n   * **Config (JSON, optional)**: A JSON object passed to your endpoint as `scorer.config`.\n   * **Only score turns matching** (Optional): Expand **Advanced**, then add filters to restrict which turns the signal scores, for example by agent name, agent version, operation name, tool name, or status code. To score every turn, leave it empty. Weave combines multiple filters with `AND` logic.\n   * **Sample rate** (Optional): Expand **Advanced**, then set the fraction of matching turns the signal scores.\n5. Click **Create signal**.\n\nThe remote scorer form has no tag or rating fields. Your endpoint determines what it returns, and the Signals table shows the tags and ratings it receives. In the **Scorer** column, a remote scorer signal shows a webhook icon.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+      }
+    ],
+    "all_read_evidence": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/ops",
+        "section": 4,
+        "title": "Customize Ops",
+        "heading": "Control sampling rate",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+        "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+        "text": "## Control sampling rate\n\n**Python**\n\nTo control how frequently Weave traces an Op's calls, set the `tracing_sample_rate` parameter in the `@weave.op` decorator. Use this for high-frequency Ops where you only need to trace a subset of calls.\n\nCollect all traces during agent development to help you shape and understand its behavior. In production, configure trace sampling to lower costs while maintaining observability into your agent's behavior.\n\nWeave applies sampling rates only to outer-most Ops. If a nested Op has a sample rate but a parent Op calls it first, Weave ignores the sampling rate of the nested Op.\n\n```python lines theme={\"system\"}\n@weave.op(tracing_sample_rate=0.1)  # Only trace ~10% of calls\ndef high_frequency_op(x: int) -> int:\n    return x + 1\n\n@weave.op(tracing_sample_rate=1.0)  # Always trace (default)\ndef always_traced_op(x: int) -> int:\n    return x + 1\n```\n\nWhen Weave doesn't sample an Op's call:\n\n* The function executes normally.\n* Weave receives no trace data.\n* Weave doesn't trace child Ops for that call.\n\nThe sampling rate must be between 0.0 and 1.0 inclusive.\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+        "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n"
+      },
+      {
+        "source_id": "S2",
+        "page_id": "guides/tracking/create-custom-signal",
+        "section": 1,
+        "title": "Create a custom signal",
+        "heading": "Create a custom tag signal",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-custom-signal",
+        "page_sha256": "46707d727829827286368364d26903d966f43948e795a5227bdfa91aa46b5cca",
+        "text": "## Create a custom tag signal\n\nTo create a custom tag signal:\n\n1. Navigate to [Forge](https://forge.coreweave.com/wandb) and select your project.\n\n2. In the **Weave project sidebar**, click **Agents**.\n\n3. In the tab bar, click **Signals**.\n\n4. On the Signals tab, click **+ Create your first signal**, or **New signal**.\n\n5. In the drawer, click **Custom Signal**.\n\n   ![The Custom tags drawer with Tag name, Definition, Scorer name, and Inference model fields for creating a custom signal.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/custom-signal.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=b01a4b83a0ef2c7717d78efc406a1de0)\n\n6. In the **Custom tags** drawer, configure the following fields:\n   * **Tag name**: The label that appears in the Agents view for the behavior you want to monitor.\n   * **Definition**: A prompt that describes the behavior you want the signal to detect. Weave sends this prompt to an LLM judge, which scores each agent turn and applies the tag when the turn matches the behavior. For example, to catch a specific product failure: \"The user is discussing errors or issues regarding Product X.\"\n   * **+ Add tag** (Optional): Click to define another tag on the same signal. For example, if you support multiple products, add a separate tag for each product so you can track frustration per product instead of only in aggregate.\n   * **Scorer name**: The name for the underlying scorer object.\n   * **Inference model or custom runtime**: The model used to score matching turns. [Serverless Inference](https://docs.coreweave.com/products/inference/serverless.md) is the default. CoreWeave Serverless Inference consumes credits from your CoreWeave Forge account.\n   * **Include tool calls** (Optional): Expand **Advanced**, then check the box to include the turn's tool calls in the context sent to the scoring model.\n   * **Only score turns matching** (Optional): Expand **Advanced**, then add one or more filters to restrict which turns the signal scores, for example by agent, operation, tool, or model. Leave empty to score every agent turn. Weave combines multiple filters with `AND` logic.\n   * **Sample rate** (Optional): Expand **Advanced**, then set the fraction of matching agent turns the signal scores. For high-traffic agents, lower the sample rate to score a fraction of matching turns instead of every turn and reduce cost.\n\n7. In the **Custom tags** drawer, click **Create signal**.\n\nAfter you create the signal, Weave scores matching turns. The tag appears in the Agents view, including on the Signals tab.\n",
+        "page_context": "# Create a custom signal\n\n> Create a custom Weave signal to tag agent turns for a behavior you define.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nA custom signal scores agent turns against a behavior you define, then shows that result as a tag in the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md). Weave also provides [built-in signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md) for common cases, such as user frustration and jailbreaking. When those built-in signals don't cover what you want to monitor, create a custom signal. This page shows you how to create that custom tag signal in the Weights & Biases UI.\n\n"
+      },
+      {
+        "source_id": "S3",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 8,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Weave UI",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "### Weave UI\n\nCreate the signal from the Agents view:\n\n1. In the Weave project sidebar, click **Agents**.\n2. In the tab bar, click **Signals**.\n3. Click **New signal**, then click **Remote scorer**.\n4. In the **Remote scorer** drawer, **Scored by** is set to **Remote scorer**. Configure the following fields:\n   * **Scorer name**: The name shown in the **Scorer** column of the Signals table. Up to 128 characters.\n   * **Scoring endpoint URL**: The URL Weave sends the `POST` to.\n   * **Authentication**: **Static bearer** or **OAuth client credentials**. For static bearer, select or enter the **Bearer token secret name**. For OAuth, enter the **Token endpoint URL**, **Client ID**, **Client secret name**, and optional **Scope**. Secret fields take team secret names, not values.\n   * **Config (JSON, optional)**: A JSON object passed to your endpoint as `scorer.config`.\n   * **Only score turns matching** (Optional): Expand **Advanced**, then add filters to restrict which turns the signal scores, for example by agent name, agent version, operation name, tool name, or status code. To score every turn, leave it empty. Weave combines multiple filters with `AND` logic.\n   * **Sample rate** (Optional): Expand **Advanced**, then set the fraction of matching turns the signal scores.\n5. Click **Create signal**.\n\nThe remote scorer form has no tag or rating fields. Your endpoint determines what it returns, and the Signals table shows the tags and ratings it receives. In the **Scorer** column, a remote scorer signal shows a webhook icon.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+      },
+      {
+        "source_id": "S4",
+        "page_id": "guides/tracking/view-agent-signals",
+        "section": 5,
+        "title": "Monitor your agents with signals",
+        "heading": "Create a new signal",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+        "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+        "text": "## Create a new signal\n\nTo start scoring your agent's turns, create one or more signals. Select **+ New signal** to open the **Create signals** drawer.\n\nThe drawer groups available signals into two categories:\n\n* **Tags**: Apply a label automatically to matching spans, such as `user-frustration` or `nsfw`. Use tags to categorize spans or flag unwanted behavior. The signals UI only displays rows for spans that matched at least one tag, so a tag signal might run successfully even if you don't see any output.\n* **Ratings**: Assign a score from 0 to 1 to matching spans. Use ratings to rate agent performance and measure improvements over time.\n\n",
+        "page_context": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n"
+      },
+      {
+        "source_id": "S5",
+        "page_id": "guides/tracking/view-agent-signals",
+        "section": 10,
+        "title": "Monitor your agents with signals",
+        "heading": "Manage and edit signals",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+        "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+        "text": "## Manage and edit signals\n\nIf you have at least one created signal, select the active signals button in the toolbar\u2014labeled with the number of active signals, such as **1 active signals**\u2014to open a drawer that lists all active signals for the project. From there you can toggle signals on or off, delete them, or edit any signal. The editor shows the same configuration fields as a custom signal.\n\n",
+        "page_context": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n"
+      }
+    ],
+    "actions": [
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "tracing_sample_rate weave.op"
+        },
+        "result": {
+          "query": "tracing_sample_rate weave.op",
+          "results": [
+            {
+              "page_id": "guides/tracking/ops",
+              "section": 4,
+              "title": "Customize Ops",
+              "heading": "Control sampling rate",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+              "snippet": "## Control sampling rate\n\n**Python**\n\nTo control how frequently Weave traces an Op's calls, set the `tracing_sample_rate` parameter in the `@weave.op` decorator. Use this for high-frequency Ops where you only need to trace a subset of calls.\n\nCollect all traces during agent development to help you shape and understand its behavior. In production, configure trace sampling to lower costs while maintaining observability into your agent's behavior.\n\nWeave applies sampling rates only to outer-most Ops. If a nested Op has a sample rate but a parent Op calls it first, Weave ignores the sampling rate of the nested Op.\n\n```python lines theme={\"system\"}\n@weave.op(tracing_sample_rate=0.1)  # Only trace ~10% of calls\ndef high_frequency_op(x: int) -> int:\n    return x + 1\n\n@weave.op(tracing_sample_rate=1.0)  # Always trace (default)\ndef always_traced_op(x: int) -> int:\n    return x + 1\n```\n\nWhen Weave doesn't sample an Op's call:\n\n* The function executes normally.\n* Weave receives no trace data.\n* Weave doesn't trace child Ops for that call.\n\nThe sampling rate must be between 0.0 and 1.0 inclusiv"
+            },
+            {
+              "page_id": "reference/python-sdk",
+              "section": 277,
+              "title": "weave",
+              "heading": "<kbd>function</kbd> `op`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+              "snippet": "### <kbd>function</kbd> `op`\n\n```python theme={\"system\"}\nop(\n    func: 'Callable[P, R] | None' = None,\n    name: 'str | None' = None,\n    call_display_name: 'str | CallDisplayNameFunc | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    tracing_sample_rate: 'float' = 1.0,\n    enable_code_capture: 'bool' = True,\n    accumulator: 'Callable[[Any | None, Any], Any] | None' = None,\n    kind: 'OpKind | None' = None,\n    color: 'OpColor | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    eager_call_start: 'bool' = False\n) \u2192 Callable[[Callable[P, R]], Op[P, R]] | Op[P, R]\n```\n\nA decorator to weave op-ify a function or method. Works for both sync and async. Automatically detects iterator functions and applies appropriate behavior.\n\n**Args:**\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/urls.py#L14)\n\n"
+            },
+            {
+              "page_id": "reference/python-sdk/trace/op",
+              "section": 17,
+              "title": "op",
+              "heading": "<kbd>function</kbd> `op`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+              "snippet": "### <kbd>function</kbd> `op`\n\n```python theme={\"system\"}\nop(\n    func: 'Callable[P, R] | None' = None,\n    name: 'str | None' = None,\n    call_display_name: 'str | CallDisplayNameFunc | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    tracing_sample_rate: 'float' = 1.0,\n    enable_code_capture: 'bool' = True,\n    accumulator: 'Callable[[Any | None, Any], Any] | None' = None,\n    kind: 'OpKind | None' = None,\n    color: 'OpColor | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    eager_call_start: 'bool' = False\n) \u2192 Callable[[Callable[P, R]], Op[P, R]] | Op[P, R]\n```\n\nA decorator to weave op-ify a function or method. Works for both sync and async. Automatically detects iterator functions and applies appropriate behavior.\n\n**Args:**\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L436)\n\n"
+            },
+            {
+              "page_id": "guides/platform/ingest-sampling",
+              "section": 0,
+              "title": "Configure ingest sampling for Weave Self-Managed",
+              "heading": "Configure ingest sampling for Weave Self-Managed",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/platform/ingest-sampling",
+              "snippet": "# Configure ingest sampling for Weave Self-Managed\n\n> Keep only a share of incoming traces to control storage and LLM scoring costs on a self-managed Weave instance\n\nIngest sampling lets you control the share of traces that arrive at a [self-managed Weave instance](https://docs.coreweave.com/products/wandb/weave/guides/platform/weave-self-managed.md) and drop the rest. This can help alleviate storage and processing costs for high-volume clusters by only keeping a specified percentage of traces.\n\nThis guide walks you through how to enable the feature on your self-managed Weave instance.\n\n> [!NOTE]\n>\n> Ingest sampling requires a Weave server version that includes the sampler. Sampling of `@weave.op` calls also requires the Weave Python SDK 0.53.0 or later, or the Weave TypeScript SDK 0.16.0 or later. Agent spans have no SDK requirement. For details, see [Requirements and limitations](#requirements-and-limitations).\n\nIngest sampling is independent of client-side sampling. The `tracing_sample_rate` parameter in the `@weave.op` decorator still lets an individual traced function sample its"
+            },
+            {
+              "page_id": "reference/python-sdk/trace/op",
+              "section": 19,
+              "title": "op",
+              "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+              "snippet": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than"
+            },
+            {
+              "page_id": "guides/integrations/verdict",
+              "section": 4,
+              "title": "Verdict",
+              "heading": "Pipeline tracing example",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/verdict",
+              "snippet": "## Pipeline tracing example\n\nThe following example shows how Weave traces nested pipeline operations, so you can see how each step in a multi-stage Verdict pipeline is captured:\n\n```python lines {8} theme={\"system\"}\nimport weave\nfrom verdict import Pipeline, Layer\nfrom verdict.common.judge import JudgeUnit\nfrom verdict.transform import MeanPoolUnit\nfrom verdict.schema import Schema\n\n# Initialize Weave with your project name\nweave.init(\"verdict_demo\")\n\n# Create a pipeline with multiple steps\npipeline = Pipeline()\npipeline = pipeline >> Layer([\n    JudgeUnit().prompt(\"Rate coherence: {source.text}\"),\n    JudgeUnit().prompt(\"Rate relevance: {source.text}\"),\n    JudgeUnit().prompt(\"Rate accuracy: {source.text}\")\n], 3)\npipeline = pipeline >> MeanPoolUnit()\n\n# Sample data\ndata = Schema.of(text=\"This is an evaluation of text quality across multiple dimensions.\")\n\n# Run the pipeline - Weave traces all operations\nresult = pipeline.run(data)\n\nprint(f\"Average score: {result}\")\n```\n\nThis creates a detailed trace showing:\n\n* The main `Pipeline` execution.\n* Each `JudgeUnit` evaluation within the "
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        }
+      },
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "Signals sampling rate human review"
+        },
+        "result": {
+          "query": "Signals sampling rate human review",
+          "results": [
+            {
+              "page_id": "guides/platform/ingest-sampling",
+              "section": 6,
+              "title": "Configure ingest sampling for Weave Self-Managed",
+              "heading": "Requirements and limitations",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/platform/ingest-sampling",
+              "snippet": "## Requirements and limitations\n\nBefore you enable ingest sampling, review the following requirements, limitations, and behaviors:\n\n* **SDK version requirements**: The server samples calls only from the Weave Python SDK 0.53.0 or later, or the Weave TypeScript SDK 0.16.0 or later. These versions add the signals the server uses to group a trace's messages and recognize evaluation calls. Calls from older SDKs aren't sampled and aren't rejected, so until your apps upgrade, the rate has no effect on their traffic. Agent spans carry a trace ID as part of the OpenTelemetry protocol, so sampling them has no SDK requirement.\n* **Server version**: Support for agent spans was added after support for calls. If you already set a rate below `1.0`, upgrading to a server version that samples agent spans starts sampling your agent traffic at the same rate.\n* **Savings depend on your client mix**: Traffic that isn't sampled, such as traffic from older SDKs and raw OpenTelemetry, doesn't reduce cost. If much of your traffic comes from those sources, savings are smaller than the rate implies. A dry run"
+            },
+            {
+              "page_id": "guides/tracking/ops",
+              "section": 4,
+              "title": "Customize Ops",
+              "heading": "Control sampling rate",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+              "snippet": "## Control sampling rate\n\n**Python**\n\nTo control how frequently Weave traces an Op's calls, set the `tracing_sample_rate` parameter in the `@weave.op` decorator. Use this for high-frequency Ops where you only need to trace a subset of calls.\n\nCollect all traces during agent development to help you shape and understand its behavior. In production, configure trace sampling to lower costs while maintaining observability into your agent's behavior.\n\nWeave applies sampling rates only to outer-most Ops. If a nested Op has a sample rate but a parent Op calls it first, Weave ignores the sampling rate of the nested Op.\n\n```python lines theme={\"system\"}\n@weave.op(tracing_sample_rate=0.1)  # Only trace ~10% of calls\ndef high_frequency_op(x: int) -> int:\n    return x + 1\n\n@weave.op(tracing_sample_rate=1.0)  # Always trace (default)\ndef always_traced_op(x: int) -> int:\n    return x + 1\n```\n\nWhen Weave doesn't sample an Op's call:\n\n* The function executes normally.\n* Weave receives no trace data.\n* Weave doesn't trace child Ops for that call.\n\nThe sampling rate must be between 0.0 and 1.0 inclusiv"
+            },
+            {
+              "page_id": "guides/evaluation/custom-monitors",
+              "section": 1,
+              "title": "Set up custom monitors",
+              "heading": "Signals and custom monitors",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/custom-monitors",
+              "snippet": "## Signals and custom monitors\n\nUse [signals](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors.md), preset automated scorers for production traces, to get started with production monitoring quickly, then add custom monitors for evaluation criteria specific to your application.\n\n| | Signals | Custom monitors |\n| - | - | - |\n| **Configuration** | One-click enable, no prompt writing | Full control over scoring prompt, model, and parameters |\n| **Scope** | Preset quality and error classifiers | Any evaluation criteria you define |\n| **Trace selection** | Automatic (successful root traces for quality, failed traces for errors) | Configurable operations, filters, and sampling rate |\n| **Model** | Serverless Inference (preset) | Any commercial or Serverless Inference model |\n| **Use case** | Quick production monitoring with proven classifiers | Custom evaluation criteria specific to your application |\n\n"
+            },
+            {
+              "page_id": "guides/platform/ingest-sampling",
+              "section": 0,
+              "title": "Configure ingest sampling for Weave Self-Managed",
+              "heading": "Configure ingest sampling for Weave Self-Managed",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/platform/ingest-sampling",
+              "snippet": "# Configure ingest sampling for Weave Self-Managed\n\n> Keep only a share of incoming traces to control storage and LLM scoring costs on a self-managed Weave instance\n\nIngest sampling lets you control the share of traces that arrive at a [self-managed Weave instance](https://docs.coreweave.com/products/wandb/weave/guides/platform/weave-self-managed.md) and drop the rest. This can help alleviate storage and processing costs for high-volume clusters by only keeping a specified percentage of traces.\n\nThis guide walks you through how to enable the feature on your self-managed Weave instance.\n\n> [!NOTE]\n>\n> Ingest sampling requires a Weave server version that includes the sampler. Sampling of `@weave.op` calls also requires the Weave Python SDK 0.53.0 or later, or the Weave TypeScript SDK 0.16.0 or later. Agent spans have no SDK requirement. For details, see [Requirements and limitations](#requirements-and-limitations).\n\nIngest sampling is independent of client-side sampling. The `tracing_sample_rate` parameter in the `@weave.op` decorator still lets an individual traced function sample its"
+            },
+            {
+              "page_id": "guides/evaluation/monitors",
+              "section": 7,
+              "title": "Monitor using built-in signals",
+              "heading": "Use built-in signals",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors",
+              "snippet": "## Use built-in signals\n\nAfter signals are active and scoring your traces, you can review the results in several places across Weave. You can also set up alerts when Weave detects issues. The following sections describe where to find signal results and how to act on them.\n\n"
+            },
+            {
+              "page_id": "guides/evaluation/monitors",
+              "section": 6,
+              "title": "Monitor using built-in signals",
+              "heading": "Manage active signals",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors",
+              "snippet": "## Manage active signals\n\nAfter your signals are running, you can review which ones are active or turn off signals you no longer need. To view or remove active signals:\n\n1. From the Monitors page, select the **Manage signals** () button. This opens a drawer listing all currently active signals grouped by category.\n2. Hover over a signal and select the **Remove signal** () button to deactivate the signal.\n\nRemoving a signal stops scoring new traces. Weave preserves existing scores from the signal.\n\n"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        }
+      },
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "Agents Signals human review sampling"
+        },
+        "result": {
+          "query": "Agents Signals human review sampling",
+          "results": [
+            {
+              "page_id": "guides/evaluation/monitors",
+              "section": 7,
+              "title": "Monitor using built-in signals",
+              "heading": "Use built-in signals",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors",
+              "snippet": "## Use built-in signals\n\nAfter signals are active and scoring your traces, you can review the results in several places across Weave. You can also set up alerts when Weave detects issues. The following sections describe where to find signal results and how to act on them.\n\n"
+            },
+            {
+              "page_id": "guides/evaluation/monitors",
+              "section": 6,
+              "title": "Monitor using built-in signals",
+              "heading": "Manage active signals",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors",
+              "snippet": "## Manage active signals\n\nAfter your signals are running, you can review which ones are active or turn off signals you no longer need. To view or remove active signals:\n\n1. From the Monitors page, select the **Manage signals** () button. This opens a drawer listing all currently active signals grouped by category.\n2. Hover over a signal and select the **Remove signal** () button to deactivate the signal.\n\nRemoving a signal stops scoring new traces. Weave preserves existing scores from the signal.\n\n"
+            },
+            {
+              "page_id": "guides/platform/ingest-sampling",
+              "section": 2,
+              "title": "Configure ingest sampling for Weave Self-Managed",
+              "heading": "What ingest sampling applies to",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/platform/ingest-sampling",
+              "snippet": "## What ingest sampling applies to\n\nIngest sampling applies to two kinds of traffic, and the rate you set applies to both:\n\n* Calls from the `@weave.op` decorator, which appear in the **Traces** tab.\n* Agent spans sent to the agent tracing endpoint (`/agents/otel/v1/traces`), which appear in the **Agents** tab. For more information, see [Trace your agents](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents.md).\n\nThe following traffic is never sampled and is always kept in full:\n\n* Evaluations from the Weave SDK. Weave keeps these because they are deliberate quality measurements, and their scores would be wrong if computed over partial data.\n* Traces sent with your own OpenTelemetry tooling to the raw OTel endpoint (`/otel/v1/traces`). Raw OpenTelemetry traffic carries no evaluation marker, so sampling it could silently drop evaluations. For more information, see [Send OpenTelemetry traces to Weave](https://docs.coreweave.com/products/wandb/weave/guides/tracking/otel.md).\n* Calls from Weave SDK versions earlier than the supported versions. See [Requirements a"
+            },
+            {
+              "page_id": "guides/platform/ingest-sampling",
+              "section": 6,
+              "title": "Configure ingest sampling for Weave Self-Managed",
+              "heading": "Requirements and limitations",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/platform/ingest-sampling",
+              "snippet": "## Requirements and limitations\n\nBefore you enable ingest sampling, review the following requirements, limitations, and behaviors:\n\n* **SDK version requirements**: The server samples calls only from the Weave Python SDK 0.53.0 or later, or the Weave TypeScript SDK 0.16.0 or later. These versions add the signals the server uses to group a trace's messages and recognize evaluation calls. Calls from older SDKs aren't sampled and aren't rejected, so until your apps upgrade, the rate has no effect on their traffic. Agent spans carry a trace ID as part of the OpenTelemetry protocol, so sampling them has no SDK requirement.\n* **Server version**: Support for agent spans was added after support for calls. If you already set a rate below `1.0`, upgrading to a server version that samples agent spans starts sampling your agent traffic at the same rate.\n* **Savings depend on your client mix**: Traffic that isn't sampled, such as traffic from older SDKs and raw OpenTelemetry, doesn't reduce cost. If much of your traffic comes from those sources, savings are smaller than the rate implies. A dry run"
+            },
+            {
+              "page_id": "guides/tracking/view-agent-signals",
+              "section": 0,
+              "title": "Monitor your agents with signals",
+              "heading": "Monitor your agents with signals",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+              "snippet": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instea"
+            },
+            {
+              "page_id": "guides/tracking/view-agent-signals",
+              "section": 9,
+              "title": "Monitor your agents with signals",
+              "heading": "Custom signals",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+              "snippet": "### Custom signals\n\nTo create a custom tag signal from an empty Signals tab, see [Create a custom signal](https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-custom-signal.md).\n\n"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        }
+      },
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "create a Signal for agent traces filter sample rate"
+        },
+        "result": {
+          "query": "create a Signal for agent traces filter sample rate",
+          "results": [
+            {
+              "page_id": "guides/tracking/create-custom-signal",
+              "section": 1,
+              "title": "Create a custom signal",
+              "heading": "Create a custom tag signal",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-custom-signal",
+              "snippet": "## Create a custom tag signal\n\nTo create a custom tag signal:\n\n1. Navigate to [Forge](https://forge.coreweave.com/wandb) and select your project.\n\n2. In the **Weave project sidebar**, click **Agents**.\n\n3. In the tab bar, click **Signals**.\n\n4. On the Signals tab, click **+ Create your first signal**, or **New signal**.\n\n5. In the drawer, click **Custom Signal**.\n\n   ![The Custom tags drawer with Tag name, Definition, Scorer name, and Inference model fields for creating a custom signal.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/custom-signal.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=b01a4b83a0ef2c7717d78efc406a1de0)\n\n6. In the **Custom tags** drawer, configure the following fields:\n   * **Tag name**: The label that appears in the Agents view for the behavior you want to monitor.\n   * **Definition**: A prompt that describes the behavior you want the signal to detect. Weave sends this prompt to an LLM judge, which scores each agent turn and applies the tag when the turn matches the behavior. For example, to catch a specific product"
+            },
+            {
+              "page_id": "guides/tracking/view-agent-signals",
+              "section": 5,
+              "title": "Monitor your agents with signals",
+              "heading": "Create a new signal",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+              "snippet": "## Create a new signal\n\nTo start scoring your agent's turns, create one or more signals. Select **+ New signal** to open the **Create signals** drawer.\n\nThe drawer groups available signals into two categories:\n\n* **Tags**: Apply a label automatically to matching spans, such as `user-frustration` or `nsfw`. Use tags to categorize spans or flag unwanted behavior. The signals UI only displays rows for spans that matched at least one tag, so a tag signal might run successfully even if you don't see any output.\n* **Ratings**: Assign a score from 0 to 1 to matching spans. Use ratings to rate agent performance and measure improvements over time.\n\n"
+            },
+            {
+              "page_id": "guides/tracking/ops",
+              "section": 4,
+              "title": "Customize Ops",
+              "heading": "Control sampling rate",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+              "snippet": "## Control sampling rate\n\n**Python**\n\nTo control how frequently Weave traces an Op's calls, set the `tracing_sample_rate` parameter in the `@weave.op` decorator. Use this for high-frequency Ops where you only need to trace a subset of calls.\n\nCollect all traces during agent development to help you shape and understand its behavior. In production, configure trace sampling to lower costs while maintaining observability into your agent's behavior.\n\nWeave applies sampling rates only to outer-most Ops. If a nested Op has a sample rate but a parent Op calls it first, Weave ignores the sampling rate of the nested Op.\n\n```python lines theme={\"system\"}\n@weave.op(tracing_sample_rate=0.1)  # Only trace ~10% of calls\ndef high_frequency_op(x: int) -> int:\n    return x + 1\n\n@weave.op(tracing_sample_rate=1.0)  # Always trace (default)\ndef always_traced_op(x: int) -> int:\n    return x + 1\n```\n\nWhen Weave doesn't sample an Op's call:\n\n* The function executes normally.\n* Weave receives no trace data.\n* Weave doesn't trace child Ops for that call.\n\nThe sampling rate must be between 0.0 and 1.0 inclusiv"
+            },
+            {
+              "page_id": "guides/tracking/create-custom-signal",
+              "section": 0,
+              "title": "Create a custom signal",
+              "heading": "Create a custom signal",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-custom-signal",
+              "snippet": "# Create a custom signal\n\n> Create a custom Weave signal to tag agent turns for a behavior you define.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nA custom signal scores agent turns against a behavior you define, then shows that result as a tag in the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md). Weave also provides [built-in signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md) for common cases, such as user frustration and jailbreaking. When those built-in signals don't cover what you want to monitor, create a custom signal. This page shows you how to create that custom tag sign"
+            },
+            {
+              "page_id": "guides/tracking/remote-scorer-signals",
+              "section": 8,
+              "title": "Score agent turns with a remote scorer",
+              "heading": "Weave UI",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+              "snippet": "### Weave UI\n\nCreate the signal from the Agents view:\n\n1. In the Weave project sidebar, click **Agents**.\n2. In the tab bar, click **Signals**.\n3. Click **New signal**, then click **Remote scorer**.\n4. In the **Remote scorer** drawer, **Scored by** is set to **Remote scorer**. Configure the following fields:\n   * **Scorer name**: The name shown in the **Scorer** column of the Signals table. Up to 128 characters.\n   * **Scoring endpoint URL**: The URL Weave sends the `POST` to.\n   * **Authentication**: **Static bearer** or **OAuth client credentials**. For static bearer, select or enter the **Bearer token secret name**. For OAuth, enter the **Token endpoint URL**, **Client ID**, **Client secret name**, and optional **Scope**. Secret fields take team secret names, not values.\n   * **Config (JSON, optional)**: A JSON object passed to your endpoint as `scorer.config`.\n   * **Only score turns matching** (Optional): Expand **Advanced**, then add filters to restrict which turns the signal scores, for example by agent name, agent version, operation name, tool name, or status code. To score e"
+            },
+            {
+              "page_id": "guides/tracking/remote-scorer-signals",
+              "section": 7,
+              "title": "Score agent turns with a remote scorer",
+              "heading": "Create a remote scorer signal",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+              "snippet": "## Create a remote scorer signal\n\nCreate the signal in the Weave UI or with the Python SDK. Both create a `RemoteScorer` attached to a monitor that targets `weave.genai.turn_ended`.\n\n"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/ops",
+          "section": 4
+        },
+        "result": {
+          "source_id": "S1",
+          "page_id": "guides/tracking/ops",
+          "section": 4,
+          "title": "Customize Ops",
+          "heading": "Control sampling rate",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+          "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+          "text": "## Control sampling rate\n\n**Python**\n\nTo control how frequently Weave traces an Op's calls, set the `tracing_sample_rate` parameter in the `@weave.op` decorator. Use this for high-frequency Ops where you only need to trace a subset of calls.\n\nCollect all traces during agent development to help you shape and understand its behavior. In production, configure trace sampling to lower costs while maintaining observability into your agent's behavior.\n\nWeave applies sampling rates only to outer-most Ops. If a nested Op has a sample rate but a parent Op calls it first, Weave ignores the sampling rate of the nested Op.\n\n```python lines theme={\"system\"}\n@weave.op(tracing_sample_rate=0.1)  # Only trace ~10% of calls\ndef high_frequency_op(x: int) -> int:\n    return x + 1\n\n@weave.op(tracing_sample_rate=1.0)  # Always trace (default)\ndef always_traced_op(x: int) -> int:\n    return x + 1\n```\n\nWhen Weave doesn't sample an Op's call:\n\n* The function executes normally.\n* Weave receives no trace data.\n* Weave doesn't trace child Ops for that call.\n\nThe sampling rate must be between 0.0 and 1.0 inclusive.\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+          "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Customize Ops"
+            },
+            {
+              "section": 1,
+              "heading": "Customize display names"
+            },
+            {
+              "section": 2,
+              "heading": "Apply kinds and colors"
+            },
+            {
+              "section": 3,
+              "heading": "Customize logged inputs and outputs"
+            },
+            {
+              "section": 4,
+              "heading": "Control sampling rate"
+            },
+            {
+              "section": 5,
+              "heading": "Control Call link output"
+            },
+            {
+              "section": 6,
+              "heading": "Delete an Op"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/create-custom-signal",
+          "section": 1
+        },
+        "result": {
+          "source_id": "S2",
+          "page_id": "guides/tracking/create-custom-signal",
+          "section": 1,
+          "title": "Create a custom signal",
+          "heading": "Create a custom tag signal",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-custom-signal",
+          "page_sha256": "46707d727829827286368364d26903d966f43948e795a5227bdfa91aa46b5cca",
+          "text": "## Create a custom tag signal\n\nTo create a custom tag signal:\n\n1. Navigate to [Forge](https://forge.coreweave.com/wandb) and select your project.\n\n2. In the **Weave project sidebar**, click **Agents**.\n\n3. In the tab bar, click **Signals**.\n\n4. On the Signals tab, click **+ Create your first signal**, or **New signal**.\n\n5. In the drawer, click **Custom Signal**.\n\n   ![The Custom tags drawer with Tag name, Definition, Scorer name, and Inference model fields for creating a custom signal.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/custom-signal.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=b01a4b83a0ef2c7717d78efc406a1de0)\n\n6. In the **Custom tags** drawer, configure the following fields:\n   * **Tag name**: The label that appears in the Agents view for the behavior you want to monitor.\n   * **Definition**: A prompt that describes the behavior you want the signal to detect. Weave sends this prompt to an LLM judge, which scores each agent turn and applies the tag when the turn matches the behavior. For example, to catch a specific product failure: \"The user is discussing errors or issues regarding Product X.\"\n   * **+ Add tag** (Optional): Click to define another tag on the same signal. For example, if you support multiple products, add a separate tag for each product so you can track frustration per product instead of only in aggregate.\n   * **Scorer name**: The name for the underlying scorer object.\n   * **Inference model or custom runtime**: The model used to score matching turns. [Serverless Inference](https://docs.coreweave.com/products/inference/serverless.md) is the default. CoreWeave Serverless Inference consumes credits from your CoreWeave Forge account.\n   * **Include tool calls** (Optional): Expand **Advanced**, then check the box to include the turn's tool calls in the context sent to the scoring model.\n   * **Only score turns matching** (Optional): Expand **Advanced**, then add one or more filters to restrict which turns the signal scores, for example by agent, operation, tool, or model. Leave empty to score every agent turn. Weave combines multiple filters with `AND` logic.\n   * **Sample rate** (Optional): Expand **Advanced**, then set the fraction of matching agent turns the signal scores. For high-traffic agents, lower the sample rate to score a fraction of matching turns instead of every turn and reduce cost.\n\n7. In the **Custom tags** drawer, click **Create signal**.\n\nAfter you create the signal, Weave scores matching turns. The tag appears in the Agents view, including on the Signals tab.\n",
+          "page_context": "# Create a custom signal\n\n> Create a custom Weave signal to tag agent turns for a behavior you define.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nA custom signal scores agent turns against a behavior you define, then shows that result as a tag in the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md). Weave also provides [built-in signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md) for common cases, such as user frustration and jailbreaking. When those built-in signals don't cover what you want to monitor, create a custom signal. This page shows you how to create that custom tag signal in the Weights & Biases UI.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Create a custom signal"
+            },
+            {
+              "section": 1,
+              "heading": "Create a custom tag signal"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 8
+        },
+        "result": {
+          "source_id": "S3",
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 8,
+          "title": "Score agent turns with a remote scorer",
+          "heading": "Weave UI",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+          "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+          "text": "### Weave UI\n\nCreate the signal from the Agents view:\n\n1. In the Weave project sidebar, click **Agents**.\n2. In the tab bar, click **Signals**.\n3. Click **New signal**, then click **Remote scorer**.\n4. In the **Remote scorer** drawer, **Scored by** is set to **Remote scorer**. Configure the following fields:\n   * **Scorer name**: The name shown in the **Scorer** column of the Signals table. Up to 128 characters.\n   * **Scoring endpoint URL**: The URL Weave sends the `POST` to.\n   * **Authentication**: **Static bearer** or **OAuth client credentials**. For static bearer, select or enter the **Bearer token secret name**. For OAuth, enter the **Token endpoint URL**, **Client ID**, **Client secret name**, and optional **Scope**. Secret fields take team secret names, not values.\n   * **Config (JSON, optional)**: A JSON object passed to your endpoint as `scorer.config`.\n   * **Only score turns matching** (Optional): Expand **Advanced**, then add filters to restrict which turns the signal scores, for example by agent name, agent version, operation name, tool name, or status code. To score every turn, leave it empty. Weave combines multiple filters with `AND` logic.\n   * **Sample rate** (Optional): Expand **Advanced**, then set the fraction of matching turns the signal scores.\n5. Click **Create signal**.\n\nThe remote scorer form has no tag or rating fields. Your endpoint determines what it returns, and the Signals table shows the tags and ratings it receives. In the **Scorer** column, a remote scorer signal shows a webhook icon.\n\n",
+          "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Score agent turns with a remote scorer"
+            },
+            {
+              "section": 1,
+              "heading": "How agent turn scoring works"
+            },
+            {
+              "section": 2,
+              "heading": "Enable remote scoring"
+            },
+            {
+              "section": 3,
+              "heading": "Build the scorer endpoint"
+            },
+            {
+              "section": 4,
+              "heading": "Request"
+            },
+            {
+              "section": 5,
+              "heading": "Response"
+            },
+            {
+              "section": 6,
+              "heading": "Authenticate requests from Weave"
+            },
+            {
+              "section": 7,
+              "heading": "Create a remote scorer signal"
+            },
+            {
+              "section": 8,
+              "heading": "Weave UI"
+            },
+            {
+              "section": 9,
+              "heading": "Python SDK"
+            },
+            {
+              "section": 10,
+              "heading": "Sample code"
+            },
+            {
+              "section": 11,
+              "heading": "Test the signal"
+            },
+            {
+              "section": 12,
+              "heading": "Troubleshooting"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/view-agent-signals",
+          "section": 5
+        },
+        "result": {
+          "source_id": "S4",
+          "page_id": "guides/tracking/view-agent-signals",
+          "section": 5,
+          "title": "Monitor your agents with signals",
+          "heading": "Create a new signal",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+          "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+          "text": "## Create a new signal\n\nTo start scoring your agent's turns, create one or more signals. Select **+ New signal** to open the **Create signals** drawer.\n\nThe drawer groups available signals into two categories:\n\n* **Tags**: Apply a label automatically to matching spans, such as `user-frustration` or `nsfw`. Use tags to categorize spans or flag unwanted behavior. The signals UI only displays rows for spans that matched at least one tag, so a tag signal might run successfully even if you don't see any output.\n* **Ratings**: Assign a score from 0 to 1 to matching spans. Use ratings to rate agent performance and measure improvements over time.\n\n",
+          "page_context": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Monitor your agents with signals"
+            },
+            {
+              "section": 1,
+              "heading": "Get started"
+            },
+            {
+              "section": 2,
+              "heading": "Key terms"
+            },
+            {
+              "section": 3,
+              "heading": "Signals table"
+            },
+            {
+              "section": 4,
+              "heading": "How Weave normalizes scores"
+            },
+            {
+              "section": 5,
+              "heading": "Create a new signal"
+            },
+            {
+              "section": 6,
+              "heading": "Preset signals"
+            },
+            {
+              "section": 7,
+              "heading": "Tags presets"
+            },
+            {
+              "section": 8,
+              "heading": "Ratings presets"
+            },
+            {
+              "section": 9,
+              "heading": "Custom signals"
+            },
+            {
+              "section": 10,
+              "heading": "Manage and edit signals"
+            },
+            {
+              "section": 11,
+              "heading": "Troubleshoot signals"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/view-agent-signals",
+          "section": 10
+        },
+        "result": {
+          "source_id": "S5",
+          "page_id": "guides/tracking/view-agent-signals",
+          "section": 10,
+          "title": "Monitor your agents with signals",
+          "heading": "Manage and edit signals",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+          "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+          "text": "## Manage and edit signals\n\nIf you have at least one created signal, select the active signals button in the toolbar\u2014labeled with the number of active signals, such as **1 active signals**\u2014to open a drawer that lists all active signals for the project. From there you can toggle signals on or off, delete them, or edit any signal. The editor shows the same configuration fields as a custom signal.\n\n",
+          "page_context": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Monitor your agents with signals"
+            },
+            {
+              "section": 1,
+              "heading": "Get started"
+            },
+            {
+              "section": 2,
+              "heading": "Key terms"
+            },
+            {
+              "section": 3,
+              "heading": "Signals table"
+            },
+            {
+              "section": 4,
+              "heading": "How Weave normalizes scores"
+            },
+            {
+              "section": 5,
+              "heading": "Create a new signal"
+            },
+            {
+              "section": 6,
+              "heading": "Preset signals"
+            },
+            {
+              "section": 7,
+              "heading": "Tags presets"
+            },
+            {
+              "section": 8,
+              "heading": "Ratings presets"
+            },
+            {
+              "section": 9,
+              "heading": "Custom signals"
+            },
+            {
+              "section": 10,
+              "heading": "Manage and edit signals"
+            },
+            {
+              "section": 11,
+              "heading": "Troubleshoot signals"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "**No. `@weave.op(tracing_sample_rate=0.1)` controls tracing, not Signal scoring, and it would also drop traces you want to keep.**\n\n**Why it's the wrong control**\n- `tracing_sample_rate` sets how often Weave traces an Op's calls. At 0.1, about 10% of calls are traced [S1].\n- For the 90% of calls that aren't sampled, the function still runs. Weave receives no trace data and doesn't trace child Ops [S1]. That contradicts your goal of keeping all traces.\n- Your Signal can only act on turns that were traced. Sampling at the Op level would therefore shrink the traces you keep and the turns the Signal can see.\n- The rate applies only to outer-most Ops. A nested Op's rate is ignored when a parent Op calls it first [S1].\n\n**What to change**\n1. Remove `tracing_sample_rate` or leave it at the default of `1.0`, which always traces [S1].\n2. Set the sample rate on the Signal itself. In the Agents view, open the **Signals** tab and edit the signal. The editor shows the same fields as a custom signal [S5].\n3. Expand **Advanced** and set **Sample rate**. For custom signals this is the fraction of matching agent turns the signal scores [S2]. Remote scorer signals have the same field [S3]. Set it to `0.1` for roughly one in ten matching turns.\n4. Optionally use **Only score turns matching** in the same Advanced section to narrow which turns are eligible, for example by agent or operation. Multiple filters combine with `AND` logic [S2]. The sample rate applies to the turns that match these filters [S2].\n\n**Caveats**\n- I didn't find documentation on a Signal type called \"human review\". I'm assuming yours is a custom or remote-scorer signal, which both have a **Sample rate** field. If it is a different kind of signal, check that its editor has the same field.\n- The docs I read describe the sample rate as a fraction of matching turns. They don't promise an exact one-in-ten selection, so treat 10% as approximate.\n- The **Sample rate** field is documented in the UI. I didn't find a documented Python SDK parameter for it in the pages I read.\n- If you run a self-managed Weave instance, ingest sampling is a separate server-side setting. It drops incoming traces, so it would also reduce what you keep [S1].\n\n**Next step:** Set `tracing_sample_rate` back to `1.0`, then set the Signal's **Sample rate** to `0.1`."
+        },
+        "result": {
+          "passed": false,
+          "claims": [
+            {
+              "text": "tracing_sample_rate controls how often Weave traces an Op's calls; at 0.1 about 10% are traced.",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Unsampled calls run normally, Weave receives no trace data, and child Ops aren't traced; this contradicts keeping all traces.",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Your Signal can only act on turns that were traced, so Op-level sampling would shrink the turns the Signal can see.",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "partial",
+              "supported": false
+            },
+            {
+              "text": "Sampling rate applies only to outer-most Ops; a nested Op's rate is ignored when a parent calls it first.",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Remove tracing_sample_rate or leave it at the default of 1.0, which always traces.",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "In the Agents view Signals tab you can edit a signal, and the editor shows the same fields as a custom signal.",
+              "source_ids": [
+                "S5"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Under Advanced, Sample rate is the fraction of matching agent turns a custom signal scores; remote scorer signals have the same field.",
+              "source_ids": [
+                "S2",
+                "S3"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Only score turns matching filters combine with AND; the sample rate applies to the turns that match those filters.",
+              "source_ids": [
+                "S2"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Self-managed Weave ingest sampling is a separate server-side setting that drops incoming traces.",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "unsupported",
+              "supported": false
+            },
+            {
+              "text": "Setting Sample rate to 0.1 gives roughly one in ten matching turns.",
+              "source_ids": [
+                "S2",
+                "S3"
+              ],
+              "status": "partial",
+              "supported": false
+            }
+          ],
+          "issues": [
+            "The self-managed ingest sampling claim is cited to S1, but S1 contains no passage about server-side ingest sampling. Remove it or support it with a source.",
+            "The statement that a Signal can only act on traced turns is plausible but isn't stated in S1. Mark it as an inference or cite a source.",
+            "The answer assumes a 'human review' Signal is a custom or remote-scorer signal. It discloses this assumption, but the main answer depends on it. A human-review signal may not expose a Sample rate field, so confirm the signal type first.",
+            "Sample rate as a fraction is documented, but the answer's 'roughly one in ten' for 0.1 is an interpretation. It is hedged as approximate, which is acceptable once the claim is qualified.",
+            "Revise partial or unsupported material claims.",
+            "Handle the 'human-review Signal' type and any limits on sample-rate applicability: The answer assumes the signal type and discloses it, but the evidence doesn't confirm that a human-review signal has the field."
+          ],
+          "coverage": [
+            {
+              "obligation": "Answer whether tracing_sample_rate is the right control for sampling Signal inspection while keeping all traces",
+              "status": "covered",
+              "reason": "Says no and explains that Op sampling drops traces.",
+              "source_ids": [
+                "S1"
+              ],
+              "material": true
+            },
+            {
+              "obligation": "Say what to change: use the Signal's own sample rate and leave tracing at 1.0",
+              "status": "covered",
+              "reason": "Gives the UI steps and the Sample rate field for custom and remote-scorer signals.",
+              "source_ids": [
+                "S2",
+                "S3",
+                "S5"
+              ],
+              "material": true
+            },
+            {
+              "obligation": "Handle the 'human-review Signal' type and any limits on sample-rate applicability",
+              "status": "uncertain",
+              "reason": "The answer assumes the signal type and discloses it, but the evidence doesn't confirm that a human-review signal has the field.",
+              "source_ids": [
+                "S2",
+                "S3",
+                "S4"
+              ],
+              "material": true
+            },
+            {
+              "obligation": "Avoid unsupported claims about the server-side ingest sampling alternative",
+              "status": "missing",
+              "reason": "The ingest sampling claim has no support in S1.",
+              "source_ids": [
+                "S1"
+              ],
+              "material": false
+            }
+          ],
+          "mode": "support+coverage",
+          "status": "failed"
+        }
+      },
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "human review signal annotation feedback agent turns"
+        },
+        "result": {
+          "query": "human review signal annotation feedback agent turns",
+          "results": [
+            {
+              "page_id": "guides/tracking/feedback",
+              "section": 14,
+              "title": "Collect feedback and use annotations",
+              "heading": "Use a human annotation scorer using the API",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/feedback",
+              "snippet": "### Use a human annotation scorer using the API\n\nThe feedback API lets you use a human annotation scorer by specifying a specially constructed name and an `annotation_ref` field. You can obtain the `annotation_spec_ref` from the UI by selecting the appropriate tab, or during the creation of the `AnnotationSpec`.\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nclient = weave.init(\"feedback-example\")\n\ncall = client.get_call(\"[CALL-ID]\")\nannotation_spec = weave.ref(\"[ANNOTATION-SPEC-REF-URI]\")\n\ncall.feedback.add(\n  feedback_type=\"wandb.annotation.\" + annotation_spec.name,\n  payload={\"value\": 1},\n  annotation_ref=annotation_spec.uri(),\n)\n```\n"
+            },
+            {
+              "page_id": "guides/tracking/feedback",
+              "section": 9,
+              "title": "Collect feedback and use annotations",
+              "heading": "Add human annotations",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/feedback",
+              "snippet": "## Add human annotations\n\nHuman annotations let you capture structured, human-reviewed judgments about Calls so that reviewers can score model output against your own criteria.\n\nHuman annotations are supported in the Weights & Biases UI. This functionality lets you create custom fields to add human-entered data to your Traces as feedback. To make human annotations, you must first create a Human Annotation scorer using either the [UI](#create-a-human-annotation-scorer-in-the-ui) or the [API](#create-a-human-annotation-scorer-using-the-api). Then, you can [use the scorer in the UI to make annotations](#use-the-human-annotation-scorer-in-the-ui), and [modify your annotation scorers using the API](#modify-a-human-annotation-scorer-using-the-api).\n\n"
+            },
+            {
+              "page_id": "guides/tracking/annotation-review",
+              "section": 0,
+              "title": "Review items in an annotation queue",
+              "heading": "Review items in an annotation queue",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/annotation-review",
+              "snippet": "# Review items in an annotation queue\n\n> Evaluate trace items and submit structured feedback using a simplified review interface.\n\nAnnotation queues provide a focused review interface for domain experts. You review one item at a time, examine the provided context, and submit structured feedback using predefined fields. By completing a queue, you contribute expert judgments that your team can use to evaluate and improve LLM outputs.\n\nYou don't need to understand the underlying model or tracing system to complete reviews. This lets external experts review the data without needing broader project context.\n\n"
+            },
+            {
+              "page_id": "guides/tracking/annotation-review",
+              "section": 2,
+              "title": "Review items in an annotation queue",
+              "heading": "Review a queue item",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/annotation-review",
+              "snippet": "### Review a queue item\n\nThe following describes the review interface and how to submit an annotation for a single item in the queue.\n\nFor each item, the review interface shows two panes:\n\n* A trace pane that shows selected input context (such as prompts, documents, or images) and the corresponding model response or decision.\n* An item pane that contains an annotation entry form with annotation fields.\n\nComplete each annotation field according to the instructions provided for the queue, then click **Submit and next** to save this item and continue to the next.\n\n![Annotation queue review interface for a single trace item, showing a trace information pane alongside an annotation form pane where reviewers submit structured feedback and move through the queue.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/AnnotationSubmitItem.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=7a9adb66658b4677f5919926fdb1188f)\n\n> [!TIP]\n>\n> In the trace pane header, you can click the trace ID suffix (for example, \"b3ea\") to open a panel that shows the full trace d"
+            },
+            {
+              "page_id": "guides/tracking/create-custom-signal",
+              "section": 0,
+              "title": "Create a custom signal",
+              "heading": "Create a custom signal",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-custom-signal",
+              "snippet": "# Create a custom signal\n\n> Create a custom Weave signal to tag agent turns for a behavior you define.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nA custom signal scores agent turns against a behavior you define, then shows that result as a tag in the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md). Weave also provides [built-in signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md) for common cases, such as user frustration and jailbreaking. When those built-in signals don't cover what you want to monitor, create a custom signal. This page shows you how to create that custom tag sign"
+            },
+            {
+              "page_id": "guides/tracking/remote-scorer-signals",
+              "section": 7,
+              "title": "Score agent turns with a remote scorer",
+              "heading": "Create a remote scorer signal",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+              "snippet": "## Create a remote scorer signal\n\nCreate the signal in the Weave UI or with the Python SDK. Both create a `RemoteScorer` attached to a monitor that targets `weave.genai.turn_ended`.\n\n"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        }
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "**No. `@weave.op(tracing_sample_rate=0.1)` controls tracing, not how many turns a Signal scores, and it would also drop traces you want to keep.**\n\n**Why it's the wrong control**\n- `tracing_sample_rate` sets how often Weave traces an Op's calls. At 0.1, about 10% of calls are traced [S1].\n- For the unsampled calls, the function still runs. Weave receives no trace data and doesn't trace child Ops [S1]. That contradicts your goal of keeping all traces.\n- The rate applies only to outer-most Ops. A nested Op's rate is ignored when a parent Op calls it first [S1].\n\n**What to change**\n1. Remove `tracing_sample_rate` or leave it at the default of `1.0`, which always traces [S1].\n2. Set the sample rate on the Signal itself. In the Agents view, open the **Signals** tab and edit the signal. The editor shows the same fields as a custom signal [S5].\n3. Expand **Advanced** and set **Sample rate**. For custom signals, this is the fraction of matching agent turns the signal scores [S2]. Remote scorer signals have the same field [S3]. Setting `0.1` should score about one in ten matching turns. The docs describe a fraction but don't promise an exact count, so treat 10% as approximate.\n4. Optionally use **Only score turns matching** in the same Advanced section to narrow which turns are eligible, for example by agent or operation. Multiple filters combine with `AND` logic [S2]. The sample rate then applies to the turns that match [S2].\n\n**Caveat about \"human-review Signal\"**\n- I didn't find a Signal type called \"human review\" in the Agents/Signals docs I read. The Signals documentation I found covers custom signals (scored by an LLM judge) [S2] and remote scorer signals (scored by your own HTTP endpoint) [S3].\n- Both of those have a **Sample rate** field. I'm assuming your signal is one of them, but I couldn't confirm that for a signal built another way.\n- If your human review runs through a different mechanism, such as annotation queues, that's a separate workflow. I didn't verify how it handles sampling.\n- Check that your signal's editor shows **Sample rate** under **Advanced**. If it doesn't, tell me how the signal is set up and I'll look again.\n- I didn't find a documented Python SDK parameter for the Signal sample rate in the pages I read. The documented path is the UI.\n\n**Next step:** Set `tracing_sample_rate` back to `1.0` (or remove it), then set the Signal's **Sample rate** to `0.1`."
+        },
+        "result": {
+          "passed": true,
+          "claims": [
+            {
+              "text": "tracing_sample_rate controls how often Weave traces an Op's calls; 0.1 traces about 10%.",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Unsampled calls still run, but Weave gets no trace data and doesn't trace child Ops, which conflicts with keeping all traces.",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Sampling applies only to outer-most Ops; a nested Op's rate is ignored when a parent calls it first.",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Default tracing_sample_rate is 1.0, which always traces.",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Edit a signal from the Signals/Agents UI; the editor shows the same fields as a custom signal.",
+              "source_ids": [
+                "S5"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Under Advanced, Sample rate sets the fraction of matching turns a custom signal scores; remote scorer signals have the same field.",
+              "source_ids": [
+                "S2",
+                "S3"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Only score turns matching filters combine with AND, and sample rate applies to matching turns.",
+              "source_ids": [
+                "S2"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Docs cover custom signals (LLM judge) and remote scorer signals (own HTTP endpoint); no human review signal type found; no Python SDK parameter found for signal sample rate.",
+              "source_ids": [
+                "S2",
+                "S3"
+              ],
+              "status": "supported",
+              "supported": true
+            }
+          ],
+          "issues": [],
+          "coverage": [
+            {
+              "obligation": "Answer whether tracing_sample_rate is the right control for sampling Signal-scored turns while keeping all traces",
+              "status": "covered",
+              "reason": "Clearly says no and explains that it samples traces, dropping unsampled ones.",
+              "source_ids": [
+                "S1"
+              ],
+              "material": true
+            },
+            {
+              "obligation": "Explain what to change",
+              "status": "covered",
+              "reason": "Restore the default rate and set the Signal's Sample rate to 0.1 under Advanced, with optional filters.",
+              "source_ids": [
+                "S2",
+                "S3",
+                "S5"
+              ],
+              "material": true
+            },
+            {
+              "obligation": "Note uncertainty about the 'human-review Signal' type and limits",
+              "status": "covered",
+              "reason": "Caveat states the assumption, that the docs don't mention human review, and that the sample rate is approximate.",
+              "source_ids": [
+                "S2",
+                "S3"
+              ],
+              "material": true
+            }
+          ],
+          "mode": "support+coverage",
+          "status": "passed"
+        }
+      }
+    ],
+    "conversation_id": "2763b1a6-77a6-4dfe-b550-21e10656331a",
+    "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/2763b1a6-77a6-4dfe-b550-21e10656331a",
+    "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+    "source_sha256": "a6621741d5868bdb88ee64137a5e4c459d222898c28ad50702545ebeafb2da81",
+    "prompt_sha256": "4322c8b50d3f0abd9bc510391fa4287983dc58da6e8b9e825f3710a6952512c9",
+    "config_sha256": "a58b2ffa842e4155c487d1f76f1a4f1b94014008ee13e283f5adfff122485caf",
+    "verify_mode": "support+coverage",
+    "cache_enabled": true,
+    "trace_id": "9b388c6a9e0c51ab7e933bb74bd9d02f",
+    "model": "claude-sonnet-5-5",
+    "elapsed_seconds": 36.67,
+    "planner_usage": {
+      "input_tokens": 16,
+      "output_tokens": 2804
+    },
+    "metrics": {
+      "calls": [
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPvK2TAEdd1LFFQQHFxn",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 158
+            },
+            "cache_creation_input_tokens": 158,
+            "cache_read_input_tokens": 1693,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 114,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 1.3657,
+          "estimated_usd": 0.0017123
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPvK8FQrk4iAZse9KGPu",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 6108
+            },
+            "cache_creation_input_tokens": 6108,
+            "cache_read_input_tokens": 1851,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 224,
+            "output_tokens_details": {
+              "thinking_tokens": 30
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.2685,
+          "estimated_usd": 0.0176991
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPvKJ2HZBUjmCbSSssdD",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 6768
+            },
+            "cache_creation_input_tokens": 6768,
+            "cache_read_input_tokens": 7959,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 295,
+            "output_tokens_details": {
+              "thinking_tokens": 49
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.2943,
+          "estimated_usd": 0.0206699
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPvKTurbvFcVyArDjTvo",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 4542
+            },
+            "cache_creation_input_tokens": 4542,
+            "cache_read_input_tokens": 14727,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 185,
+            "output_tokens_details": {
+              "thinking_tokens": 101
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.2853,
+          "estimated_usd": 0.0146817
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPvKdanCZt9NojW4mqbE",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1212
+            },
+            "cache_creation_input_tokens": 1212,
+            "cache_read_input_tokens": 19269,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 889,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 6.8173,
+          "estimated_usd": 0.0138509
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPvL8qfiJbvJcG7ffcb2",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 7089
+            },
+            "cache_creation_input_tokens": 7089,
+            "cache_read_input_tokens": 1969,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 1336,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 7.9684,
+          "estimated_usd": 0.0312874
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPvLiqZcmtrzdQyzhDSd",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 2348
+            },
+            "cache_creation_input_tokens": 2348,
+            "cache_read_input_tokens": 20481,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 110,
+            "output_tokens_details": {
+              "thinking_tokens": 48
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 1.4394,
+          "estimated_usd": 0.0090221
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPvLq1PMBz9z5WgW6W1s",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 2444
+            },
+            "cache_creation_input_tokens": 2444,
+            "cache_read_input_tokens": 22829,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 987,
+            "output_tokens_details": {
+              "thinking_tokens": 61
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 6.381,
+          "estimated_usd": 0.0182669
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPvMJStYESQMY8UfeWeW",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 7164
+            },
+            "cache_creation_input_tokens": 7164,
+            "cache_read_input_tokens": 1969,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 900,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 5.8122,
+          "estimated_usd": 0.0271149
+        }
+      ],
+      "model_calls": 9,
+      "tokens": {
+        "input_tokens": 24,
+        "output_tokens": 5040,
+        "cache_creation_input_tokens": 37833,
+        "cache_read_input_tokens": 92747
+      },
+      "total_input_tokens": 130604,
+      "estimated_usd": 0.1543052,
+      "known_estimated_usd": 0.1543052,
+      "unpriced_calls": 0,
+      "by_purpose": {
+        "planner": {
+          "calls": 7,
+          "known_estimated_usd": 0.09590290000000001
+        },
+        "verification": {
+          "calls": 2,
+          "known_estimated_usd": 0.058402300000000004
+        }
+      },
+      "research": {
+        "searches": 5,
+        "passage_reads": 5,
+        "distinct_pages_read": 4,
+        "repeated_tool_requests": 0,
+        "drafts_submitted": 2,
+        "code_runs": 0
+      },
+      "pricing": {
+        "checked_at": "2026-10-25",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "rates": {
+          "claude-sonnet-5-5": {
+            "input": 2,
+            "output": 10,
+            "write_5m": 2.5,
+            "write_1h": 4,
+            "read": 0.1
+          },
+          "claude-opus-5-5": {
+            "input": 4,
+            "output": 20,
+            "write_5m": 5,
+            "write_1h": 8,
+            "read": 0.2
+          }
+        }
+      },
+      "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+    },
+    "error_type": null
+  }
+}

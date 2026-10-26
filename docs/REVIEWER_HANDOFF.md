@@ -1,82 +1,75 @@
 # Coreweaving reviewer handoff
 
-This is the entry point for an independent review. The repository is the source of truth; the chat transcript is not required.
+The repository and recorded evidence should explain the work without the chat transcript. Start with `git status --short` and `git log -5 --oneline`.
 
-Before implementing the next evaluation pass, read the [review of Claude's proposal](AI_BUILD_LOG.md#review-of-claudes-proposed-evaluation-pass--2026-10-26) and its [audit receipt](../results/proposal-review.json). It accepts the coverage/evaluation direction with corrections to scoring, trial persistence, comparisons and scope. That proposal has not been executed.
+<!-- HANDOFF_STATUS_START -->
+**Ready for owner review:** the 36-run pilot completed on `d79d64b` for $9.6452267: support 10/12, coverage 8/12, off 7/12. Support remains the default. Regression on `179a052` finished 11/13, 45/48 assertions, $2.6336314. Later fixes in local commits `3ba02a7` and `fb73d32` address interrupted UI jobs, credential boundaries, strict citation contracts, a false-refusal path, SDK versions and cache accounting. All 174 tests and Ruff pass. [A real two-turn UI run](../results/ui-recovery-v1/browser.json) completed while navigating; [backend readback](../results/ui-recovery-v1/backend.json) verifies redaction, saved answers and $0.253286 matching trace cost. Source SHA `c7ca922025d027bbdfcd67ff0f4495f9d8fc14924b9571d42326fdd75cfb6fda`. No final-source quality rerun. No further paid experiments; latest commits and hosted artifact updates are not pushed/published.
+<!-- HANDOFF_STATUS_END -->
 
-**Current pass: implemented and verified; research Site published.** Baseline before this pass: `d3c24e8` on `main`. Read `git status --short` and `git log -3 --oneline` before reviewing; those identify the current checkout and any subsequent work. The research and library checks are recorded in [learning-foundation.json](../results/learning-foundation.json).
+## Objective and constraints
 
-## What we are building
+The CoreWeave DevRel assessment requires a tool-calling Weave documentation agent, multi-turn context, self-verification, new agent tracing, online Signals, and `weave.Evaluation` with at least ten varied questions and an LLM judge. Public source and Weave evidence are required; the owner must be able to run and explain the product in the interview. Email submission and interview rehearsal remain owner actions.
 
-The CoreWeave DevRel assessment asks for a Weave documentation agent with a dynamic tool loop, multiple turns, self-verification, the new agent tracing model, online Signals, and at least ten evaluated questions with an LLM judge. The public repository and Weave project are already published. The owner must still practice explaining the code and send the submission email.
+The owner also asked for a useful product and teaching experience, bounded permissions, deliberate memory, the existing BDD method, cost transparency and documented learning. Research routing, knowledge links, voice and adaptive presentation without claiming those proposed capabilities are shipped. Use standard Git, not `gh`.
 
-The owner then asked us to research specialist routing and knowledge graphs in parallel, leave room for voice and adaptive presentation, and build an answer library together through the actual agent. They want to understand costs, efficiency, and whether an answer covers the whole question. Use Weave where it makes those decisions inspectable without adding infrastructure just for demonstration.
+## Read first
 
-## Read these first
+1. [README](../README.md): setup, architecture and measured results.
+2. [Behavior contract](BEHAVIOR_CONTRACT.md): intent, Given/When/Then, actual tests and limits.
+3. [Research artifact](../research.html): product/education/engineering decisions, interactive behavior examples and evidence.
+4. [Evidence index](../results/README.md): exact runs, hashes and interpretation limits.
+5. [Versioning contract](VERSIONING.md): release conventions, exact identity scope, old-record limits and rollback.
+6. [AI build log](AI_BUILD_LOG.md): proposals, independent review findings, corrections and actual outcomes.
 
-1. [README](../README.md): runnable setup, architecture, results and limitations.
-2. [Working plan](../plan.html): original brief and product direction.
-3. [Research room](../research.html): sourced recommendations, interactive routing scenarios, cost illustration and experiment gates.
-4. [Evidence index](../results/README.md): actual runs and their scope.
-5. [AI build log](AI_BUILD_LOG.md): observed mistakes, corrections and tradeoffs.
+## What exists
 
-## Implemented versus proposed
-
-| Area | Current state |
+| Area | Implementation and boundary |
 | --- | --- |
-| Agent | One direct tool-calling research loop, separate evidence verifier, bounded repair and six-exchange memory. Prompts, tool policy and retrieval are unchanged in this pass. |
-| Tracing | Actual new-model conversations, turns, LLM and tool spans. Usage comes from provider responses. No autonomous worker agents yet. |
-| Signals | Active `needs-review` monitor using CoreWeave Serverless Inference. Recorded fixture feedback and an agent-name filter check. New cost/conflict Signals are proposals. |
-| Evaluation | Latest full evaluation is **12/13** at `1c39ad8`; it is not a new run of later interface/instrumentation changes. Preserve the failed case and judge commentary. |
-| Usage foundation | New common wrapper counts planning, verification and repair calls. Dated standard-API estimates, cache categories, partial/unknown usage, research counts and Weave attributes. |
-| Answer library | New local SQLite persistence for actual UI turns, context, sources, snapshot, usage, trace and separate human review/history. Excluded from Git; never used as retrieval authority. |
-| Routing/specialists | Researched proposal. Keep the tested single-agent default. Try clarification/single-research routes and at most two workers only for independent tasks, under one shared budget. |
-| Knowledge graph | Researched proposal. First compare BM25 with bounded traversal of explicit links/reviewed relationships. Original passages remain authority. Full extracted GraphRAG is deferred. |
-| Whole-story checking | Current verifier checks cited evidence and page-context warnings. Explicit task obligations, missing prerequisites, uncited counterevidence and conflict coverage remain proposed improvements. |
-| Voice/adaptive GUI | Researched proposal. Editable speech transcript enters the same agent. A small validated set of response layouts; no generated executable UI. Neither is enabled. |
-| Dataset promotion | Existing evaluation dataset is published. Promoting selected library examples into a new public dataset is a separate deliberate future step. No automatic publishing. |
+| Agent | One direct Sonnet tool loop with search/read/offline Python/submit; step/tool/repair limits. Common planner across experiment modes. |
+| Verification | `support` checks cited claims; `support+coverage` adds requested obligations and relevant research/history. Material partial/unsupported claims and material missing/uncertain obligations require repair. Experimental `off` is explicitly not-run and refused by the web app. |
+| Tracing | Conversation → turn → tools/chats; verifier subagent contains its own chats. Actual evaluation Call IDs and source/prompt/configuration/snapshot identity propagate into agent spans. Backend readback proves the parent chain. |
+| Evaluation | Frozen 13-case regression plus six-case capability suite; 70 assertions total. The judge is an ordinary traced Call. Quality is independent of verifier flags; exact reference overlap and page count are diagnostics. Unique trial/prediction artifacts prevent overwrites. |
+| Cost | All-turn agent and separate judge usage, dated cache-aware estimates, conservative shared experiment reservations. Partial/ungraded work stays in cost totals. Unknown returned usage stops further requests. |
+| UI | Sources, check findings, usage/cache receipt and purpose/memory explanation. One worker per conversation persists before rendering, so library navigation cannot interrupt a running question. Process restart is not durable job recovery. |
+| Memory | Six dialogue exchanges in process plus original session source records. Source ledger has no total size cap. New conversation resets working memory; it does not delete the local library or public traces. |
+| Library | SQLite answers start unreviewed; explicit assessments have separate history. Original evidence remains unchanged. Never retrieved as documentation authority or automatically promoted. |
+| Signals | Active `needs-review` monitor through CoreWeave Serverless Inference, with historical observed feedback and agent-name filtering. Pilot agent turns can qualify; Signal spending is outside the Anthropic budget. |
+| Proposed only | Specialist routing, knowledge-link expansion, voice, adaptive answer renderers, automatic library→dataset promotion and persistent inferred preferences. |
 
-## Decisions and reasons
+## Findings that must survive review
 
-- Preserve the current default while testing one change at a time. Multiple agents can lose shared context and increase costs; specialist names are not evidence of specialization or accuracy.
-- Distinguish an execution graph (which step runs next) from a knowledge graph (which source/concept is related). Neither by itself validates a claim.
-- Keep one coordinator responsible for the complete question, assumptions and final evidence. If workers are added, do not call `Agent.run` unchanged inside them: it creates root turn boundaries and mutates conversation history. Use nested Weave sub-agent spans and verify actual parent IDs.
-- Treat a graph edge as a retrieval lead. Store relation provenance and workflow/version context; read the underlying source before citing it.
-- Separate source-check success, human acceptance and source freshness. A cited answer can still omit a necessary caveat. The existing failed evaluation is a concrete example.
-- Use Weave for traces, comparisons, Signals and versioned test datasets. Keep the app focused on a useful answer, a compact usage/evidence receipt and review controls.
-- Measure total work for failures and repairs too. Later compare cost per human-accepted answer, latency, missing task parts, contradictions and repeated work; do not treat page count as quality.
+- The original 12/13 run already exposed a failure; it was incorrect to say the evaluation could show none. Its missing fallibility caution was subsequently identified as a normative engineering expectation, not an explicit statement established by its selected product passages. Preserve that record and limitation.
+- Case assertions must allow valid alternatives. Capability case04's `weave.Evaluation` requirement is narrower than its question; documented `EvaluationLogger` can answer that portion. Independent omissions also caused the observed first-repeat failures. Preserve primary scores and explain the rubric issue rather than silently rescoring for a better headline.
+- A correct source check can leave out information that was already read. A different failure can arise because the relevant section was never read. Coverage, retrieval and citation integrity are separate diagnoses.
+- Self-generated coverage lists are diagnostic. Compare modes using the same independent judge and frozen cases. Repeats and assertions are not independent new tasks. A small selected pilot does not establish broad reliability or statistical superiority.
+- Caching was added without changing effort. The synthetic cache probe establishes a warm hit; actual agent usage is measured separately. Do not promise the proposed 60–70% reduction from parameter presence alone.
+- Partial-run review caught undercounted ungraded predictions and non-atomic receipt writes. Accounting now includes those attempts and reconciles returned budget usage against completed receipts.
+- The known Weave call/end502 requires replaying the original completed parent record. Pending storage merges can expose both unfinished and completed physical versions in list queries. Direct latest-only reads and the evaluation-results API verify actual scores. Do not rerun paid answers or delete evidence to tidy the UI.
+- Topic redirection is model guidance. Tool dispatch, rejected arguments and container controls enforce capabilities. Fake-model tests prove those boundaries, not universal semantic prompt-injection resistance.
+- Credential masking precedes model requests, conversation names, spans and persistence. Synthetic canary absent in the real backend payload; this is not general PII detection. Public examples remain the right input for this public project.
+- Weave 0.54's adapter passed net input into an inclusive OTel field, creating negative native cost estimates. The final provider boundary normalizes trace usage while preserving raw receipts; all 13 live-check model spans now reconcile to nonnegative native costs.
+- The latest live answers are usable but overly cautious about combining documented APIs. Preserve that as a quality limitation; do not infer broader improvement from a successful UI check.
 
-## Review targets
+## Inspect these paths
 
-- [agent.py](../src/coreweaving/agent.py): `MeteredModel`, per-turn call slicing, context preservation, verifier path and returned metadata. Instrumentation must not change accepted-answer policy.
-- [llm.py](../src/coreweaving/llm.py): returned provider model/response identity and existing explicit Weave spans.
-- [metrics.py](../src/coreweaving/metrics.py): all-call accounting, exact model rates, distinct cache categories, failed/malformed usage, unknown prices and estimate scope.
-- [library.py](../src/coreweaving/library.py): idempotent records, unchanged original result, review history, file permissions and persistence.
-- [app.py](../app.py): no paid call on navigation/review/rerun, locally saved completed turns, clear partial estimates, prior context and stale-snapshot warning.
-- [tests](../tests): meaningful failure cases rather than tests that merely reproduce implementation details.
+- [agent.py](../src/coreweaving/agent.py): release policy, repair feedback, evidence selection, session isolation and trace parentage.
+- [llm.py](../src/coreweaving/llm.py): cache markers, returned provider usage and budget boundary; retries disabled for experiments.
+- [evaluate.py](../src/coreweaving/evaluate.py): assertion IDs/types, independent scoring, all-turn evidence, actual Weave evaluation linkage, atomic artifacts and completion recovery.
+- [compare.py](../src/coreweaving/compare.py): paired identities, case-grouped repeats, missing/error cells, per-arm and shared spending.
+- [budget.py](../src/coreweaving/budget.py) / [metrics.py](../src/coreweaving/metrics.py): reservations versus returned usage versus unknown charges. Sum child charges once, not parent plus child.
+- [app.py](../app.py) / [library.py](../src/coreweaving/library.py): no paid reruns, original-result preservation, review history and source freshness.
 
-## Evidence and limits
-
-The final local suite passed **44 tests**, including Docker isolation, UI reruns and library review, unknown/malformed usage, cache rates, failed calls, repair accounting and follow-up isolation. The [live browser record](../results/learning-foundation.json) contains two actual turns, with estimated model costs of $0.304304 and $0.116720. Human review states remain unreviewed. Library navigation and phone/desktop views were checked, and records survived a restart without extra model calls. The research page passed phone/tablet/desktop layout, keyboard-tab, scenario and calculator checks. The research tracks used primary sources and inspected local code; no routing/graph/voice quality gain has been measured.
-
-Cost is a dated USD list-price estimate for returned usage, not an invoice. It excludes Signals, separate evaluation judges, voice, hosting, taxes and usage not returned after SDK/provider retries or failures. A “model call” is an application invocation, not every HTTP attempt: the Anthropic SDK retries internally. Source snapshot, context and provider model are retained in library records; an exact prompt/implementation fingerprint is not yet stored per library record. The live-check evidence can separately bind its implementation hash. Do not claim more reproducibility than that.
-
-We also read the actual conversation back from Weave: two completed turns, 13 chat spans, three verification-tool spans, matching provider response IDs and token totals. Weave's own summed chat-cost estimate matches the local $0.421024 within floating-point tolerance. Per-turn cost, call-count and unpriced-call attributes also read back correctly. The receipt includes this reconciliation. Do not double-count parent aggregates or describe either estimate as a bill.
-
-The owner-private hosted Site is a planning artifact. The GitHub repository and Weave project are public. Local SQLite records and `.env` remain outside Git. Never print or commit credentials, change billing, or send the submission email during a review.
-
-## Verification commands
-
-From `/Users/devinder/code/coreweaving`:
+## Verification and access
 
 ```bash
-git status --short
-git log -3 --oneline
 uv run pytest -q
-uv run ruff check .
+uv run ruff check src app.py tests
+uv run ruff format --check src app.py tests
 git diff --check
 ```
 
-The app is at `http://127.0.0.1:8501`; the local plan is at `http://127.0.0.1:8766` and research at `http://127.0.0.1:8766/research.html`. The [hosted research page](https://coreweaving-field-plan.modest-cove-1723.chatgpt.site/research.html) is published under the existing owner-private access policy. Site source commit: `38f77c31079fda6a63030cb61a94b5bdf8d6857a`; successful deployment: `appgdep_6ade8b7296888191913aeff3c10f717e`. The live app calls paid APIs when a question is submitted. Reading existing library entries and the plan does not submit a model request. Tests use fakes except local Docker execution. Do not run the full paid evaluation merely to inspect the code.
+Tests use fake model responses except real Docker probes. Paid pilot, probes and regression are complete; do not start more runs merely to inspect the repository. No billing settings were changed. Review and interview rehearsal are next.
 
-Please return findings with severity, exact file/line, reproduction or evidence, and the practical consequence. Distinguish bugs, missing evidence, and optional product ideas. Suggested focal question: does the cost/library foundation make it easier to choose the next experiment without overstating accuracy or Weave coverage?
+[GitHub](https://github.com/devsodhirao/coreweaving) and the [Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving) are public. The [hosted planning artifact](https://coreweaving-field-plan.modest-cove-1723.chatgpt.site/research.html) remains owner-private. The app is at `http://127.0.0.1:8501`; the local artifact is at `http://127.0.0.1:8766/research.html`. Local SQLite, raw documentation and `.env` stay outside Git. Never print keys, expand sharing, alter billing or send the recruiter email during review.
+
+Return findings with severity, exact file/line, reproduction or trace evidence, and practical consequence. Distinguish implementation bugs, instrument defects, missing evidence and optional ideas.

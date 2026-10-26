@@ -1,0 +1,1069 @@
+{
+  "case_id": "cap-05-context-change",
+  "trial_index": 2,
+  "example_id": "cap-05-context-change:trial:2",
+  "prediction_id": "9d8ab0e9-3be8-4ee0-b1e3-5519f19b5343",
+  "verify_mode": "support",
+  "suite": "capability",
+  "source_sha256": "a6621741d5868bdb88ee64137a5e4c459d222898c28ad50702545ebeafb2da81",
+  "evaluation_call_id": "01a1759d-0ba1-7d8e-ac2d-cee70f93761b",
+  "predict_and_score_call_id": "01a1759f-0df0-7a8f-9b4c-ddb74a048f64",
+  "predict_call_id": "01a1759f-0df1-7106-a738-0670d75ededd",
+  "output": {
+    "answer_id": "4f37ba25-9d1e-450b-be06-800202bac877",
+    "conversation_context": [
+      {
+        "role": "user",
+        "content": "I'm instrumenting a Python agent by hand. How can I attach env='staging' to just one turn in its trace?"
+      },
+      {
+        "role": "assistant",
+        "content": "Call `set_attributes()` on that turn's `Turn` object, inside the `with weave.start_turn(...)` block. This stamps the attributes on that one span [S1].\n\n```python\nimport weave\n\nweave.init(\"[TEAM-NAME]/[PROJECT-NAME]\")\n\nwith weave.start_conversation(agent_name=\"my-agent\"):\n    with weave.start_turn(user_message=\"What is the weather in Tokyo?\") as turn:\n        turn.set_attributes({\"env\": \"staging\"})\n```\n\nThis pattern follows the documentation's example, which sets `user_id`, `tenant`, and `env` on a turn [S1]. I haven't run it, because the offline sandbox has no Weave SDK.\n\nThings to know:\n- **Timing:** Set the attribute while the span is recording, which in Python means inside the `with` block. If you call `set_attributes()` before the span starts or after it ends, the call does nothing and logs a warning. It is silent only if OTel isn't installed or Weave is disabled [S2].\n- **Scope:** `set_attributes()` tags only that span. The same method exists on the other span classes, for example `tool.set_attributes(...)` on a tool call [S1]. The docs also have a separate section on conversation-wide attributes. I didn't read it, so I can't describe how it works.\n- **Key names:** Weave reserves the `weave.*` and `gen_ai.*` prefixes for special handling. For your own metadata, use custom keys. The docs give `user_id` and `tenant` as examples of keys stored as filterable custom attributes [S1]. `env` is a custom key of the same kind, but the docs don't name it specifically.\n- **Batch logging:** If you log finished activity in one batch instead of live, the docs say to populate the span object's declared fields directly and pass the object to `log_turn` or `log_conversation` [S2]. I didn't read that page, so I can't give details.\n\nDon't confuse this with `weave.attributes()`. That context manager is documented for functions traced with `@weave.op`. For agents instrumented with the Weave agent SDK, the docs point to attributes on agent spans (`Turn`, `LLM`, `Tool`, `SubAgent`) instead [S3]."
+      }
+    ],
+    "answer": "No, you don't need to repeat the metadata on each LLM or tool span. Pass `attributes` to `startConversation` once. The docs say this applies the attributes to every span the conversation emits [S4].\n\n```typescript\nimport * as weave from 'weave';\n\nawait weave.init('[TEAM-NAME]/[PROJECT-NAME]');\n\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',\n  attributes: { env: 'production' },\n});\n// Every turn, LLM, tool, and sub-agent span in this conversation carries these attributes.\n```\n\nThis is adapted from the documented TypeScript example, which also sets `'weave.integration.name'`. I dropped that key because you only need `env` [S4]. I haven't run it, because the offline sandbox has no Weave SDK. `ConversationInit.attributes` is documented as \"Custom attributes propagated to every span the conversation emits\" [S5].\n\nCaveats:\n- **Key names:** Use your own custom keys, such as `env`. Avoid the reserved `gen_ai.*` and `weave.*` prefixes. Weave extracts those into typed fields during ingestion, so custom values under them are unsupported [S4].\n- **Collisions:** If a key you pass collides with a span's own `gen_ai.*` or `weave.*` attribute, the span's value wins [S5].\n- **Typed fields:** Set the agent name, conversation name and model through their own parameters, not through `attributes` [S4].\n- **Span-specific metadata:** For one span only, the TypeScript method is `setAttributes()`, which mirrors OTel's `Span.set_attributes` [S4]. Use it for things that differ per span. Don't use it to repeat `env`.\n- **Turns without a conversation:** The `TurnInit` reference says turn attributes are normally seeded from `startConversation({ attributes })`. For a rootless `startTurn({ attributes })` with no conversation, you set them on the turn itself [S6].\n- **Earlier answer:** My first reply used the Python API, `set_attributes()` and `start_turn`. Disregard it for your TypeScript deployment.\n\nI didn't read the \"When you can set attributes\" section of that page. I also didn't read the `startTurn` reference, so check it for how your turns attach to the conversation in your code.",
+    "kind": "answer",
+    "verification": {
+      "passed": true,
+      "claims": [
+        {
+          "text": "No need to repeat metadata on each LLM/tool span; pass attributes to startConversation once, applying to every span the conversation emits.",
+          "source_ids": [
+            "S4"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "TypeScript code example adapted from documented example, dropping weave.integration.name key; not run.",
+          "source_ids": [
+            "S4"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "ConversationInit.attributes is documented as custom attributes propagated to every span the conversation emits.",
+          "source_ids": [
+            "S5"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Avoid reserved gen_ai.* and weave.* prefixes; Weave extracts them into typed fields so custom values are unsupported.",
+          "source_ids": [
+            "S4"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "If a key collides with a span's own gen_ai.*/weave.* attribute, the span's value wins.",
+          "source_ids": [
+            "S5"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Set agent name, conversation name and model via typed parameters, not attributes.",
+          "source_ids": [
+            "S4"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "TypeScript per-span method is setAttributes(), mirroring OTel Span.set_attributes.",
+          "source_ids": [
+            "S4"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "TurnInit attributes are normally seeded from startConversation({attributes}); for rootless startTurn with no conversation, set them on the turn.",
+          "source_ids": [
+            "S6"
+          ],
+          "status": "supported",
+          "supported": true
+        }
+      ],
+      "issues": [],
+      "coverage": [],
+      "mode": "support",
+      "status": "passed"
+    },
+    "verification_attempts": [
+      {
+        "candidate": {
+          "answer": "No, you don't need to repeat the metadata on each LLM or tool span. Pass `attributes` to `startConversation` once. The docs say this applies the attributes to every span the conversation emits [S4].\n\n```typescript\nimport * as weave from 'weave';\n\nawait weave.init('[TEAM-NAME]/[PROJECT-NAME]');\n\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',\n  attributes: { env: 'production' },\n});\n// Every turn, LLM, tool, and sub-agent span in this conversation carries these attributes.\n```\n\nThis is adapted from the documented TypeScript example, which also sets `'weave.integration.name'`. I dropped that key because you only need `env` [S4]. I haven't run it, because the offline sandbox has no Weave SDK. `ConversationInit.attributes` is documented as \"Custom attributes propagated to every span the conversation emits\" [S5].\n\nCaveats:\n- **Key names:** Use your own custom keys, such as `env`. Avoid the reserved `gen_ai.*` and `weave.*` prefixes. Weave extracts those into typed fields during ingestion, so custom values under them are unsupported [S4].\n- **Collisions:** If a key you pass collides with a span's own `gen_ai.*` or `weave.*` attribute, the span's value wins [S5].\n- **Typed fields:** Set the agent name, conversation name and model through their own parameters, not through `attributes` [S4].\n- **Span-specific metadata:** For one span only, the TypeScript method is `setAttributes()`, which mirrors OTel's `Span.set_attributes` [S4]. Use it for things that differ per span. Don't use it to repeat `env`.\n- **Earlier answer:** My first reply used the Python API, `set_attributes()` and `start_turn`. Disregard it for your TypeScript deployment.\n\nI didn't read the \"When you can set attributes\" section of that page. I also didn't confirm how your turns attach to the conversation object in TypeScript. If your turns are created outside it, check the `startTurn` reference. The `TurnInit` reference lists its own `attributes` option for a rootless turn that has no conversation.",
+          "kind": "answer"
+        },
+        "passed": false,
+        "claims": [
+          {
+            "text": "You don't need to repeat metadata on each LLM/tool span; pass `attributes` to `startConversation` once and it applies to every span the conversation emits.",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "The TypeScript example with `startConversation({agentName, attributes: {env: 'production'}})` is adapted from the documented example, minus the `weave.integration.name` key; not run.",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "`ConversationInit.attributes` is documented as \"Custom attributes propagated to every span the conversation emits\".",
+            "source_ids": [
+              "S5"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Use custom keys, avoid reserved `gen_ai.*`/`weave.*` prefixes; Weave extracts those into typed fields, so custom values under them are unsupported.",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "If a key collides with a span's own `gen_ai.*`/`weave.*` attribute, the span's value wins.",
+            "source_ids": [
+              "S5"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Set agent name, conversation name and model through their typed parameters, not `attributes`.",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "For one span only, the TypeScript method is `setAttributes()`, mirroring OTel's `Span.set_attributes`.",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "The `TurnInit` reference lists its own `attributes` option for a rootless turn that has no conversation.",
+            "source_ids": [],
+            "status": "unsupported",
+            "supported": false
+          }
+        ],
+        "issues": [
+          "The final paragraph says the `TurnInit` reference lists its own `attributes` option for a rootless turn with no conversation. No cited or retrieved passage supports this. The candidate only read S4 and S5, and never read TurnInit or startTurn. Remove the claim, or cite a source for it and phrase it as something to check.",
+          "The answer says it did not confirm how TypeScript turns attach to the conversation object. The `TurnInit` claim then asserts details about that same area without evidence, which contradicts the hedge.",
+          "Revise partial or unsupported material claims.",
+          "Each factual claim must use evidence cited in the draft."
+        ],
+        "coverage": [],
+        "mode": "support",
+        "status": "failed"
+      },
+      {
+        "candidate": {
+          "answer": "No, you don't need to repeat the metadata on each LLM or tool span. Pass `attributes` to `startConversation` once. The docs say this applies the attributes to every span the conversation emits [S4].\n\n```typescript\nimport * as weave from 'weave';\n\nawait weave.init('[TEAM-NAME]/[PROJECT-NAME]');\n\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',\n  attributes: { env: 'production' },\n});\n// Every turn, LLM, tool, and sub-agent span in this conversation carries these attributes.\n```\n\nThis is adapted from the documented TypeScript example, which also sets `'weave.integration.name'`. I dropped that key because you only need `env` [S4]. I haven't run it, because the offline sandbox has no Weave SDK. `ConversationInit.attributes` is documented as \"Custom attributes propagated to every span the conversation emits\" [S5].\n\nCaveats:\n- **Key names:** Use your own custom keys, such as `env`. Avoid the reserved `gen_ai.*` and `weave.*` prefixes. Weave extracts those into typed fields during ingestion, so custom values under them are unsupported [S4].\n- **Collisions:** If a key you pass collides with a span's own `gen_ai.*` or `weave.*` attribute, the span's value wins [S5].\n- **Typed fields:** Set the agent name, conversation name and model through their own parameters, not through `attributes` [S4].\n- **Span-specific metadata:** For one span only, the TypeScript method is `setAttributes()`, which mirrors OTel's `Span.set_attributes` [S4]. Use it for things that differ per span. Don't use it to repeat `env`.\n- **Turns without a conversation:** The `TurnInit` reference says turn attributes are normally seeded from `startConversation({ attributes })`. For a rootless `startTurn({ attributes })` with no conversation, you set them on the turn itself [S6].\n- **Earlier answer:** My first reply used the Python API, `set_attributes()` and `start_turn`. Disregard it for your TypeScript deployment.\n\nI didn't read the \"When you can set attributes\" section of that page. I also didn't read the `startTurn` reference, so check it for how your turns attach to the conversation in your code.",
+          "kind": "answer"
+        },
+        "passed": true,
+        "claims": [
+          {
+            "text": "No need to repeat metadata on each LLM/tool span; pass attributes to startConversation once, applying to every span the conversation emits.",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "TypeScript code example adapted from documented example, dropping weave.integration.name key; not run.",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "ConversationInit.attributes is documented as custom attributes propagated to every span the conversation emits.",
+            "source_ids": [
+              "S5"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Avoid reserved gen_ai.* and weave.* prefixes; Weave extracts them into typed fields so custom values are unsupported.",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "If a key collides with a span's own gen_ai.*/weave.* attribute, the span's value wins.",
+            "source_ids": [
+              "S5"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Set agent name, conversation name and model via typed parameters, not attributes.",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "TypeScript per-span method is setAttributes(), mirroring OTel Span.set_attributes.",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "TurnInit attributes are normally seeded from startConversation({attributes}); for rootless startTurn with no conversation, set them on the turn.",
+            "source_ids": [
+              "S6"
+            ],
+            "status": "supported",
+            "supported": true
+          }
+        ],
+        "issues": [],
+        "coverage": [],
+        "mode": "support",
+        "status": "passed"
+      }
+    ],
+    "sources": [
+      {
+        "source_id": "S4",
+        "page_id": "guides/tracking/trace-agents-attributes",
+        "section": 2,
+        "title": "Set attributes and events on agent spans",
+        "heading": "Set attributes on every span in a conversation",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-attributes",
+        "page_sha256": "08b37533737bd80f83e1422e8bfae721345bfa058036e2d9fce6f38578baf1e8",
+        "text": "## Set attributes on every span in a conversation\n\nStamping attributes one span at a time works well for span-specific metadata, but some metadata applies to an entire conversation. To apply the same attributes to every span a conversation emits, pass `attributes` when you start the conversation. This is useful for propagating conversation-wide metadata such as an integration identity or a deployment environment.\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[TEAM-NAME]/[PROJECT-NAME]\")\n\nconversation = weave.start_conversation(\n    agent_name=\"my-agent\",\n    attributes={\"weave.integration.name\": \"my-harness\", \"env\": \"production\"},\n)\n# Every turn, LLM, tool, and sub-agent span in this session carries these attributes.\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\n\nawait weave.init('[TEAM-NAME]/[PROJECT-NAME]');\n\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',\n  attributes: { 'weave.integration.name': 'my-harness', env: 'production' },\n});\n// Every turn, LLM, tool, and sub-agent span in this conversation carries these attributes.\n```\n\n> [!NOTE]\n>\n> As with per-span attributes, use your own custom keys for conversation attributes. Set semantic-convention fields, such as the agent name, conversation name, or model, through their typed parameters (`agent_name`, `conversation_name`, `model`) rather than through `attributes`. Avoid keys under the reserved `gen_ai.*` and `weave.*` prefixes. Weave extracts those into typed fields during ingestion, so a custom value under a reserved key is unsupported.\n\n",
+        "page_context": "# Set attributes and events on agent spans\n\n> Attach custom attributes and record events on agent spans (Turn, LLM, Tool, and SubAgent) to filter and analyze agent activity in Weave.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/attributes-and-events).\n\nWhen you instrument an agent with the Weave SDK, each span object (`Turn`, `LLM`, `Tool`, and `SubAgent`) exposes methods to attach custom metadata. Use these methods to stamp contextual information such as user IDs, tenants, experiment names, or environment labels onto agent spans, then filter and group agent activity by that metadata in the Weights & Biases UI.\n\nThis metadata comes in two forms:\n\n* **Attributes**: Key-value properties of a span as a whole. Use `set_attributes()` (Python) or `setAttributes()` (TypeScript) to stamp attributes on a single span, or set conversation-wide attributes that apply to every span a conversation emits.\n* **Events**: Point-in-time markers that occur during a span's lifetime, such as a permission prompt or a lifecycle transition. Use `add_event()` (Python) or `addEvent()` (TypeScript).\n\nThese methods mirror the [OpenTelemetry (OTel) span API](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/): `set_attributes` mirrors OTel's `Span.set_attributes`, and `add_event` mirrors OTel's `Span.add_event`. The Weave SDK emits OTel spans and stores all attributes, so they remain queryable in Weave.\n\n"
+      },
+      {
+        "source_id": "S5",
+        "page_id": "reference/typescript-sdk/interfaces/conversationinit",
+        "section": 6,
+        "title": "ConversationInit",
+        "heading": "attributes",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/conversationinit",
+        "page_sha256": "56e6b36df45538e7f2dcaa53135d543b87bfc143d190c06ceb12a2ea4a26d112",
+        "text": "### attributes\n\n> `optional` **attributes**: `Attributes`\n\nCustom attributes propagated to every span the conversation emits.\n\nA key here that collides with a span's own `gen_ai.*` / `weave.*`\nattribute is unsupported; the span's value wins.\n\n***\n\n",
+        "page_context": "# ConversationInit\n\n> TypeScript SDK reference\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/genai/conversation.ts#L8)\n\n"
+      },
+      {
+        "source_id": "S6",
+        "page_id": "reference/typescript-sdk/interfaces/turninit",
+        "section": 7,
+        "title": "TurnInit",
+        "heading": "attributes",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/turninit",
+        "page_sha256": "51efac90cd4ac3b0ecf710dc275ad58483d819c4b678f5f5728ab926f484ec0f",
+        "text": "### attributes\n\n> `optional` **attributes**: `Attributes`\n\nCustom attributes set on this turn and passed to every child span.\nNormally seeded from the conversation via `startConversation({ attributes })`;\nset here for a rootless `startTurn({ attributes })` with no conversation.\n\n***\n\n",
+        "page_context": "# TurnInit\n\n> TypeScript SDK reference\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/genai/turn.ts#L32)\n\n"
+      }
+    ],
+    "all_read_evidence": [
+      {
+        "source_id": "S4",
+        "page_id": "guides/tracking/trace-agents-attributes",
+        "section": 2,
+        "title": "Set attributes and events on agent spans",
+        "heading": "Set attributes on every span in a conversation",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-attributes",
+        "page_sha256": "08b37533737bd80f83e1422e8bfae721345bfa058036e2d9fce6f38578baf1e8",
+        "text": "## Set attributes on every span in a conversation\n\nStamping attributes one span at a time works well for span-specific metadata, but some metadata applies to an entire conversation. To apply the same attributes to every span a conversation emits, pass `attributes` when you start the conversation. This is useful for propagating conversation-wide metadata such as an integration identity or a deployment environment.\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[TEAM-NAME]/[PROJECT-NAME]\")\n\nconversation = weave.start_conversation(\n    agent_name=\"my-agent\",\n    attributes={\"weave.integration.name\": \"my-harness\", \"env\": \"production\"},\n)\n# Every turn, LLM, tool, and sub-agent span in this session carries these attributes.\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\n\nawait weave.init('[TEAM-NAME]/[PROJECT-NAME]');\n\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',\n  attributes: { 'weave.integration.name': 'my-harness', env: 'production' },\n});\n// Every turn, LLM, tool, and sub-agent span in this conversation carries these attributes.\n```\n\n> [!NOTE]\n>\n> As with per-span attributes, use your own custom keys for conversation attributes. Set semantic-convention fields, such as the agent name, conversation name, or model, through their typed parameters (`agent_name`, `conversation_name`, `model`) rather than through `attributes`. Avoid keys under the reserved `gen_ai.*` and `weave.*` prefixes. Weave extracts those into typed fields during ingestion, so a custom value under a reserved key is unsupported.\n\n",
+        "page_context": "# Set attributes and events on agent spans\n\n> Attach custom attributes and record events on agent spans (Turn, LLM, Tool, and SubAgent) to filter and analyze agent activity in Weave.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/attributes-and-events).\n\nWhen you instrument an agent with the Weave SDK, each span object (`Turn`, `LLM`, `Tool`, and `SubAgent`) exposes methods to attach custom metadata. Use these methods to stamp contextual information such as user IDs, tenants, experiment names, or environment labels onto agent spans, then filter and group agent activity by that metadata in the Weights & Biases UI.\n\nThis metadata comes in two forms:\n\n* **Attributes**: Key-value properties of a span as a whole. Use `set_attributes()` (Python) or `setAttributes()` (TypeScript) to stamp attributes on a single span, or set conversation-wide attributes that apply to every span a conversation emits.\n* **Events**: Point-in-time markers that occur during a span's lifetime, such as a permission prompt or a lifecycle transition. Use `add_event()` (Python) or `addEvent()` (TypeScript).\n\nThese methods mirror the [OpenTelemetry (OTel) span API](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/): `set_attributes` mirrors OTel's `Span.set_attributes`, and `add_event` mirrors OTel's `Span.add_event`. The Weave SDK emits OTel spans and stores all attributes, so they remain queryable in Weave.\n\n"
+      },
+      {
+        "source_id": "S5",
+        "page_id": "reference/typescript-sdk/interfaces/conversationinit",
+        "section": 6,
+        "title": "ConversationInit",
+        "heading": "attributes",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/conversationinit",
+        "page_sha256": "56e6b36df45538e7f2dcaa53135d543b87bfc143d190c06ceb12a2ea4a26d112",
+        "text": "### attributes\n\n> `optional` **attributes**: `Attributes`\n\nCustom attributes propagated to every span the conversation emits.\n\nA key here that collides with a span's own `gen_ai.*` / `weave.*`\nattribute is unsupported; the span's value wins.\n\n***\n\n",
+        "page_context": "# ConversationInit\n\n> TypeScript SDK reference\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/genai/conversation.ts#L8)\n\n"
+      },
+      {
+        "source_id": "S6",
+        "page_id": "reference/typescript-sdk/interfaces/turninit",
+        "section": 7,
+        "title": "TurnInit",
+        "heading": "attributes",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/turninit",
+        "page_sha256": "51efac90cd4ac3b0ecf710dc275ad58483d819c4b678f5f5728ab926f484ec0f",
+        "text": "### attributes\n\n> `optional` **attributes**: `Attributes`\n\nCustom attributes set on this turn and passed to every child span.\nNormally seeded from the conversation via `startConversation({ attributes })`;\nset here for a rootless `startTurn({ attributes })` with no conversation.\n\n***\n\n",
+        "page_context": "# TurnInit\n\n> TypeScript SDK reference\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/genai/turn.ts#L32)\n\n"
+      },
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/trace-agents-attributes",
+        "section": 1,
+        "title": "Set attributes and events on agent spans",
+        "heading": "Set attributes on a span",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-attributes",
+        "page_sha256": "08b37533737bd80f83e1422e8bfae721345bfa058036e2d9fce6f38578baf1e8",
+        "text": "## Set attributes on a span\n\nUse `set_attributes()` (Python) or `setAttributes()` (TypeScript) to stamp arbitrary attributes on a single span. Pass a dictionary or object whether you have one key or many. The method returns the span, so you can chain calls.\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[TEAM-NAME]/[PROJECT-NAME]\")\n\nwith weave.start_conversation(agent_name=\"my-agent\"):\n    with weave.start_turn(user_message=\"What is the weather in Tokyo?\") as turn:\n        # Stamp attributes on this turn span\n        turn.set_attributes({\"user_id\": \"12345\", \"tenant\": \"acme\", \"env\": \"production\"})\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\n\nawait weave.init('[TEAM-NAME]/[PROJECT-NAME]');\n\nconst conversation = weave.startConversation({ agentName: 'my-agent' });\nconst turn = weave.startTurn({ agentName: 'my-agent' });\n\n// Stamp attributes on this turn span\nturn.setAttributes({ user_id: '12345', tenant: 'acme', env: 'production' });\n\nturn.end();\nconversation.end();\n```\n\nThe same methods are available on every span class. For example, you can tag an individual tool call or LLM call:\n\n**Python**\n\n```python lines theme={\"system\"}\nwith weave.start_turn(user_message=\"What is the weather in Tokyo?\") as turn:\n    with turn.tool(name=\"get_weather\") as tool:\n        tool.set_attributes({\"weave.display_name\": \"Weather lookup\"})\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nconst turn = weave.startTurn({ agentName: 'my-agent' });\nconst tool = turn.startTool({ name: 'get_weather' });\n\ntool.setAttributes({ 'weave.display_name': 'Weather lookup' });\n\ntool.end();\nturn.end();\n```\n\nMost attribute keys are arbitrary custom metadata, but Weave reserves two prefixes for special handling. Keys under `weave.*` map to built-in Weave fields, and keys under `gen_ai.*` map to OpenTelemetry GenAI semantic-convention fields. In the preceding example, `weave.display_name` is a reserved key that sets the span's display name in the Agents and Traces UI. For arbitrary metadata that you want to filter and group by, use your own keys such as `user_id` or `tenant`, which Weave stores as filterable custom attributes.\n\n",
+        "page_context": "# Set attributes and events on agent spans\n\n> Attach custom attributes and record events on agent spans (Turn, LLM, Tool, and SubAgent) to filter and analyze agent activity in Weave.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/attributes-and-events).\n\nWhen you instrument an agent with the Weave SDK, each span object (`Turn`, `LLM`, `Tool`, and `SubAgent`) exposes methods to attach custom metadata. Use these methods to stamp contextual information such as user IDs, tenants, experiment names, or environment labels onto agent spans, then filter and group agent activity by that metadata in the Weights & Biases UI.\n\nThis metadata comes in two forms:\n\n* **Attributes**: Key-value properties of a span as a whole. Use `set_attributes()` (Python) or `setAttributes()` (TypeScript) to stamp attributes on a single span, or set conversation-wide attributes that apply to every span a conversation emits.\n* **Events**: Point-in-time markers that occur during a span's lifetime, such as a permission prompt or a lifecycle transition. Use `add_event()` (Python) or `addEvent()` (TypeScript).\n\nThese methods mirror the [OpenTelemetry (OTel) span API](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/): `set_attributes` mirrors OTel's `Span.set_attributes`, and `add_event` mirrors OTel's `Span.add_event`. The Weave SDK emits OTel spans and stores all attributes, so they remain queryable in Weave.\n\n"
+      },
+      {
+        "source_id": "S2",
+        "page_id": "guides/tracking/trace-agents-attributes",
+        "section": 3,
+        "title": "Set attributes and events on agent spans",
+        "heading": "When you can set attributes",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-attributes",
+        "page_sha256": "08b37533737bd80f83e1422e8bfae721345bfa058036e2d9fce6f38578baf1e8",
+        "text": "## When you can set attributes\n\nSet attributes while the span is recording, that is, after the span starts and before it ends. In Python, this is inside the `with` block. In TypeScript, this is after `start*()` and before `end()`.\n\nIf you call `set_attributes()`, or its TypeScript equivalent on a span that hasn't started yet or has already ended, the call is a no-op and logs a warning that names the fix.\n\nThe call is silent (no warning) only when OTel isn't installed or Weave is disabled.\n\n> [!TIP]\n>\n> To attach attributes when logging completed agent activity in a single batch rather than during live execution, populate the span object's declared fields directly and pass the object to `log_turn` or `log_conversation`. See [Log agent activity in batches](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-batch.md).\n\n",
+        "page_context": "# Set attributes and events on agent spans\n\n> Attach custom attributes and record events on agent spans (Turn, LLM, Tool, and SubAgent) to filter and analyze agent activity in Weave.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/attributes-and-events).\n\nWhen you instrument an agent with the Weave SDK, each span object (`Turn`, `LLM`, `Tool`, and `SubAgent`) exposes methods to attach custom metadata. Use these methods to stamp contextual information such as user IDs, tenants, experiment names, or environment labels onto agent spans, then filter and group agent activity by that metadata in the Weights & Biases UI.\n\nThis metadata comes in two forms:\n\n* **Attributes**: Key-value properties of a span as a whole. Use `set_attributes()` (Python) or `setAttributes()` (TypeScript) to stamp attributes on a single span, or set conversation-wide attributes that apply to every span a conversation emits.\n* **Events**: Point-in-time markers that occur during a span's lifetime, such as a permission prompt or a lifecycle transition. Use `add_event()` (Python) or `addEvent()` (TypeScript).\n\nThese methods mirror the [OpenTelemetry (OTel) span API](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/): `set_attributes` mirrors OTel's `Span.set_attributes`, and `add_event` mirrors OTel's `Span.add_event`. The Weave SDK emits OTel spans and stores all attributes, so they remain queryable in Weave.\n\n"
+      },
+      {
+        "source_id": "S3",
+        "page_id": "guides/tools/attributes",
+        "section": 0,
+        "title": "Define and log attributes",
+        "heading": "Define and log attributes",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tools/attributes",
+        "page_sha256": "2c48107038b009bf25b8fafa5d3511709cdab4bbdfc76decffa3e7e4ebf1de68",
+        "text": "# Define and log attributes\n\n> Use attributes to add metadata to your traces and evaluations.\n\n> [!NOTE]\n>\n> This page describes attributes for functions traced with the `@weave.op` decorator. If you instrument an agent with the Weave agent SDK, set attributes and events on agent spans (`Turn`, `LLM`, `Tool`, and `SubAgent`) instead. See [Set attributes and events on agent spans](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-attributes.md).\n\nAttributes in Weave let you attach custom metadata to your traces and evaluations. This metadata can include information like environment names, model versions, experiment IDs, user IDs, or other contextual information to help you organize, filter, and analyze your Weave data.\n\nAttributes are especially helpful for grouping or filtering traces by:\n\n* Deployments\n* Tenants\n* Experiments\n\nWeave provides two ways to add attributes:\n\n* **Per-call attributes**: Use the `weave.attributes()` context manager to add metadata to specific operations or code blocks.\n* **Global attributes**: Use the `global_attributes` field to set attributes at initialization that apply to all traces and evaluations in your project.\n\nYou can view all attributes logged during traces and evaluations in the UI. You can then use them to filter and group data.\n\nThis guide is for Weave users who want to enrich their traces and evaluations with custom metadata. It covers how to attach attributes to individual calls, set project-wide defaults at initialization, combine the two approaches, and read the current attribute set during execution.\n\n",
+        "page_context": "# Define and log attributes\n\n> Use attributes to add metadata to your traces and evaluations.\n\n> [!NOTE]\n>\n> This page describes attributes for functions traced with the `@weave.op` decorator. If you instrument an agent with the Weave agent SDK, set attributes and events on agent spans (`Turn`, `LLM`, `Tool`, and `SubAgent`) instead. See [Set attributes and events on agent spans](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-attributes.md).\n\nAttributes in Weave let you attach custom metadata to your traces and evaluations. This metadata can include information like environment names, model versions, experiment IDs, user IDs, or other contextual information to help you organize, filter, and analyze your Weave data.\n\nAttributes are especially helpful for grouping or filtering traces by:\n\n* Deployments\n* Tenants\n* Experiments\n\nWeave provides two ways to add attributes:\n\n* **Per-call attributes**: Use the `weave.attributes()` context manager to add metadata to specific operations or code blocks.\n* **Global attributes**: Use the `global_attributes` field to set attributes at initialization that apply to all traces and evaluations in your project.\n\nYou can view all attributes logged during traces and evaluations in the UI. You can then use them to filter and group data.\n\nThis guide is for Weave users who want to enrich their traces and evaluations with custom metadata. It covers how to attach attributes to individual calls, set project-wide defaults at initialization, combine the two approaches, and read the current attribute set during execution.\n\n"
+      }
+    ],
+    "actions": [
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "TypeScript agent conversation-wide attributes every span"
+        },
+        "result": {
+          "query": "TypeScript agent conversation-wide attributes every span",
+          "results": [
+            {
+              "page_id": "guides/tracking/trace-agents-attributes",
+              "section": 2,
+              "title": "Set attributes and events on agent spans",
+              "heading": "Set attributes on every span in a conversation",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-attributes",
+              "snippet": "## Set attributes on every span in a conversation\n\nStamping attributes one span at a time works well for span-specific metadata, but some metadata applies to an entire conversation. To apply the same attributes to every span a conversation emits, pass `attributes` when you start the conversation. This is useful for propagating conversation-wide metadata such as an integration identity or a deployment environment.\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[TEAM-NAME]/[PROJECT-NAME]\")\n\nconversation = weave.start_conversation(\n    agent_name=\"my-agent\",\n    attributes={\"weave.integration.name\": \"my-harness\", \"env\": \"production\"},\n)\n# Every turn, LLM, tool, and sub-agent span in this session carries these attributes.\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\n\nawait weave.init('[TEAM-NAME]/[PROJECT-NAME]');\n\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',\n  attributes: { 'weave.integration.name': 'my-harness', env: 'production' },\n});\n// Every turn, LLM, tool, and su"
+            },
+            {
+              "page_id": "guides/tracking/trace-agents-attributes",
+              "section": 0,
+              "title": "Set attributes and events on agent spans",
+              "heading": "Set attributes and events on agent spans",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-attributes",
+              "snippet": "# Set attributes and events on agent spans\n\n> Attach custom attributes and record events on agent spans (Turn, LLM, Tool, and SubAgent) to filter and analyze agent activity in Weave.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/attributes-and-events).\n\nWhen you instrument an agent with the Weave SDK, each span object (`Turn`, `LLM`, `Tool`, and `SubAgent`) exposes methods to attach custom metadata. Use these methods to stamp contextual information such as user IDs, tenants, experiment names, or environment labels onto agent spans, then filter and group agent activity by that metadata in the Weights & Biases UI.\n\nThis metadata comes in two forms:\n\n* **Attributes**: Key-value properties of a sp"
+            },
+            {
+              "page_id": "reference/typescript-sdk/interfaces/conversationinit",
+              "section": 6,
+              "title": "ConversationInit",
+              "heading": "attributes",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/conversationinit",
+              "snippet": "### attributes\n\n> `optional` **attributes**: `Attributes`\n\nCustom attributes propagated to every span the conversation emits.\n\nA key here that collides with a span's own `gen_ai.*` / `weave.*`\nattribute is unsupported; the span's value wins.\n\n***\n\n"
+            },
+            {
+              "page_id": "reference/python-sdk",
+              "section": 274,
+              "title": "weave",
+              "heading": "<kbd>function</kbd> `log_conversation`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+              "snippet": "### <kbd>function</kbd> `log_conversation`\n\n```python theme={\"system\"}\nlog_conversation(\n    turns: 'list[Turn]',\n    conversation_id: 'str' = '',\n    conversation_name: 'str' = '',\n    agent_name: 'str' = '',\n    model: 'str' = '',\n    agent_id: 'str' = '',\n    agent_description: 'str' = '',\n    agent_version: 'str' = '',\n    include_content: 'bool' = True,\n    continue_parent_trace: 'bool' = False,\n    attributes: 'Attributes' = None\n) \u2192 LogResult\n```\n\nImperatively emit a complete conversation.\n\nEach Turn's `.spans` attribute provides its children. Auto-generates `conversation_id` if empty. By default each turn gets its own OTel trace. `agent_name` / `model` / `agent_id` / `agent_description` / `agent_version` are conversation-level defaults \u2014 a Turn's own value wins; the conversation value only fills in when the Turn leaves it empty. The conversation's `continue_parent_trace` applies to every turn (a per-Turn `continue_parent_trace` is intentionally superseded here).\n\n`attributes` are stamped on every emitted span. Use custom, non-semconv keys: a key that collides with a span's ow"
+            },
+            {
+              "page_id": "reference/typescript-sdk/interfaces/turninit",
+              "section": 7,
+              "title": "TurnInit",
+              "heading": "attributes",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/turninit",
+              "snippet": "### attributes\n\n> `optional` **attributes**: `Attributes`\n\nCustom attributes set on this turn and passed to every child span.\nNormally seeded from the conversation via `startConversation({ attributes })`;\nset here for a rootless `startTurn({ attributes })` with no conversation.\n\n***\n\n"
+            },
+            {
+              "page_id": "reference/typescript-sdk/functions/startconversation",
+              "section": 0,
+              "title": "startConversation",
+              "heading": "startConversation",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/functions/startconversation",
+              "snippet": "# startConversation\n\n> TypeScript SDK reference\n\n```ts theme={\"system\"}\nstartConversation(opts?: ConversationInit = {}): Conversation\n```\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/genai/api.ts#L26)\n\nStart a new Conversation and install it as the current conversation.\nSubsequent calls to `startTurn` will pick it up automatically.\n\nPass `attributes` to propagate custom (non-semconv) attributes to every\nspan the conversation emits.\n\n"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        }
+      },
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "startConversation attributes TypeScript"
+        },
+        "result": {
+          "query": "startConversation attributes TypeScript",
+          "results": [
+            {
+              "page_id": "reference/typescript-sdk/functions/startconversation",
+              "section": 0,
+              "title": "startConversation",
+              "heading": "startConversation",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/functions/startconversation",
+              "snippet": "# startConversation\n\n> TypeScript SDK reference\n\n```ts theme={\"system\"}\nstartConversation(opts?: ConversationInit = {}): Conversation\n```\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/genai/api.ts#L26)\n\nStart a new Conversation and install it as the current conversation.\nSubsequent calls to `startTurn` will pick it up automatically.\n\nPass `attributes` to propagate custom (non-semconv) attributes to every\nspan the conversation emits.\n\n"
+            },
+            {
+              "page_id": "reference/typescript-sdk/variables/startsession",
+              "section": 0,
+              "title": "startSession",
+              "heading": "startSession",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/variables/startsession",
+              "snippet": "# startSession\n\n> TypeScript SDK reference\n\n> [!WARNING]\n>\n> **Deprecated.** Use [startConversation](https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/functions/startconversation.md) instead.\n\n> `const` **startSession**: (`opts`) => [`Conversation`](https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/conversation) = `startConversation`\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/genai/api.ts#L33)\n\nStart a new Conversation and install it as the current conversation.\nSubsequent calls to `startTurn` will pick it up automatically.\n\nPass `attributes` to propagate custom (non-semconv) attributes to every\nspan the conversation emits.\n\n"
+            },
+            {
+              "page_id": "reference/typescript-sdk/functions/startconversation",
+              "section": 3,
+              "title": "startConversation",
+              "heading": "Examples",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/functions/startconversation",
+              "snippet": "## Examples\n\n```ts twoslash theme={\"system\"}\n// @noErrors\nweave.startConversation({agentName: 'research-bot'});\n```\n\n```ts twoslash theme={\"system\"}\n// @noErrors\nweave.startConversation({\n  agentName: 'research-bot',\n  conversationId: '019efa53-8a65-711c-b4c1-7c1cb72c0bb7',\n  attributes: {'myagent.version': '1.23'},\n});\n```\n"
+            },
+            {
+              "page_id": "reference/typescript-sdk/interfaces/turninit",
+              "section": 7,
+              "title": "TurnInit",
+              "heading": "attributes",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/turninit",
+              "snippet": "### attributes\n\n> `optional` **attributes**: `Attributes`\n\nCustom attributes set on this turn and passed to every child span.\nNormally seeded from the conversation via `startConversation({ attributes })`;\nset here for a rootless `startTurn({ attributes })` with no conversation.\n\n***\n\n"
+            },
+            {
+              "page_id": "reference/typescript-sdk/variables/startsession",
+              "section": 3,
+              "title": "startSession",
+              "heading": "Examples",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/variables/startsession",
+              "snippet": "## Examples\n\n```ts twoslash theme={\"system\"}\n// @noErrors\nweave.startConversation({agentName: 'research-bot'});\n```\n\n```ts twoslash theme={\"system\"}\n// @noErrors\nweave.startConversation({\n  agentName: 'research-bot',\n  conversationId: '019efa53-8a65-711c-b4c1-7c1cb72c0bb7',\n  attributes: {'myagent.version': '1.23'},\n});\n```\n"
+            },
+            {
+              "page_id": "guides/tracking/trace-agents-attributes",
+              "section": 2,
+              "title": "Set attributes and events on agent spans",
+              "heading": "Set attributes on every span in a conversation",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-attributes",
+              "snippet": "## Set attributes on every span in a conversation\n\nStamping attributes one span at a time works well for span-specific metadata, but some metadata applies to an entire conversation. To apply the same attributes to every span a conversation emits, pass `attributes` when you start the conversation. This is useful for propagating conversation-wide metadata such as an integration identity or a deployment environment.\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[TEAM-NAME]/[PROJECT-NAME]\")\n\nconversation = weave.start_conversation(\n    agent_name=\"my-agent\",\n    attributes={\"weave.integration.name\": \"my-harness\", \"env\": \"production\"},\n)\n# Every turn, LLM, tool, and sub-agent span in this session carries these attributes.\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\n\nawait weave.init('[TEAM-NAME]/[PROJECT-NAME]');\n\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',\n  attributes: { 'weave.integration.name': 'my-harness', env: 'production' },\n});\n// Every turn, LLM, tool, and su"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/trace-agents-attributes",
+          "section": 2
+        },
+        "result": {
+          "source_id": "S4",
+          "page_id": "guides/tracking/trace-agents-attributes",
+          "section": 2,
+          "title": "Set attributes and events on agent spans",
+          "heading": "Set attributes on every span in a conversation",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-attributes",
+          "page_sha256": "08b37533737bd80f83e1422e8bfae721345bfa058036e2d9fce6f38578baf1e8",
+          "text": "## Set attributes on every span in a conversation\n\nStamping attributes one span at a time works well for span-specific metadata, but some metadata applies to an entire conversation. To apply the same attributes to every span a conversation emits, pass `attributes` when you start the conversation. This is useful for propagating conversation-wide metadata such as an integration identity or a deployment environment.\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[TEAM-NAME]/[PROJECT-NAME]\")\n\nconversation = weave.start_conversation(\n    agent_name=\"my-agent\",\n    attributes={\"weave.integration.name\": \"my-harness\", \"env\": \"production\"},\n)\n# Every turn, LLM, tool, and sub-agent span in this session carries these attributes.\n```\n\n**TypeScript**\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\n\nawait weave.init('[TEAM-NAME]/[PROJECT-NAME]');\n\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',\n  attributes: { 'weave.integration.name': 'my-harness', env: 'production' },\n});\n// Every turn, LLM, tool, and sub-agent span in this conversation carries these attributes.\n```\n\n> [!NOTE]\n>\n> As with per-span attributes, use your own custom keys for conversation attributes. Set semantic-convention fields, such as the agent name, conversation name, or model, through their typed parameters (`agent_name`, `conversation_name`, `model`) rather than through `attributes`. Avoid keys under the reserved `gen_ai.*` and `weave.*` prefixes. Weave extracts those into typed fields during ingestion, so a custom value under a reserved key is unsupported.\n\n",
+          "page_context": "# Set attributes and events on agent spans\n\n> Attach custom attributes and record events on agent spans (Turn, LLM, Tool, and SubAgent) to filter and analyze agent activity in Weave.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/attributes-and-events).\n\nWhen you instrument an agent with the Weave SDK, each span object (`Turn`, `LLM`, `Tool`, and `SubAgent`) exposes methods to attach custom metadata. Use these methods to stamp contextual information such as user IDs, tenants, experiment names, or environment labels onto agent spans, then filter and group agent activity by that metadata in the Weights & Biases UI.\n\nThis metadata comes in two forms:\n\n* **Attributes**: Key-value properties of a span as a whole. Use `set_attributes()` (Python) or `setAttributes()` (TypeScript) to stamp attributes on a single span, or set conversation-wide attributes that apply to every span a conversation emits.\n* **Events**: Point-in-time markers that occur during a span's lifetime, such as a permission prompt or a lifecycle transition. Use `add_event()` (Python) or `addEvent()` (TypeScript).\n\nThese methods mirror the [OpenTelemetry (OTel) span API](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-spans/): `set_attributes` mirrors OTel's `Span.set_attributes`, and `add_event` mirrors OTel's `Span.add_event`. The Weave SDK emits OTel spans and stores all attributes, so they remain queryable in Weave.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Set attributes and events on agent spans"
+            },
+            {
+              "section": 1,
+              "heading": "Set attributes on a span"
+            },
+            {
+              "section": 2,
+              "heading": "Set attributes on every span in a conversation"
+            },
+            {
+              "section": 3,
+              "heading": "When you can set attributes"
+            },
+            {
+              "section": 4,
+              "heading": "View and filter attributes in the UI"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "reference/typescript-sdk/interfaces/conversationinit",
+          "section": 6
+        },
+        "result": {
+          "source_id": "S5",
+          "page_id": "reference/typescript-sdk/interfaces/conversationinit",
+          "section": 6,
+          "title": "ConversationInit",
+          "heading": "attributes",
+          "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/conversationinit",
+          "page_sha256": "56e6b36df45538e7f2dcaa53135d543b87bfc143d190c06ceb12a2ea4a26d112",
+          "text": "### attributes\n\n> `optional` **attributes**: `Attributes`\n\nCustom attributes propagated to every span the conversation emits.\n\nA key here that collides with a span's own `gen_ai.*` / `weave.*`\nattribute is unsupported; the span's value wins.\n\n***\n\n",
+          "page_context": "# ConversationInit\n\n> TypeScript SDK reference\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/genai/conversation.ts#L8)\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "ConversationInit"
+            },
+            {
+              "section": 1,
+              "heading": "Properties"
+            },
+            {
+              "section": 2,
+              "heading": "agentDescription"
+            },
+            {
+              "section": 3,
+              "heading": "agentId"
+            },
+            {
+              "section": 4,
+              "heading": "agentName"
+            },
+            {
+              "section": 5,
+              "heading": "agentVersion"
+            },
+            {
+              "section": 6,
+              "heading": "attributes"
+            },
+            {
+              "section": 7,
+              "heading": "conversationId"
+            },
+            {
+              "section": 8,
+              "heading": "model"
+            },
+            {
+              "section": 9,
+              "heading": "~~sessionId~~"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "No, you don't need to repeat the metadata on each LLM or tool span. Pass `attributes` to `startConversation` once. The docs say this applies the attributes to every span the conversation emits [S4].\n\n```typescript\nimport * as weave from 'weave';\n\nawait weave.init('[TEAM-NAME]/[PROJECT-NAME]');\n\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',\n  attributes: { env: 'production' },\n});\n// Every turn, LLM, tool, and sub-agent span in this conversation carries these attributes.\n```\n\nThis is adapted from the documented TypeScript example, which also sets `'weave.integration.name'`. I dropped that key because you only need `env` [S4]. I haven't run it, because the offline sandbox has no Weave SDK. `ConversationInit.attributes` is documented as \"Custom attributes propagated to every span the conversation emits\" [S5].\n\nCaveats:\n- **Key names:** Use your own custom keys, such as `env`. Avoid the reserved `gen_ai.*` and `weave.*` prefixes. Weave extracts those into typed fields during ingestion, so custom values under them are unsupported [S4].\n- **Collisions:** If a key you pass collides with a span's own `gen_ai.*` or `weave.*` attribute, the span's value wins [S5].\n- **Typed fields:** Set the agent name, conversation name and model through their own parameters, not through `attributes` [S4].\n- **Span-specific metadata:** For one span only, the TypeScript method is `setAttributes()`, which mirrors OTel's `Span.set_attributes` [S4]. Use it for things that differ per span. Don't use it to repeat `env`.\n- **Earlier answer:** My first reply used the Python API, `set_attributes()` and `start_turn`. Disregard it for your TypeScript deployment.\n\nI didn't read the \"When you can set attributes\" section of that page. I also didn't confirm how your turns attach to the conversation object in TypeScript. If your turns are created outside it, check the `startTurn` reference. The `TurnInit` reference lists its own `attributes` option for a rootless turn that has no conversation."
+        },
+        "result": {
+          "passed": false,
+          "claims": [
+            {
+              "text": "You don't need to repeat metadata on each LLM/tool span; pass `attributes` to `startConversation` once and it applies to every span the conversation emits.",
+              "source_ids": [
+                "S4"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "The TypeScript example with `startConversation({agentName, attributes: {env: 'production'}})` is adapted from the documented example, minus the `weave.integration.name` key; not run.",
+              "source_ids": [
+                "S4"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "`ConversationInit.attributes` is documented as \"Custom attributes propagated to every span the conversation emits\".",
+              "source_ids": [
+                "S5"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Use custom keys, avoid reserved `gen_ai.*`/`weave.*` prefixes; Weave extracts those into typed fields, so custom values under them are unsupported.",
+              "source_ids": [
+                "S4"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "If a key collides with a span's own `gen_ai.*`/`weave.*` attribute, the span's value wins.",
+              "source_ids": [
+                "S5"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Set agent name, conversation name and model through their typed parameters, not `attributes`.",
+              "source_ids": [
+                "S4"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "For one span only, the TypeScript method is `setAttributes()`, mirroring OTel's `Span.set_attributes`.",
+              "source_ids": [
+                "S4"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "The `TurnInit` reference lists its own `attributes` option for a rootless turn that has no conversation.",
+              "source_ids": [],
+              "status": "unsupported",
+              "supported": false
+            }
+          ],
+          "issues": [
+            "The final paragraph says the `TurnInit` reference lists its own `attributes` option for a rootless turn with no conversation. No cited or retrieved passage supports this. The candidate only read S4 and S5, and never read TurnInit or startTurn. Remove the claim, or cite a source for it and phrase it as something to check.",
+            "The answer says it did not confirm how TypeScript turns attach to the conversation object. The `TurnInit` claim then asserts details about that same area without evidence, which contradicts the hedge.",
+            "Revise partial or unsupported material claims.",
+            "Each factual claim must use evidence cited in the draft."
+          ],
+          "coverage": [],
+          "mode": "support",
+          "status": "failed"
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "reference/typescript-sdk/interfaces/turninit",
+          "section": 7
+        },
+        "result": {
+          "source_id": "S6",
+          "page_id": "reference/typescript-sdk/interfaces/turninit",
+          "section": 7,
+          "title": "TurnInit",
+          "heading": "attributes",
+          "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/turninit",
+          "page_sha256": "51efac90cd4ac3b0ecf710dc275ad58483d819c4b678f5f5728ab926f484ec0f",
+          "text": "### attributes\n\n> `optional` **attributes**: `Attributes`\n\nCustom attributes set on this turn and passed to every child span.\nNormally seeded from the conversation via `startConversation({ attributes })`;\nset here for a rootless `startTurn({ attributes })` with no conversation.\n\n***\n\n",
+          "page_context": "# TurnInit\n\n> TypeScript SDK reference\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/genai/turn.ts#L32)\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "TurnInit"
+            },
+            {
+              "section": 1,
+              "heading": "Extends"
+            },
+            {
+              "section": 2,
+              "heading": "Properties"
+            },
+            {
+              "section": 3,
+              "heading": "agentDescription"
+            },
+            {
+              "section": 4,
+              "heading": "agentId"
+            },
+            {
+              "section": 5,
+              "heading": "agentName"
+            },
+            {
+              "section": 6,
+              "heading": "agentVersion"
+            },
+            {
+              "section": 7,
+              "heading": "attributes"
+            },
+            {
+              "section": 8,
+              "heading": "model"
+            },
+            {
+              "section": 9,
+              "heading": "startTime"
+            },
+            {
+              "section": 10,
+              "heading": "Inherited from"
+            },
+            {
+              "section": 11,
+              "heading": "systemInstructions"
+            },
+            {
+              "section": 12,
+              "heading": "userMessage"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "No, you don't need to repeat the metadata on each LLM or tool span. Pass `attributes` to `startConversation` once. The docs say this applies the attributes to every span the conversation emits [S4].\n\n```typescript\nimport * as weave from 'weave';\n\nawait weave.init('[TEAM-NAME]/[PROJECT-NAME]');\n\nconst conversation = weave.startConversation({\n  agentName: 'my-agent',\n  attributes: { env: 'production' },\n});\n// Every turn, LLM, tool, and sub-agent span in this conversation carries these attributes.\n```\n\nThis is adapted from the documented TypeScript example, which also sets `'weave.integration.name'`. I dropped that key because you only need `env` [S4]. I haven't run it, because the offline sandbox has no Weave SDK. `ConversationInit.attributes` is documented as \"Custom attributes propagated to every span the conversation emits\" [S5].\n\nCaveats:\n- **Key names:** Use your own custom keys, such as `env`. Avoid the reserved `gen_ai.*` and `weave.*` prefixes. Weave extracts those into typed fields during ingestion, so custom values under them are unsupported [S4].\n- **Collisions:** If a key you pass collides with a span's own `gen_ai.*` or `weave.*` attribute, the span's value wins [S5].\n- **Typed fields:** Set the agent name, conversation name and model through their own parameters, not through `attributes` [S4].\n- **Span-specific metadata:** For one span only, the TypeScript method is `setAttributes()`, which mirrors OTel's `Span.set_attributes` [S4]. Use it for things that differ per span. Don't use it to repeat `env`.\n- **Turns without a conversation:** The `TurnInit` reference says turn attributes are normally seeded from `startConversation({ attributes })`. For a rootless `startTurn({ attributes })` with no conversation, you set them on the turn itself [S6].\n- **Earlier answer:** My first reply used the Python API, `set_attributes()` and `start_turn`. Disregard it for your TypeScript deployment.\n\nI didn't read the \"When you can set attributes\" section of that page. I also didn't read the `startTurn` reference, so check it for how your turns attach to the conversation in your code."
+        },
+        "result": {
+          "passed": true,
+          "claims": [
+            {
+              "text": "No need to repeat metadata on each LLM/tool span; pass attributes to startConversation once, applying to every span the conversation emits.",
+              "source_ids": [
+                "S4"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "TypeScript code example adapted from documented example, dropping weave.integration.name key; not run.",
+              "source_ids": [
+                "S4"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "ConversationInit.attributes is documented as custom attributes propagated to every span the conversation emits.",
+              "source_ids": [
+                "S5"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Avoid reserved gen_ai.* and weave.* prefixes; Weave extracts them into typed fields so custom values are unsupported.",
+              "source_ids": [
+                "S4"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "If a key collides with a span's own gen_ai.*/weave.* attribute, the span's value wins.",
+              "source_ids": [
+                "S5"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Set agent name, conversation name and model via typed parameters, not attributes.",
+              "source_ids": [
+                "S4"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "TypeScript per-span method is setAttributes(), mirroring OTel Span.set_attributes.",
+              "source_ids": [
+                "S4"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "TurnInit attributes are normally seeded from startConversation({attributes}); for rootless startTurn with no conversation, set them on the turn.",
+              "source_ids": [
+                "S6"
+              ],
+              "status": "supported",
+              "supported": true
+            }
+          ],
+          "issues": [],
+          "coverage": [],
+          "mode": "support",
+          "status": "passed"
+        }
+      }
+    ],
+    "conversation_id": "e7ad098f-4433-4457-a0de-26f395fbfdc3",
+    "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/e7ad098f-4433-4457-a0de-26f395fbfdc3",
+    "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+    "source_sha256": "a6621741d5868bdb88ee64137a5e4c459d222898c28ad50702545ebeafb2da81",
+    "prompt_sha256": "88101087a3809fde2cdee658c97d39289b5af635b620c7ca9a14de9549570413",
+    "config_sha256": "49cc7734a6df29a6067960601a6c8e4540ed2253038ea047df999a07cfc3400b",
+    "verify_mode": "support",
+    "cache_enabled": true,
+    "trace_id": "263702016e26863579da35934ce45df3",
+    "model": "claude-sonnet-5-5",
+    "elapsed_seconds": 30.13,
+    "planner_usage": {
+      "input_tokens": 12,
+      "output_tokens": 2328
+    },
+    "metrics": {
+      "calls": [
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPubF9jJ8rnmgpXGR6zU",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 801
+            },
+            "cache_creation_input_tokens": 801,
+            "cache_read_input_tokens": 1802,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 192,
+            "output_tokens_details": {
+              "thinking_tokens": 70
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 1.9302,
+          "estimated_usd": 0.0041107
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPubPsMM8CP5hp1rZJv6",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 4949
+            },
+            "cache_creation_input_tokens": 4949,
+            "cache_read_input_tokens": 2603,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 172,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.033,
+          "estimated_usd": 0.0143568
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPubY5xbeymnF21vfTCY",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 2505
+            },
+            "cache_creation_input_tokens": 2505,
+            "cache_read_input_tokens": 7552,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 1034,
+            "output_tokens_details": {
+              "thinking_tokens": 256
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 7.7361,
+          "estimated_usd": 0.0173617
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPuc7KxcC2i6hgUeC1KX",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 3918
+            },
+            "cache_creation_input_tokens": 3918,
+            "cache_read_input_tokens": 1486,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 1367,
+            "output_tokens_details": {
+              "thinking_tokens": 544
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 8.9352,
+          "estimated_usd": 0.0236216
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPucmY7CZU9c1J6E7Zgf",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1883
+            },
+            "cache_creation_input_tokens": 1883,
+            "cache_read_input_tokens": 10057,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 115,
+            "output_tokens_details": {
+              "thinking_tokens": 26
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 1.4121,
+          "estimated_usd": 0.0068672
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPucsU4KhwHSrtC2ckjC",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 758
+            },
+            "cache_creation_input_tokens": 758,
+            "cache_read_input_tokens": 11940,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 815,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 4.6101,
+          "estimated_usd": 0.011243
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPudD8VhKZvDmwHdDRQM",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 4395
+            },
+            "cache_creation_input_tokens": 4395,
+            "cache_read_input_tokens": 1486,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 552,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 3.4569,
+          "estimated_usd": 0.0166641
+        }
+      ],
+      "model_calls": 7,
+      "tokens": {
+        "input_tokens": 20,
+        "output_tokens": 4247,
+        "cache_creation_input_tokens": 19209,
+        "cache_read_input_tokens": 36926
+      },
+      "total_input_tokens": 56155,
+      "estimated_usd": 0.0942251,
+      "known_estimated_usd": 0.0942251,
+      "unpriced_calls": 0,
+      "by_purpose": {
+        "planner": {
+          "calls": 5,
+          "known_estimated_usd": 0.0539394
+        },
+        "verification": {
+          "calls": 2,
+          "known_estimated_usd": 0.0402857
+        }
+      },
+      "research": {
+        "searches": 2,
+        "passage_reads": 3,
+        "distinct_pages_read": 3,
+        "repeated_tool_requests": 0,
+        "drafts_submitted": 2,
+        "code_runs": 0
+      },
+      "pricing": {
+        "checked_at": "2026-10-25",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "rates": {
+          "claude-sonnet-5-5": {
+            "input": 2,
+            "output": 10,
+            "write_5m": 2.5,
+            "write_1h": 4,
+            "read": 0.1
+          },
+          "claude-opus-5-5": {
+            "input": 4,
+            "output": 20,
+            "write_5m": 5,
+            "write_1h": 8,
+            "read": 0.2
+          }
+        }
+      },
+      "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+    },
+    "error_type": null
+  }
+}

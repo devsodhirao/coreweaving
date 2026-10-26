@@ -1,0 +1,1860 @@
+{
+  "case_id": "cap-04-whole-workflow",
+  "trial_index": 2,
+  "example_id": "cap-04-whole-workflow:trial:2",
+  "prediction_id": "ea68b6b2-9125-486a-8837-7928420db308",
+  "verify_mode": "support",
+  "suite": "capability",
+  "source_sha256": "a6621741d5868bdb88ee64137a5e4c459d222898c28ad50702545ebeafb2da81",
+  "evaluation_call_id": "01a1759d-0ba1-7d8e-ac2d-cee70f93761b",
+  "predict_and_score_call_id": "01a1759d-0ba2-78d0-90de-2d4316bd7c94",
+  "predict_call_id": "01a1759d-0ba2-7d55-bf53-95cf833bfebf",
+  "output": {
+    "answer_id": "32e0b50e-73b9-4367-8149-cf0383504e97",
+    "conversation_context": [],
+    "answer": "**Short answer:** The docs don't say whether the user receives the answer before or after scoring finishes, so I can't give a definite yes or no. They describe scoring as starting once a turn has ended: a turn ends, Weave emits `weave.genai.turn_ended`, and a separate agent scoring worker then scores it [S2]. My inference, which the docs don't state, is that this makes scoring follow the turn and not run inside it. The docs also don't say how the reply timing relates to scoring.\n\n## Compact setup outline\n\n1. **Inspect conversations and tool calls.**\n   - Run `pip install weave`, then call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")` before any tracing call [S8].\n   - Instrument the agent with `start_conversation()`, `start_turn()`, `start_llm()` and `start_tool()` [S8].\n   - These calls no-op silently if `weave.init()` is missing or tracing is disabled [S8].\n   - The data model is conversation \u2192 turn \u2192 LLM calls \u2192 tool executions. The **Agents** tab shows a multi-turn timeline with nested tool calls [S3].\n\n2. **Rerun regression questions.**\n   - The agent-evals tutorial shows a pattern using `EvaluationLogger`. Each dataset row is a fixed conversation history plus the next user message [S10].\n   - The agent runs inside `start_conversation(...)` and the result is logged with `log_prediction` and `log_score`. Each row links back to its full transcript [S10].\n   - The tutorial also covers comparing two versions of the agent [S4]. I didn't read that section, so check it before relying on it.\n   - Caveat: this scores the next turn against a fixed history. The docs say measuring a full multi-turn task end to end needs live A/B testing [S10].\n   - That tutorial scores with an LLM judge [S4]. For your own policy check you'd substitute your own scorer. I didn't verify how to plug an HTTP scorer into `EvaluationLogger`.\n\n3. **Score live answers with your endpoint.** Use a remote scorer signal.\n   - Weave sends each completed turn to your endpoint in an HTTP `POST` and records the response as feedback. Results show as tags or ratings on the **Signals** tab [S1].\n   - Create it in the UI or in Python. In Python, publish a `RemoteScorer`, then activate a `Monitor` with `op_names=[\"weave.genai.turn_ended\"]` [S7].\n\n## Prerequisites before Weave can call your endpoint (multi-tenant cloud)\n\n- **Remote scoring must be enabled.** It is off until enabled [S5]. An organization or billing admin must open the organization's settings in Forge. They then select **Remote scoring** and turn on **Enable remote scoring** [S5].\n- **Your endpoint host must be allowlisted.** Under **Allowed hosts**, add each host. Saving requires at least one host [S5]. With no allowlist, the worker rejects every host [S5].\n- **The URL must pass the host rules** [S5]:\n  - HTTPS is required unless the deployment permits insecure HTTP.\n  - Private, loopback and cloud-metadata addresses are rejected.\n  - Redirects aren't followed.\n  - If you use OAuth, the token endpoint URL is checked too.\n- **Credentials must be stored first.** Put the bearer token or OAuth client secret in the project team's secret store before you register the scorer. The scorer configuration holds only the secret name [S6].\n- **Your endpoint must accept bearer-token authentication.** Weave uses either `static_bearer` or `oauth_client_credentials` [S6].\n- **The response must use the structured result format.** Agent turn scoring requires it, because tags and ratings are stored as typed feedback columns [S2].\n\n## Scoring sequence and retries\n\nThe docs describe this sequence [S2]:\n\n1. A root span ends and Weave emits `weave.genai.turn_ended`.\n2. The agent scoring worker loads the matching signals and applies their filters and sample rate.\n3. The worker sends the `POST`.\n4. The worker validates the response and writes feedback.\n\nThe worker retries failed attempts, up to three attempts within 30 seconds [S2]:\n\n- `5xx`, `408` and `429` responses are retried [S2].\n- A timeout uses the whole 30 seconds, so a timed-out request isn't retried [S2].\n- Other `4xx` responses aren't retried [S2].\n- If your endpoint can't score a turn in time, the docs advise returning `503` quickly so that Weave retries [S2].\n\nI'd treat scoring as after-the-fact monitoring and not as a gate on the reply. If you need to block unsafe answers before they're sent, run that check in your own code. I found nothing in the snapshot that says Weave scoring can do this, though that doesn't prove it can't.\n\n**Next step:** Ask your org admin to enable remote scoring and allowlist your scorer host. Then store the bearer token as a team secret, and create the signal.",
+    "kind": "answer",
+    "verification": {
+      "passed": true,
+      "claims": [
+        {
+          "text": "Docs don't state whether the user receives the answer before scoring finishes; scoring begins after a turn ends via weave.genai.turn_ended and a separate worker (inference labeled as such).",
+          "source_ids": [
+            "S2"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Tracing setup: pip install weave, weave.init before start_conversation/start_turn/start_llm/start_tool; calls no-op silently if init missing or tracing disabled.",
+          "source_ids": [
+            "S8"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Data model conversation \u2192 turn \u2192 LLM calls \u2192 tool executions; Agents tab shows multi-turn timeline with nested tool calls.",
+          "source_ids": [
+            "S3"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Regression pattern with EvaluationLogger: fixed history plus next user message per row, run inside start_conversation, log_prediction/log_score, rows link to transcript; limitation that full multi-turn end-to-end needs live A/B testing.",
+          "source_ids": [
+            "S10",
+            "S4"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Remote scorer signal: Weave POSTs completed turn to endpoint, records feedback shown on Signals tab; created in UI or Python via RemoteScorer + Monitor with op_names weave.genai.turn_ended.",
+          "source_ids": [
+            "S1",
+            "S7"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Multi-tenant prerequisites: admin enables remote scoring in Forge Remote scoring tab, at least one allowed host, no allowlist means rejection, HTTPS/private address/redirect/OAuth token URL rules.",
+          "source_ids": [
+            "S5"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Credentials stored in team secret store first; scorer holds only secret name; modes static_bearer or oauth_client_credentials.",
+          "source_ids": [
+            "S6"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Structured result format required for agent turn scoring; sequence and retry behavior (3 attempts/30s, 5xx/408/429 retried, timeout not retried, other 4xx not retried, return 503 quickly).",
+          "source_ids": [
+            "S2"
+          ],
+          "status": "supported",
+          "supported": true
+        }
+      ],
+      "issues": [],
+      "coverage": [],
+      "mode": "support",
+      "status": "passed"
+    },
+    "verification_attempts": [
+      {
+        "candidate": {
+          "answer": "**Short answer:** Weave scores a turn only after it ends, using a separate scoring worker [S2]. The docs I read don't say how long scoring takes or what latency the user sees. The user's answer comes from your agent code, and the scorer isn't described as a step inside that code. Scoring is triggered by the turn-ended event, so it can't be a prerequisite for finishing the turn.\n\n## Compact setup outline\n\n1. **Inspect conversations and tool calls.**\n   - Run `pip install weave`, then call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")` before any tracing call [S8].\n   - Instrument the agent with `start_conversation()`, `start_turn()`, `start_llm()` and `start_tool()` [S8].\n   - These calls no-op silently if `weave.init()` is missing or tracing is disabled [S8].\n   - The data model is conversation \u2192 turn \u2192 LLM calls \u2192 tool executions. The **Agents** tab shows a multi-turn timeline with nested tool calls [S3].\n\n2. **Rerun regression questions.**\n   - The agent-evals tutorial shows a pattern using `EvaluationLogger`. Each dataset row is a fixed conversation history plus the next user message [S10].\n   - The agent runs inside `start_conversation(...)` and the result is logged with `log_prediction` and `log_score`. Each row links back to its full transcript [S10].\n   - The tutorial also covers comparing two versions of the agent [S4]. I didn't read that section, so check it before relying on it.\n   - Caveat: this scores the next turn against a fixed history. The docs say measuring a full multi-turn task end to end needs live A/B testing [S10].\n   - That tutorial scores with an LLM judge [S4]. For your own policy check you'd substitute your own scorer. I didn't verify how to plug an HTTP scorer into `EvaluationLogger`.\n\n3. **Score live answers with your endpoint.** Use a remote scorer signal.\n   - Weave sends each completed turn to your endpoint in an HTTP `POST` and records the response as feedback. Results show as tags or ratings on the **Signals** tab [S1].\n   - Create it in the UI or in Python. In Python, publish a `RemoteScorer`, then activate a `Monitor` with `op_names=[\"weave.genai.turn_ended\"]` [S7].\n\n## Prerequisites before Weave can call your endpoint (multi-tenant cloud)\n\n- **Remote scoring must be enabled.** It is off until enabled [S5]. An organization or billing admin must open the organization's settings in Forge. They then select **Remote scoring** and turn on **Enable remote scoring** [S5].\n- **Your endpoint host must be allowlisted.** Under **Allowed hosts**, add each host. Saving requires at least one host [S5]. With no allowlist, the worker rejects every host [S5].\n- **The URL must pass the host rules** [S5]:\n  - HTTPS is required unless the deployment permits insecure HTTP.\n  - Private, loopback and cloud-metadata addresses are rejected.\n  - Redirects aren't followed.\n  - If you use OAuth, the token endpoint URL is checked too.\n- **Credentials must be stored first.** Put the bearer token or OAuth client secret in the project team's secret store before you register the scorer. The scorer configuration holds only the secret name [S6].\n- **Your endpoint must accept bearer-token authentication.** Weave uses either `static_bearer` or `oauth_client_credentials` [S6].\n- **The response must use the structured result format.** Agent turn scoring requires it, because tags and ratings are stored as typed feedback columns [S2].\n\n## Does scoring finish before the user gets the answer?\n\nThe docs describe this sequence [S2]:\n\n1. A root span ends and Weave emits `weave.genai.turn_ended`.\n2. The agent scoring worker loads the matching signals and applies their filters and sample rate.\n3. The worker sends the `POST`.\n4. The worker validates the response and writes feedback.\n\nThe worker retries failed attempts, up to three attempts within 30 seconds [S2]. The docs don't say whether your agent's reply waits on any of this. I'd treat scoring as after-the-fact monitoring, not as a gate on the reply. If you need to block unsafe answers before they're sent, run that check in your own code. I found nothing in the snapshot that says Weave scoring can do this.\n\n**Next step:** Ask your org admin to enable remote scoring and allowlist your scorer host. Then store the bearer token as a team secret, and create the signal.",
+          "kind": "answer"
+        },
+        "passed": false,
+        "claims": [
+          {
+            "text": "Weave scores a turn only after it ends, using a separate agent scoring worker, triggered by weave.genai.turn_ended.",
+            "source_ids": [
+              "S2"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Scoring can't be a prerequisite for finishing the turn; the docs don't say whether the agent's reply waits on scoring.",
+            "source_ids": [
+              "S2"
+            ],
+            "status": "partial",
+            "supported": false
+          },
+          {
+            "text": "Tracing setup: pip install weave, weave.init, start_conversation/start_turn/start_llm/start_tool; calls no-op silently if init is missing or tracing is disabled.",
+            "source_ids": [
+              "S8"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Data model is conversation, turn, LLM calls, tool executions; the Agents tab shows a multi-turn timeline with nested tool calls.",
+            "source_ids": [
+              "S3"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Regression pattern: dataset rows hold a fixed history plus the next user message. The agent runs inside start_conversation, the result is logged with log_prediction and log_score, and each row links to its transcript. Scoring the next turn against a fixed history is the offline method, and end-to-end multi-turn measurement needs live A/B testing.",
+            "source_ids": [
+              "S10"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "The tutorial compares two agent versions and scores with an LLM judge.",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "A remote scorer sends each completed turn to your endpoint by HTTP POST and records the response as feedback shown on the Signals tab.",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "In Python, publish a RemoteScorer and activate a Monitor with op_names=[\"weave.genai.turn_ended\"].",
+            "source_ids": [
+              "S7"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "On multi-tenant cloud, an org or billing admin must enable remote scoring in Forge organization settings and add at least one allowed host. With no allowlist the worker rejects every host.",
+            "source_ids": [
+              "S5"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "URL rules: HTTPS unless insecure HTTP is permitted, private/loopback/metadata addresses rejected, redirects not followed, and the OAuth token URL is also checked.",
+            "source_ids": [
+              "S5"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Store the bearer token or OAuth secret in the team secret store before registering; the scorer config holds only the secret name; the auth modes are static_bearer or oauth_client_credentials.",
+            "source_ids": [
+              "S6"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Agent turn scoring requires the structured result format because tags and ratings are stored as typed feedback columns.",
+            "source_ids": [
+              "S2"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "The worker retries failed attempts up to three attempts within 30 seconds, and the four-step sequence from turn end to feedback write is accurate.",
+            "source_ids": [
+              "S2"
+            ],
+            "status": "supported",
+            "supported": true
+          }
+        ],
+        "issues": [
+          "The sentence \"Scoring is triggered by the turn-ended event, so it can't be a prerequisite for finishing the turn\" is the answer's own inference, not stated in the docs. It follows from the sequence in S2 (root span ends, then the event). The docs say nothing about when the user actually receives the reply. The later hedge (\"docs don't say whether your agent's reply waits\") is the accurate framing, so the inference should be labelled as such.",
+          "The retry description leaves out one detail from S2: a timeout uses the whole 30 seconds and isn't retried, and S2 advises returning 503 quickly. This is a minor omission, not a fault.",
+          "Revise partial or unsupported material claims."
+        ],
+        "coverage": [],
+        "mode": "support",
+        "status": "failed"
+      },
+      {
+        "candidate": {
+          "answer": "**Short answer:** The docs don't say whether the user receives the answer before or after scoring finishes, so I can't give a definite yes or no. They describe scoring as starting once a turn has ended: a turn ends, Weave emits `weave.genai.turn_ended`, and a separate agent scoring worker then scores it [S2]. My inference, which the docs don't state, is that this makes scoring follow the turn and not run inside it. The docs also don't say how the reply timing relates to scoring.\n\n## Compact setup outline\n\n1. **Inspect conversations and tool calls.**\n   - Run `pip install weave`, then call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")` before any tracing call [S8].\n   - Instrument the agent with `start_conversation()`, `start_turn()`, `start_llm()` and `start_tool()` [S8].\n   - These calls no-op silently if `weave.init()` is missing or tracing is disabled [S8].\n   - The data model is conversation \u2192 turn \u2192 LLM calls \u2192 tool executions. The **Agents** tab shows a multi-turn timeline with nested tool calls [S3].\n\n2. **Rerun regression questions.**\n   - The agent-evals tutorial shows a pattern using `EvaluationLogger`. Each dataset row is a fixed conversation history plus the next user message [S10].\n   - The agent runs inside `start_conversation(...)` and the result is logged with `log_prediction` and `log_score`. Each row links back to its full transcript [S10].\n   - The tutorial also covers comparing two versions of the agent [S4]. I didn't read that section, so check it before relying on it.\n   - Caveat: this scores the next turn against a fixed history. The docs say measuring a full multi-turn task end to end needs live A/B testing [S10].\n   - That tutorial scores with an LLM judge [S4]. For your own policy check you'd substitute your own scorer. I didn't verify how to plug an HTTP scorer into `EvaluationLogger`.\n\n3. **Score live answers with your endpoint.** Use a remote scorer signal.\n   - Weave sends each completed turn to your endpoint in an HTTP `POST` and records the response as feedback. Results show as tags or ratings on the **Signals** tab [S1].\n   - Create it in the UI or in Python. In Python, publish a `RemoteScorer`, then activate a `Monitor` with `op_names=[\"weave.genai.turn_ended\"]` [S7].\n\n## Prerequisites before Weave can call your endpoint (multi-tenant cloud)\n\n- **Remote scoring must be enabled.** It is off until enabled [S5]. An organization or billing admin must open the organization's settings in Forge. They then select **Remote scoring** and turn on **Enable remote scoring** [S5].\n- **Your endpoint host must be allowlisted.** Under **Allowed hosts**, add each host. Saving requires at least one host [S5]. With no allowlist, the worker rejects every host [S5].\n- **The URL must pass the host rules** [S5]:\n  - HTTPS is required unless the deployment permits insecure HTTP.\n  - Private, loopback and cloud-metadata addresses are rejected.\n  - Redirects aren't followed.\n  - If you use OAuth, the token endpoint URL is checked too.\n- **Credentials must be stored first.** Put the bearer token or OAuth client secret in the project team's secret store before you register the scorer. The scorer configuration holds only the secret name [S6].\n- **Your endpoint must accept bearer-token authentication.** Weave uses either `static_bearer` or `oauth_client_credentials` [S6].\n- **The response must use the structured result format.** Agent turn scoring requires it, because tags and ratings are stored as typed feedback columns [S2].\n\n## Scoring sequence and retries\n\nThe docs describe this sequence [S2]:\n\n1. A root span ends and Weave emits `weave.genai.turn_ended`.\n2. The agent scoring worker loads the matching signals and applies their filters and sample rate.\n3. The worker sends the `POST`.\n4. The worker validates the response and writes feedback.\n\nThe worker retries failed attempts, up to three attempts within 30 seconds [S2]:\n\n- `5xx`, `408` and `429` responses are retried [S2].\n- A timeout uses the whole 30 seconds, so a timed-out request isn't retried [S2].\n- Other `4xx` responses aren't retried [S2].\n- If your endpoint can't score a turn in time, the docs advise returning `503` quickly so that Weave retries [S2].\n\nI'd treat scoring as after-the-fact monitoring and not as a gate on the reply. If you need to block unsafe answers before they're sent, run that check in your own code. I found nothing in the snapshot that says Weave scoring can do this, though that doesn't prove it can't.\n\n**Next step:** Ask your org admin to enable remote scoring and allowlist your scorer host. Then store the bearer token as a team secret, and create the signal.",
+          "kind": "answer"
+        },
+        "passed": true,
+        "claims": [
+          {
+            "text": "Docs don't state whether the user receives the answer before scoring finishes; scoring begins after a turn ends via weave.genai.turn_ended and a separate worker (inference labeled as such).",
+            "source_ids": [
+              "S2"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Tracing setup: pip install weave, weave.init before start_conversation/start_turn/start_llm/start_tool; calls no-op silently if init missing or tracing disabled.",
+            "source_ids": [
+              "S8"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Data model conversation \u2192 turn \u2192 LLM calls \u2192 tool executions; Agents tab shows multi-turn timeline with nested tool calls.",
+            "source_ids": [
+              "S3"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Regression pattern with EvaluationLogger: fixed history plus next user message per row, run inside start_conversation, log_prediction/log_score, rows link to transcript; limitation that full multi-turn end-to-end needs live A/B testing.",
+            "source_ids": [
+              "S10",
+              "S4"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Remote scorer signal: Weave POSTs completed turn to endpoint, records feedback shown on Signals tab; created in UI or Python via RemoteScorer + Monitor with op_names weave.genai.turn_ended.",
+            "source_ids": [
+              "S1",
+              "S7"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Multi-tenant prerequisites: admin enables remote scoring in Forge Remote scoring tab, at least one allowed host, no allowlist means rejection, HTTPS/private address/redirect/OAuth token URL rules.",
+            "source_ids": [
+              "S5"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Credentials stored in team secret store first; scorer holds only secret name; modes static_bearer or oauth_client_credentials.",
+            "source_ids": [
+              "S6"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Structured result format required for agent turn scoring; sequence and retry behavior (3 attempts/30s, 5xx/408/429 retried, timeout not retried, other 4xx not retried, return 503 quickly).",
+            "source_ids": [
+              "S2"
+            ],
+            "status": "supported",
+            "supported": true
+          }
+        ],
+        "issues": [],
+        "coverage": [],
+        "mode": "support",
+        "status": "passed"
+      }
+    ],
+    "sources": [
+      {
+        "source_id": "S2",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 1,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "How agent turn scoring works",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "## How agent turn scoring works\n\nAn agent turn is scored in the following sequence:\n\n1. A turn ends. When a root span (a span with no parent) ends, Weave treats it as a completed turn and emits a `weave.genai.turn_ended` event.\n2. The agent scoring worker loads the project's active signals that target `weave.genai.turn_ended`, then applies each signal's filters and sample rate.\n3. For each `RemoteScorer` on a matching signal, the worker builds a `schema_version: 2` request from the turn's span, including its messages, resolves the scorer's credentials, checks the endpoint URL against the allowed hosts, and sends the `POST`.\n4. The worker validates the response and writes the result as feedback on the turn. Tags and ratings appear on the **Signals** tab.\n\nWeave scores only completed turns. Individual LLM and tool spans, and whole conversations, aren't remote scoring targets. A remote scorer signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`, whether you create it in the UI or with the SDK.\n\nThe worker retries a failed attempt with the same `Idempotency-Key`, up to three attempts within 30 seconds of the first attempt. A `5xx`, `408`, or `429` response is retried. A timeout uses the whole 30 seconds, so a timed-out request isn't retried. Any other `4xx` response isn't retried. If your endpoint can't score a turn in time, return `503` quickly rather than letting the request time out, so that Weave retries it. Agent turn scoring requires the structured result format, because Weave stores the tags and ratings as typed feedback columns.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+      },
+      {
+        "source_id": "S8",
+        "page_id": "guides/tracking/trace-agents",
+        "section": 1,
+        "title": "Trace your agents",
+        "heading": "Before you begin",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+        "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+        "text": "## Before you begin\n\nTo get started, install the `weave` package and initialize your project. This step registers your team and project with Weave so that the SDK routes spans to the correct location in the UI.\n\n**Python**\n\n```bash lines theme={\"system\"}\npip install weave\n```\n\nReplace `[YOUR-TEAM]` with your CoreWeave Forge team name and `[YOUR-PROJECT]` with your Weights & Biases project name.\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n```\n\nCall `weave.init()` before any `start_conversation()`, `start_turn()`, `start_llm()`, `start_tool()`, or `start_subagent()` call. All agent tracing functions no-op silently when tracing is disabled or the init call is absent, so you can leave instrumentation in production code and control it through configuration.\n\n**TypeScript**\n\n```bash lines theme={\"system\"}\nnpm install weave\n```\n\nReplace `[YOUR-TEAM]` with your CoreWeave Forge team name and `[YOUR-PROJECT]` with your Weights & Biases project name.\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\n\nawait weave.init('[YOUR-TEAM]/[YOUR-PROJECT]');\n```\n\nCall `weave.init()` before any `startConversation()`, `startTurn()`, `startLLM()`, `startTool()`, or `startSubagent()` call. All agent tracing functions no-op silently when tracing is disabled or the init call is absent, so you can leave instrumentation in production code and control it through configuration.\n\n",
+        "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n"
+      },
+      {
+        "source_id": "S3",
+        "page_id": "guides/tracking/trace-agents",
+        "section": 0,
+        "title": "Trace your agents",
+        "heading": "Trace your agents",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+        "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+        "text": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+        "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n"
+      },
+      {
+        "source_id": "S10",
+        "page_id": "agent-evals",
+        "section": 6,
+        "title": "Evaluate your AI agent with Weave",
+        "heading": "Score a multi-turn conversation",
+        "url": "https://docs.coreweave.com/products/wandb/weave/agent-evals",
+        "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+        "text": "## Score a multi-turn conversation\n\nReal conversations span several turns, and a capable agent carries context forward. It shouldn't re-ask for an order ID the user already gave. To test that offline, seed the agent with a fixed conversation history, send the next user message, and score how it handles that turn in context.\n\nEach dataset row is one such scenario: the prior turns plus the next message that the agent must answer. Below, the order ID appears only in the history, so a good agent reuses it instead of asking again:\n\n```python lines theme={\"system\"}\nrow = {\n    \"conversation_history\": [\n        {\"role\": \"user\", \"content\": \"Hi, can you check the status of my order A1001?\"},\n        {\"role\": \"assistant\", \"content\": \"Your order A1001 was delivered 5 days ago.\"},\n    ],\n    \"next_user_message\": \"Thanks. Actually, I'd like to return it for a refund.\",\n    \"success_criteria\": \"Uses the prior context (order A1001) to issue the refund without re-asking the ID.\",\n}\n\nwith ev.log_prediction(inputs=row) as pred:\n    with start_conversation(agent_name=\"support-agent\", conversation_id=new_id()) as conv:\n        reply, transcript = run_agent_turn(\n            conv, row[\"next_user_message\"], history=row[\"conversation_history\"],\n        )\n    pred.output = reply\n    judge_task = {\"user_request\": row[\"next_user_message\"], \"success_criteria\": row[\"success_criteria\"]}\n    pred.log_score(\"task_completion\", judge_task_completion(judge_task, transcript))\n```\n\nAs with the single-turn evaluation, each row links back to its full transcript, so you can inspect whether the agent used the prior context or re-asked for the order ID.\n\n> [!NOTE]\n>\n> This approach scores the next turn against a fixed history, which is the practical offline method. Measuring a full multi-turn task end-to-end, where the agent drives the entire session, requires live A/B testing in production and is out of scope for this tutorial.\n\n",
+        "page_context": "# Evaluate your AI agent with Weave\n\n> Evaluate single-turn and multi-turn AI agents in Weave using the agents workflow and EvaluationLogger, scored with an LLM judge.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\nUnlike a single LLM call, an agent pursues a goal across multiple turns, calling tools and acting on their results. Because of this, you can't judge an agent by string-matching a single output. Instead, you evaluate its behavior across a trajectory.\n\nThis tutorial shows you how to evaluate an agent with Weave using the agents workflow. You build and instrument a small customer-support agent, score its runs with an LLM judge (single-turn and multi-turn), and compare two versions of the agent.\n\n"
+      },
+      {
+        "source_id": "S4",
+        "page_id": "agent-evals",
+        "section": 0,
+        "title": "Evaluate your AI agent with Weave",
+        "heading": "Evaluate your AI agent with Weave",
+        "url": "https://docs.coreweave.com/products/wandb/weave/agent-evals",
+        "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+        "text": "# Evaluate your AI agent with Weave\n\n> Evaluate single-turn and multi-turn AI agents in Weave using the agents workflow and EvaluationLogger, scored with an LLM judge.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\nUnlike a single LLM call, an agent pursues a goal across multiple turns, calling tools and acting on their results. Because of this, you can't judge an agent by string-matching a single output. Instead, you evaluate its behavior across a trajectory.\n\nThis tutorial shows you how to evaluate an agent with Weave using the agents workflow. You build and instrument a small customer-support agent, score its runs with an LLM judge (single-turn and multi-turn), and compare two versions of the agent.\n\n",
+        "page_context": "# Evaluate your AI agent with Weave\n\n> Evaluate single-turn and multi-turn AI agents in Weave using the agents workflow and EvaluationLogger, scored with an LLM judge.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\nUnlike a single LLM call, an agent pursues a goal across multiple turns, calling tools and acting on their results. Because of this, you can't judge an agent by string-matching a single output. Instead, you evaluate its behavior across a trajectory.\n\nThis tutorial shows you how to evaluate an agent with Weave using the agents workflow. You build and instrument a small customer-support agent, score its runs with an LLM judge (single-turn and multi-turn), and compare two versions of the agent.\n\n"
+      },
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 0,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Score agent turns with a remote scorer",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+      },
+      {
+        "source_id": "S7",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 9,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Python SDK",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "### Python SDK\n\nPublish a `RemoteScorer`, then activate a `Monitor` that lists it in `scorers` and targets `weave.genai.turn_ended` in `op_names`.\n\n```python lines theme={\"system\"}\nimport weave\nfrom weave.flow.monitor import Monitor\nfrom weave.scorers.remote_scorer import RemoteScorer, StaticBearerAuthConfig\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\nscorer = RemoteScorer(\n    name=\"policy_remote_scorer\",\n    endpoint_url=\"https://scoring.example.com/weave/score\",\n    config={\"threshold\": 0.9},  # Sent to your endpoint as scorer.config\n    auth_config=StaticBearerAuthConfig(\n        mode=\"static_bearer\",\n        bearer_secret_name=\"WEAVE_REMOTE_SCORER_BEARER_TOKEN\",\n    ),\n)\nweave.publish(scorer, name=\"policy_remote_scorer\")\n\nmonitor = Monitor(\n    name=\"policy_remote_signal\",\n    scorers=[scorer],\n    op_names=[\"weave.genai.turn_ended\"],  # Score completed agent turns\n    sampling_rate=1.0,\n)\nmonitor.activate()\n```\n\nFor OAuth client credentials, pass an `OAuthClientCredentialsConfig` as `auth_config` instead.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+      },
+      {
+        "source_id": "S5",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 2,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Enable remote scoring",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "## Enable remote scoring\n\nRemote scoring is off until it's enabled for your organization or deployment, and the scoring worker calls a scorer endpoint only if its host is on an allowlist. How you enable it depends on your deployment type.\n\n**Multi-tenant Cloud**\n\nTo enable remote scorers for an organization, an organization or billing admin must:\n\n1. Open `https://forge.coreweave.com/account-settings/[ORGANIZATION]/settings`, replacing `[ORGANIZATION]` with the organization that owns your project.\n2. Select the **Remote scoring** tab.\n3. Turn on **Enable remote scoring**.\n4. Under **Allowed hosts**, click **Add host** and enter each host that remote scorers may call. Saving with remote scoring enabled requires at least one host. Leave the port blank to allow any port on that host.\n5. Click **Save settings**.\n\n**Dedicated Cloud**\n\nAsk Forge to enable remote scoring for your deployment and configure its allowed hosts.\n\n**Self-Managed**\n\nIf you run Weave in a [W\\&B Self-Managed](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/self-managed.md) deployment, set these environment variables through `extraEnv` on each scoring worker: the online evaluation worker, the call scoring worker, and the agent scoring worker.\n\n| Environment variable | Default | Effect |\n| - | - | - |\n| `WF_SCORING_WORKER_REMOTE_SCORING_ENABLED` | `false` | Turns on outbound requests to remote scorers. When `false`, no remote scorer runs, regardless of other settings. |\n| `WF_SCORING_WORKER_REMOTE_HTTP_TIMEOUT_SECONDS` | `30` | Timeout for each request to a scorer endpoint. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_HOSTS` | empty | Comma-separated operator allowlist of `host` or `host:port` entries. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_VALIDATE_HOSTS` | `true` | Enforces the allowed hosts lists. Private, loopback, and cloud metadata addresses are rejected regardless of this setting. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOW_INSECURE_HTTP` | `false` | Permits `http://` endpoint URLs. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_PRIVATE_CIDRS` | empty | Comma-separated CIDR networks, such as `10.0.0.0/8`, whose private addresses remote scorers may call. |\n\nTo show the remote scoring settings and scorer options in the Weave UI, also set `GORILLA_GATE_WEAVE_REMOTE_SCORING=true` on the W\\&B server.\n\n**Allowed host rules**\n\nThe scoring worker checks every scorer endpoint URL, and separately the OAuth token endpoint URL when a scorer uses OAuth, against these rules:\n\n* An entry matches an exact host, with an optional port. An entry without a port allows any port on that host.\n* An entry that starts with `*.` matches subdomains at any depth, but not the domain itself. `*.corp.example.com` matches `a.corp.example.com` and `a.b.corp.example.com`, not `corp.example.com`. The suffix after `*.` must contain at least two labels, so `*.com` is rejected. A wildcard can't be combined with an IP address.\n* When both an operator allowlist and an organization allowlist exist, the URL must satisfy both. An empty operator allowlist adds no restriction. When no allowlist exists at all, the worker rejects every host.\n* Loopback, private, internal, and cloud metadata addresses are rejected. On Self-Managed, private addresses in the networks listed in `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_PRIVATE_CIDRS` are allowed.\n* HTTPS is required unless the deployment permits insecure HTTP.\n* Redirects aren't followed.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+      },
+      {
+        "source_id": "S6",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 6,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Authenticate requests from Weave",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "## Authenticate requests from Weave\n\nWeave authenticates to your endpoint with a bearer token. The request carries no Forge credential. The token proves to your endpoint that the request came from Weave, not the reverse. Each `RemoteScorer` uses one of two modes:\n\n| Mode | What Weave does | What you configure |\n| - | - | - |\n| `oauth_client_credentials` | Requests a token from your OAuth token endpoint with the client credentials grant, sending the client ID and secret with HTTP Basic authentication (`client_secret_basic`), then sends that token to your scorer endpoint. | The token endpoint URL, the client ID, the name of the secret that holds the client secret, and an optional scope. |\n| `static_bearer` | Sends a fixed token to your scorer endpoint. | The name of the secret that holds the token. |\n\nStore the client secret or bearer token in the secret store of the team that owns the project before you register the scorer. The `RemoteScorer` configuration holds only the secret name. The scoring worker resolves the value at scoring time.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+      }
+    ],
+    "all_read_evidence": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 0,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Score agent turns with a remote scorer",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+      },
+      {
+        "source_id": "S2",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 1,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "How agent turn scoring works",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "## How agent turn scoring works\n\nAn agent turn is scored in the following sequence:\n\n1. A turn ends. When a root span (a span with no parent) ends, Weave treats it as a completed turn and emits a `weave.genai.turn_ended` event.\n2. The agent scoring worker loads the project's active signals that target `weave.genai.turn_ended`, then applies each signal's filters and sample rate.\n3. For each `RemoteScorer` on a matching signal, the worker builds a `schema_version: 2` request from the turn's span, including its messages, resolves the scorer's credentials, checks the endpoint URL against the allowed hosts, and sends the `POST`.\n4. The worker validates the response and writes the result as feedback on the turn. Tags and ratings appear on the **Signals** tab.\n\nWeave scores only completed turns. Individual LLM and tool spans, and whole conversations, aren't remote scoring targets. A remote scorer signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`, whether you create it in the UI or with the SDK.\n\nThe worker retries a failed attempt with the same `Idempotency-Key`, up to three attempts within 30 seconds of the first attempt. A `5xx`, `408`, or `429` response is retried. A timeout uses the whole 30 seconds, so a timed-out request isn't retried. Any other `4xx` response isn't retried. If your endpoint can't score a turn in time, return `503` quickly rather than letting the request time out, so that Weave retries it. Agent turn scoring requires the structured result format, because Weave stores the tags and ratings as typed feedback columns.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+      },
+      {
+        "source_id": "S3",
+        "page_id": "guides/tracking/trace-agents",
+        "section": 0,
+        "title": "Trace your agents",
+        "heading": "Trace your agents",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+        "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+        "text": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+        "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n"
+      },
+      {
+        "source_id": "S4",
+        "page_id": "agent-evals",
+        "section": 0,
+        "title": "Evaluate your AI agent with Weave",
+        "heading": "Evaluate your AI agent with Weave",
+        "url": "https://docs.coreweave.com/products/wandb/weave/agent-evals",
+        "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+        "text": "# Evaluate your AI agent with Weave\n\n> Evaluate single-turn and multi-turn AI agents in Weave using the agents workflow and EvaluationLogger, scored with an LLM judge.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\nUnlike a single LLM call, an agent pursues a goal across multiple turns, calling tools and acting on their results. Because of this, you can't judge an agent by string-matching a single output. Instead, you evaluate its behavior across a trajectory.\n\nThis tutorial shows you how to evaluate an agent with Weave using the agents workflow. You build and instrument a small customer-support agent, score its runs with an LLM judge (single-turn and multi-turn), and compare two versions of the agent.\n\n",
+        "page_context": "# Evaluate your AI agent with Weave\n\n> Evaluate single-turn and multi-turn AI agents in Weave using the agents workflow and EvaluationLogger, scored with an LLM judge.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\nUnlike a single LLM call, an agent pursues a goal across multiple turns, calling tools and acting on their results. Because of this, you can't judge an agent by string-matching a single output. Instead, you evaluate its behavior across a trajectory.\n\nThis tutorial shows you how to evaluate an agent with Weave using the agents workflow. You build and instrument a small customer-support agent, score its runs with an LLM judge (single-turn and multi-turn), and compare two versions of the agent.\n\n"
+      },
+      {
+        "source_id": "S5",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 2,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Enable remote scoring",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "## Enable remote scoring\n\nRemote scoring is off until it's enabled for your organization or deployment, and the scoring worker calls a scorer endpoint only if its host is on an allowlist. How you enable it depends on your deployment type.\n\n**Multi-tenant Cloud**\n\nTo enable remote scorers for an organization, an organization or billing admin must:\n\n1. Open `https://forge.coreweave.com/account-settings/[ORGANIZATION]/settings`, replacing `[ORGANIZATION]` with the organization that owns your project.\n2. Select the **Remote scoring** tab.\n3. Turn on **Enable remote scoring**.\n4. Under **Allowed hosts**, click **Add host** and enter each host that remote scorers may call. Saving with remote scoring enabled requires at least one host. Leave the port blank to allow any port on that host.\n5. Click **Save settings**.\n\n**Dedicated Cloud**\n\nAsk Forge to enable remote scoring for your deployment and configure its allowed hosts.\n\n**Self-Managed**\n\nIf you run Weave in a [W\\&B Self-Managed](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/self-managed.md) deployment, set these environment variables through `extraEnv` on each scoring worker: the online evaluation worker, the call scoring worker, and the agent scoring worker.\n\n| Environment variable | Default | Effect |\n| - | - | - |\n| `WF_SCORING_WORKER_REMOTE_SCORING_ENABLED` | `false` | Turns on outbound requests to remote scorers. When `false`, no remote scorer runs, regardless of other settings. |\n| `WF_SCORING_WORKER_REMOTE_HTTP_TIMEOUT_SECONDS` | `30` | Timeout for each request to a scorer endpoint. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_HOSTS` | empty | Comma-separated operator allowlist of `host` or `host:port` entries. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_VALIDATE_HOSTS` | `true` | Enforces the allowed hosts lists. Private, loopback, and cloud metadata addresses are rejected regardless of this setting. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOW_INSECURE_HTTP` | `false` | Permits `http://` endpoint URLs. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_PRIVATE_CIDRS` | empty | Comma-separated CIDR networks, such as `10.0.0.0/8`, whose private addresses remote scorers may call. |\n\nTo show the remote scoring settings and scorer options in the Weave UI, also set `GORILLA_GATE_WEAVE_REMOTE_SCORING=true` on the W\\&B server.\n\n**Allowed host rules**\n\nThe scoring worker checks every scorer endpoint URL, and separately the OAuth token endpoint URL when a scorer uses OAuth, against these rules:\n\n* An entry matches an exact host, with an optional port. An entry without a port allows any port on that host.\n* An entry that starts with `*.` matches subdomains at any depth, but not the domain itself. `*.corp.example.com` matches `a.corp.example.com` and `a.b.corp.example.com`, not `corp.example.com`. The suffix after `*.` must contain at least two labels, so `*.com` is rejected. A wildcard can't be combined with an IP address.\n* When both an operator allowlist and an organization allowlist exist, the URL must satisfy both. An empty operator allowlist adds no restriction. When no allowlist exists at all, the worker rejects every host.\n* Loopback, private, internal, and cloud metadata addresses are rejected. On Self-Managed, private addresses in the networks listed in `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_PRIVATE_CIDRS` are allowed.\n* HTTPS is required unless the deployment permits insecure HTTP.\n* Redirects aren't followed.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+      },
+      {
+        "source_id": "S6",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 6,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Authenticate requests from Weave",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "## Authenticate requests from Weave\n\nWeave authenticates to your endpoint with a bearer token. The request carries no Forge credential. The token proves to your endpoint that the request came from Weave, not the reverse. Each `RemoteScorer` uses one of two modes:\n\n| Mode | What Weave does | What you configure |\n| - | - | - |\n| `oauth_client_credentials` | Requests a token from your OAuth token endpoint with the client credentials grant, sending the client ID and secret with HTTP Basic authentication (`client_secret_basic`), then sends that token to your scorer endpoint. | The token endpoint URL, the client ID, the name of the secret that holds the client secret, and an optional scope. |\n| `static_bearer` | Sends a fixed token to your scorer endpoint. | The name of the secret that holds the token. |\n\nStore the client secret or bearer token in the secret store of the team that owns the project before you register the scorer. The `RemoteScorer` configuration holds only the secret name. The scoring worker resolves the value at scoring time.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+      },
+      {
+        "source_id": "S7",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 9,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Python SDK",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "### Python SDK\n\nPublish a `RemoteScorer`, then activate a `Monitor` that lists it in `scorers` and targets `weave.genai.turn_ended` in `op_names`.\n\n```python lines theme={\"system\"}\nimport weave\nfrom weave.flow.monitor import Monitor\nfrom weave.scorers.remote_scorer import RemoteScorer, StaticBearerAuthConfig\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\nscorer = RemoteScorer(\n    name=\"policy_remote_scorer\",\n    endpoint_url=\"https://scoring.example.com/weave/score\",\n    config={\"threshold\": 0.9},  # Sent to your endpoint as scorer.config\n    auth_config=StaticBearerAuthConfig(\n        mode=\"static_bearer\",\n        bearer_secret_name=\"WEAVE_REMOTE_SCORER_BEARER_TOKEN\",\n    ),\n)\nweave.publish(scorer, name=\"policy_remote_scorer\")\n\nmonitor = Monitor(\n    name=\"policy_remote_signal\",\n    scorers=[scorer],\n    op_names=[\"weave.genai.turn_ended\"],  # Score completed agent turns\n    sampling_rate=1.0,\n)\nmonitor.activate()\n```\n\nFor OAuth client credentials, pass an `OAuthClientCredentialsConfig` as `auth_config` instead.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+      },
+      {
+        "source_id": "S8",
+        "page_id": "guides/tracking/trace-agents",
+        "section": 1,
+        "title": "Trace your agents",
+        "heading": "Before you begin",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+        "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+        "text": "## Before you begin\n\nTo get started, install the `weave` package and initialize your project. This step registers your team and project with Weave so that the SDK routes spans to the correct location in the UI.\n\n**Python**\n\n```bash lines theme={\"system\"}\npip install weave\n```\n\nReplace `[YOUR-TEAM]` with your CoreWeave Forge team name and `[YOUR-PROJECT]` with your Weights & Biases project name.\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n```\n\nCall `weave.init()` before any `start_conversation()`, `start_turn()`, `start_llm()`, `start_tool()`, or `start_subagent()` call. All agent tracing functions no-op silently when tracing is disabled or the init call is absent, so you can leave instrumentation in production code and control it through configuration.\n\n**TypeScript**\n\n```bash lines theme={\"system\"}\nnpm install weave\n```\n\nReplace `[YOUR-TEAM]` with your CoreWeave Forge team name and `[YOUR-PROJECT]` with your Weights & Biases project name.\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\n\nawait weave.init('[YOUR-TEAM]/[YOUR-PROJECT]');\n```\n\nCall `weave.init()` before any `startConversation()`, `startTurn()`, `startLLM()`, `startTool()`, or `startSubagent()` call. All agent tracing functions no-op silently when tracing is disabled or the init call is absent, so you can leave instrumentation in production code and control it through configuration.\n\n",
+        "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n"
+      },
+      {
+        "source_id": "S9",
+        "page_id": "guides/tracking/trace-agents",
+        "section": 3,
+        "title": "Trace your agents",
+        "heading": "Agent tracing APIs",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+        "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+        "text": "## Agent tracing APIs\n\nThe following sections describe each top-level tracing function and the arguments it accepts. Use them to instrument the conversation, turn, LLM call, and tool call layers of the data model described in the previous section.\n\nWeave exposes the following top-level functions. Each function returns an object that works as a context manager (using `with` in Python, or `try/finally` in TypeScript) or that you can close manually by calling `.end()`.\n\n",
+        "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n"
+      },
+      {
+        "source_id": "S10",
+        "page_id": "agent-evals",
+        "section": 6,
+        "title": "Evaluate your AI agent with Weave",
+        "heading": "Score a multi-turn conversation",
+        "url": "https://docs.coreweave.com/products/wandb/weave/agent-evals",
+        "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+        "text": "## Score a multi-turn conversation\n\nReal conversations span several turns, and a capable agent carries context forward. It shouldn't re-ask for an order ID the user already gave. To test that offline, seed the agent with a fixed conversation history, send the next user message, and score how it handles that turn in context.\n\nEach dataset row is one such scenario: the prior turns plus the next message that the agent must answer. Below, the order ID appears only in the history, so a good agent reuses it instead of asking again:\n\n```python lines theme={\"system\"}\nrow = {\n    \"conversation_history\": [\n        {\"role\": \"user\", \"content\": \"Hi, can you check the status of my order A1001?\"},\n        {\"role\": \"assistant\", \"content\": \"Your order A1001 was delivered 5 days ago.\"},\n    ],\n    \"next_user_message\": \"Thanks. Actually, I'd like to return it for a refund.\",\n    \"success_criteria\": \"Uses the prior context (order A1001) to issue the refund without re-asking the ID.\",\n}\n\nwith ev.log_prediction(inputs=row) as pred:\n    with start_conversation(agent_name=\"support-agent\", conversation_id=new_id()) as conv:\n        reply, transcript = run_agent_turn(\n            conv, row[\"next_user_message\"], history=row[\"conversation_history\"],\n        )\n    pred.output = reply\n    judge_task = {\"user_request\": row[\"next_user_message\"], \"success_criteria\": row[\"success_criteria\"]}\n    pred.log_score(\"task_completion\", judge_task_completion(judge_task, transcript))\n```\n\nAs with the single-turn evaluation, each row links back to its full transcript, so you can inspect whether the agent used the prior context or re-asked for the order ID.\n\n> [!NOTE]\n>\n> This approach scores the next turn against a fixed history, which is the practical offline method. Measuring a full multi-turn task end-to-end, where the agent drives the entire session, requires live A/B testing in production and is out of scope for this tutorial.\n\n",
+        "page_context": "# Evaluate your AI agent with Weave\n\n> Evaluate single-turn and multi-turn AI agents in Weave using the agents workflow and EvaluationLogger, scored with an LLM judge.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\nUnlike a single LLM call, an agent pursues a goal across multiple turns, calling tools and acting on their results. Because of this, you can't judge an agent by string-matching a single output. Instead, you evaluate its behavior across a trajectory.\n\nThis tutorial shows you how to evaluate an agent with Weave using the agents workflow. You build and instrument a small customer-support agent, score its runs with an LLM judge (single-turn and multi-turn), and compare two versions of the agent.\n\n"
+      }
+    ],
+    "actions": [
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "Agents Signals remote scoring HTTP endpoint"
+        },
+        "result": {
+          "query": "Agents Signals remote scoring HTTP endpoint",
+          "results": [
+            {
+              "page_id": "guides/tracking/remote-scorer-signals",
+              "section": 0,
+              "title": "Score agent turns with a remote scorer",
+              "heading": "Score agent turns with a remote scorer",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+              "snippet": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+            },
+            {
+              "page_id": "guides/evaluation/remote-scorers",
+              "section": 0,
+              "title": "Score Calls with remote scorers",
+              "heading": "Score Calls with remote scorers",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers",
+              "snippet": "# Score Calls with remote scorers\n\n> Score Weave Calls with a scorer that runs on your own infrastructure and records the result as Call feedback.\n\nA remote scorer is a scorer that runs on your infrastructure instead of inside Weave. When a monitor selects a Call, the Weave scoring worker sends the Call to your HTTPS endpoint in an HTTP `POST` request and records the response as feedback on that Call. Use a remote scorer when your scoring logic can't run in Weave, such as a policy check against internal data or a model you host yourself.\n\nThis page covers remote scorers for Calls traced with `@weave.op`. To score agent turns in the Agents view, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md). You configure remote scorers for Calls with the Python SDK. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+            },
+            {
+              "page_id": "guides/tracking/view-agent-signals",
+              "section": 0,
+              "title": "Monitor your agents with signals",
+              "heading": "Monitor your agents with signals",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+              "snippet": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instea"
+            },
+            {
+              "page_id": "guides/tracking/remote-scorer-signals",
+              "section": 8,
+              "title": "Score agent turns with a remote scorer",
+              "heading": "Weave UI",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+              "snippet": "### Weave UI\n\nCreate the signal from the Agents view:\n\n1. In the Weave project sidebar, click **Agents**.\n2. In the tab bar, click **Signals**.\n3. Click **New signal**, then click **Remote scorer**.\n4. In the **Remote scorer** drawer, **Scored by** is set to **Remote scorer**. Configure the following fields:\n   * **Scorer name**: The name shown in the **Scorer** column of the Signals table. Up to 128 characters.\n   * **Scoring endpoint URL**: The URL Weave sends the `POST` to.\n   * **Authentication**: **Static bearer** or **OAuth client credentials**. For static bearer, select or enter the **Bearer token secret name**. For OAuth, enter the **Token endpoint URL**, **Client ID**, **Client secret name**, and optional **Scope**. Secret fields take team secret names, not values.\n   * **Config (JSON, optional)**: A JSON object passed to your endpoint as `scorer.config`.\n   * **Only score turns matching** (Optional): Expand **Advanced**, then add filters to restrict which turns the signal scores, for example by agent name, agent version, operation name, tool name, or status code. To score e"
+            },
+            {
+              "page_id": "guides/evaluation/remote-scorers",
+              "section": 2,
+              "title": "Score Calls with remote scorers",
+              "heading": "Enable remote scoring",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers",
+              "snippet": "## Enable remote scoring\n\nRemote scoring is off until it's enabled for your organization or deployment, and the scoring worker calls a scorer endpoint only if its host is on an allowlist. How you enable it depends on your deployment type.\n\n**Multi-tenant Cloud**\n\nTo enable remote scorers for an organization, an organization or billing admin must:\n\n1. Open `https://forge.coreweave.com/account-settings/[ORGANIZATION]/settings`, replacing `[ORGANIZATION]` with the organization that owns your project.\n2. Select the **Remote scoring** tab.\n3. Turn on **Enable remote scoring**.\n4. Under **Allowed hosts**, click **Add host** and enter each host that remote scorers may call. Saving with remote scoring enabled requires at least one host. Leave the port blank to allow any port on that host.\n5. Click **Save settings**.\n\n**Dedicated Cloud**\n\nAsk Forge to enable remote scoring for your deployment and configure its allowed hosts.\n\n**Self-Managed**\n\nIf you run Weave in a [W\\&B Self-Managed](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/self-managed.md) deployment, set t"
+            },
+            {
+              "page_id": "guides/evaluation/custom-monitors",
+              "section": 0,
+              "title": "Set up custom monitors",
+              "heading": "Set up custom monitors",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/custom-monitors",
+              "snippet": "# Set up custom monitors\n\n> Passively score production traffic to surface trends and issues\n\n> [!NOTE]\n>\n> Custom monitors are the previous approach to monitoring production traffic. For new implementations, use **Signals** under Weave for Agents. See [View agent signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page shows you how to set up custom monitors in Weave so you can passively score production traffic and surface trends and issues in your LLM applications. Use this guide when you want to define your own evaluation criteria, beyond Weave's preset signals, for production traces.\n\nMonitors use LLM judges to passively score production traffic to surface trends and issues in your LLM applications. For example, you can monitor your application's responses for correctness or helpfulness, or you can monitor user input to identify trends in what users ask your agents about. Monitors automatically store all scoring results in Weave's database, so you can analyze historical trends and patterns.\n\nYou can monitor text, images, and audi"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        }
+      },
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "multi-turn conversations tool calls agent traces Python"
+        },
+        "result": {
+          "query": "multi-turn conversations tool calls agent traces Python",
+          "results": [
+            {
+              "page_id": "guides/tracking/trace-agents",
+              "section": 0,
+              "title": "Trace your agents",
+              "heading": "Trace your agents",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+              "snippet": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM "
+            },
+            {
+              "page_id": "agent-integration-quickstart",
+              "section": 0,
+              "title": "Choose an agent integration",
+              "heading": "Choose an agent integration",
+              "url": "https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart",
+              "snippet": "# Choose an agent integration\n\n> Pick a built-in Weave integration for your agent SDK or harness and start sending conversations, turns, LLM calls, and tool calls to the Agents view.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/get-started/integrations.md).\n\nW\\&B Weave traces multi-turn agents built with popular SDKs and harnesses without hand-instrumenting each turn. Install a plugin for your agent harness, or call `weave.init()` in code that uses a supported agent SDK, and Weave autopatches the framework. Conversations, turns, LLM calls, and tool calls render in the **Agents** view of your project.\n\nHarness plugins group turns into conversations on their own, because the harness owns the session. A"
+            },
+            {
+              "page_id": "guides/integrations/agents/pi-dev-harness",
+              "section": 4,
+              "title": "Pi extension",
+              "heading": "Next steps",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/agents/pi-dev-harness",
+              "snippet": "### Next steps\n\nTo turn this example into a multi-turn conversation, add more prompts. Weave traces each call to `session.prompt()` as a separate `invoke_agent` span, all nested under a single root span. The agent retains context across prompts automatically.\n\nAfter running the code, the **Agents** tab shows the full multi-turn timeline with nested LLM calls, tool executions, token usage, and cost.\n"
+            },
+            {
+              "page_id": "guides/integrations/agents/claude-agents-sdk",
+              "section": 1,
+              "title": "Claude Agent SDK",
+              "heading": "Trace Claude Agent SDK agents with Weave",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/agents/claude-agents-sdk",
+              "snippet": "## Trace Claude Agent SDK agents with Weave\n\n**Python**\n\nThe Weave SDK autopatches the [Claude Agent SDK for Python](https://github.com/anthropics/claude-agent-sdk-python), letting you capture traces from your Claude agents with minimal setup.\n\nThis guide shows how to initialize Weave and run a multi-turn Claude agent with MCP tools through `query()`. Weave automatically traces the conversation, model calls, and tool calls end-to-end.\n\n"
+            },
+            {
+              "page_id": "guides/integrations/agents/claude-code-harness",
+              "section": 3,
+              "title": "Claude Code plugin",
+              "heading": "View Claude Code traces in Weave",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/agents/claude-code-harness",
+              "snippet": "## View Claude Code traces in Weave\n\nAfter running at least one Claude Code session, open your project in the Weights & Biases UI:\n\n1. Navigate to [Forge](https://forge.coreweave.com/wandb) and select your project.\n2. In the sidebar menu, select **Agents**.\n3. Select the **Conversations** tab to view all agent conversations saved for your project.\n4. Select a conversation to inspect the full conversation tree.\n\nFor more information about the Agents view, see [View agent activity](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md).\n\nEach user prompt produces one OTEL trace that follows the [GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/). The trace shows a full turn hierarchy:\n\n```text theme={\"system\"}\ninvoke_agent claude-code               (Root, one trace per user prompt.)\n\u251c\u2500 chat <model>                        (Each LLM call within the turn.)\n\u251c\u2500 execute_tool <tool_name>            (Each tool call such as Read, Bash, Grep.)\n\u2514\u2500 invoke_agent <subagent_type>        (Subagent dispatched through the Agent tool.)\n   \u251c\u2500 "
+            },
+            {
+              "page_id": "guides/integrations/bedrock_agents",
+              "section": 5,
+              "title": "Bedrock Agents",
+              "heading": "Multi-turn conversations",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/bedrock_agents",
+              "snippet": "## Multi-turn conversations\n\nBedrock Agents preserve conversation state on the service side when you reuse a `sessionId`. To group multiple turns into a single trace in the Weights & Biases UI, wrap the turns in `weave.thread`:\n\n```python lines theme={\"system\"}\nwith weave.thread(\"support-conversation\") as t:\n    for prompt in [\n        \"I can't log in to my account.\",\n        \"I already tried resetting my password.\",\n    ]:\n        ask_agent(prompt, session_id=t.thread_id)\n```\n\nWeave displays each turn in the UI as individual rows in the Threads view.\n\n"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        }
+      },
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "regression evaluation fixed dataset rerun when agent changes"
+        },
+        "result": {
+          "query": "regression evaluation fixed dataset rerun when agent changes",
+          "results": [
+            {
+              "page_id": "guides/evaluation/automations",
+              "section": 0,
+              "title": "Set up automations",
+              "heading": "Set up automations",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/automations",
+              "snippet": "# Set up automations\n\n> Create event-driven automations that trigger actions based on monitor metrics and trace activity.\n\nAutomations let you define event-driven rules that trigger actions when your project meets specific conditions. Instead of manually watching dashboards for metric changes, you configure an automation once, and Weave runs an action for you when the event occurs. Use cases include:\n\n* **Threshold alert**: Send a Slack notification when a monitor's average score crosses a threshold.\n* **Regression detection**: Send an alert when a scorer detects a drop in accuracy or an increase in toxicity.\n* **Deployment gate**: Trigger a webhook when a quality metric exceeds a confidence threshold over a rolling window.\n* **Operational monitoring**: Send an alert when error rates or latency metrics change.\n\nYou manage automations in the Weights & Biases UI, with no code changes required. This guide walks you through creating an automation from the Automations page, creating one from an existing monitor, and viewing and managing automations after you create them.\n\n"
+            },
+            {
+              "page_id": "guides/evaluation/export_eval",
+              "section": 9,
+              "title": "Export evaluation data",
+              "heading": "Row digests",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/export_eval",
+              "snippet": "## Row digests\n\nBeyond the raw data each endpoint returns, the response from `eval_results/query` includes an additional identifier that helps you correlate rows across runs. Each result row from the `eval_results/query` endpoint includes a `row_digest`, a content hash that uniquely identifies a specific input in the evaluation dataset based on its contents, not its position. Row digests are useful for:\n\n* **Cross-evaluation comparison**: When you run two different models against the same dataset, rows with the same digest represent the same input. You can join on `row_digest` to compare how different models performed on the exact same task.\n* **Deduplication**: If the same task appears in multiple evaluation suites, the digest lets you identify it.\n* **Reproducibility**: The digest is content-addressable, so if someone modifies a dataset row (changes the instruction text, rubric, or other fields), it gets a new digest. You can verify whether two evaluation runs used identical inputs or different versions.\n"
+            },
+            {
+              "page_id": "cookbooks/multi-agent-structured-output",
+              "section": 2,
+              "title": "Multi-agent structured output",
+              "heading": "Set up the agents",
+              "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/multi-agent-structured-output",
+              "snippet": "## Set up the agents\n\nWith Weave initialized, define the agents that make up the system. The use case for this tutorial is a data analysis task.\nFirst, set up the four-agent system:\n\n* Triaging agent: Decides which agents to call.\n* Data pre-processing agent: Prepares data for analysis, for example by cleaning it up.\n* Data analysis agent: Performs analysis on the data.\n* Data visualization agent: Visualizes the output of the analysis to extract insights.\n\nStart by defining the system prompts for each of these agents. These prompts establish each agent's role and the tools it's allowed to call.\n\n```python lines theme={\"system\"}\ntriaging_system_prompt = \"\"\"You are a Triaging Agent. Your role is to assess the user's query and route it to the relevant agents. The agents available are:\n- Data Processing Agent: Cleans, transforms, and aggregates data.\n- Analysis Agent: Performs statistical, correlation, and regression analysis.\n- Visualization Agent: Creates bar charts, line charts, and pie charts.\n\nUse the send_query_to_agents tool to forward the user's query to the relevant agents. Also"
+            },
+            {
+              "page_id": "guides/platform/ingest-sampling",
+              "section": 3,
+              "title": "Configure ingest sampling for Weave Self-Managed",
+              "heading": "How it works",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/platform/ingest-sampling",
+              "snippet": "## How it works\n\nThe server uses the trace's ID and [deterministic hash-based sampling](https://opentelemetry.io/docs/concepts/sampling/) to decide which traces to drop and keep. If a trace contains several calls that have the same `trace_id`, the server's verdict to keep or drop a trace extends to any nested calls or spans that share the same trace ID. A trace is kept whole or dropped whole, never stored partway.\n\n> [!WARNING]\n>\n> The verdict is stable only while the rate is fixed. A trace that's in flight when the rate changes can be split across the change. Change the sample rate during a low-traffic window.\n\n"
+            },
+            {
+              "page_id": "guides/tracking/trace-plots",
+              "section": 4,
+              "title": "Use trace plots",
+              "heading": "Trace plot settings by plot type",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-plots",
+              "snippet": "### Trace plot settings by plot type\n\nWhen you add or edit a custom trace plot, the available configuration options vary depending on the selected trace plot type. The following table describes the configurable options.\n\n| Setting | Scatter Plot | Line Chart | Bar Chart |\n| - | - | - | - |\n| Y-axis | \u2713 Required | \u2713 Required | \u2713 Required |\n| X-axis | \u2713 Selectable | Fixed (`started at`) | Fixed (`started at`) |\n| Grouping | \u2713 Optional | \u2713 Optional | \u2713 Optional |\n| Binning | \u2717 Not used | \u2713 Used | \u2713 Used |\n| Aggregation | \u2717 Not used | \u2713 Used | \u2713 Used |\n"
+            },
+            {
+              "page_id": "agent-evals",
+              "section": 6,
+              "title": "Evaluate your AI agent with Weave",
+              "heading": "Score a multi-turn conversation",
+              "url": "https://docs.coreweave.com/products/wandb/weave/agent-evals",
+              "snippet": "## Score a multi-turn conversation\n\nReal conversations span several turns, and a capable agent carries context forward. It shouldn't re-ask for an order ID the user already gave. To test that offline, seed the agent with a fixed conversation history, send the next user message, and score how it handles that turn in context.\n\nEach dataset row is one such scenario: the prior turns plus the next message that the agent must answer. Below, the order ID appears only in the history, so a good agent reuses it instead of asking again:\n\n```python lines theme={\"system\"}\nrow = {\n    \"conversation_history\": [\n        {\"role\": \"user\", \"content\": \"Hi, can you check the status of my order A1001?\"},\n        {\"role\": \"assistant\", \"content\": \"Your order A1001 was delivered 5 days ago.\"},\n    ],\n    \"next_user_message\": \"Thanks. Actually, I'd like to return it for a refund.\",\n    \"success_criteria\": \"Uses the prior context (order A1001) to issue the refund without re-asking the ID.\",\n}\n\nwith ev.log_prediction(inputs=row) as pred:\n    with start_conversation(agent_name=\"support-agent\", conversation_id=ne"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 0
+        },
+        "result": {
+          "source_id": "S1",
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 0,
+          "title": "Score agent turns with a remote scorer",
+          "heading": "Score agent turns with a remote scorer",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+          "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+          "text": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+          "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Score agent turns with a remote scorer"
+            },
+            {
+              "section": 1,
+              "heading": "How agent turn scoring works"
+            },
+            {
+              "section": 2,
+              "heading": "Enable remote scoring"
+            },
+            {
+              "section": 3,
+              "heading": "Build the scorer endpoint"
+            },
+            {
+              "section": 4,
+              "heading": "Request"
+            },
+            {
+              "section": 5,
+              "heading": "Response"
+            },
+            {
+              "section": 6,
+              "heading": "Authenticate requests from Weave"
+            },
+            {
+              "section": 7,
+              "heading": "Create a remote scorer signal"
+            },
+            {
+              "section": 8,
+              "heading": "Weave UI"
+            },
+            {
+              "section": 9,
+              "heading": "Python SDK"
+            },
+            {
+              "section": 10,
+              "heading": "Sample code"
+            },
+            {
+              "section": 11,
+              "heading": "Test the signal"
+            },
+            {
+              "section": 12,
+              "heading": "Troubleshooting"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 1
+        },
+        "result": {
+          "source_id": "S2",
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 1,
+          "title": "Score agent turns with a remote scorer",
+          "heading": "How agent turn scoring works",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+          "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+          "text": "## How agent turn scoring works\n\nAn agent turn is scored in the following sequence:\n\n1. A turn ends. When a root span (a span with no parent) ends, Weave treats it as a completed turn and emits a `weave.genai.turn_ended` event.\n2. The agent scoring worker loads the project's active signals that target `weave.genai.turn_ended`, then applies each signal's filters and sample rate.\n3. For each `RemoteScorer` on a matching signal, the worker builds a `schema_version: 2` request from the turn's span, including its messages, resolves the scorer's credentials, checks the endpoint URL against the allowed hosts, and sends the `POST`.\n4. The worker validates the response and writes the result as feedback on the turn. Tags and ratings appear on the **Signals** tab.\n\nWeave scores only completed turns. Individual LLM and tool spans, and whole conversations, aren't remote scoring targets. A remote scorer signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`, whether you create it in the UI or with the SDK.\n\nThe worker retries a failed attempt with the same `Idempotency-Key`, up to three attempts within 30 seconds of the first attempt. A `5xx`, `408`, or `429` response is retried. A timeout uses the whole 30 seconds, so a timed-out request isn't retried. Any other `4xx` response isn't retried. If your endpoint can't score a turn in time, return `503` quickly rather than letting the request time out, so that Weave retries it. Agent turn scoring requires the structured result format, because Weave stores the tags and ratings as typed feedback columns.\n\n",
+          "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Score agent turns with a remote scorer"
+            },
+            {
+              "section": 1,
+              "heading": "How agent turn scoring works"
+            },
+            {
+              "section": 2,
+              "heading": "Enable remote scoring"
+            },
+            {
+              "section": 3,
+              "heading": "Build the scorer endpoint"
+            },
+            {
+              "section": 4,
+              "heading": "Request"
+            },
+            {
+              "section": 5,
+              "heading": "Response"
+            },
+            {
+              "section": 6,
+              "heading": "Authenticate requests from Weave"
+            },
+            {
+              "section": 7,
+              "heading": "Create a remote scorer signal"
+            },
+            {
+              "section": 8,
+              "heading": "Weave UI"
+            },
+            {
+              "section": 9,
+              "heading": "Python SDK"
+            },
+            {
+              "section": 10,
+              "heading": "Sample code"
+            },
+            {
+              "section": 11,
+              "heading": "Test the signal"
+            },
+            {
+              "section": 12,
+              "heading": "Troubleshooting"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/trace-agents",
+          "section": 0
+        },
+        "result": {
+          "source_id": "S3",
+          "page_id": "guides/tracking/trace-agents",
+          "section": 0,
+          "title": "Trace your agents",
+          "heading": "Trace your agents",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+          "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+          "text": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+          "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Trace your agents"
+            },
+            {
+              "section": 1,
+              "heading": "Before you begin"
+            },
+            {
+              "section": 2,
+              "heading": "The agent data model"
+            },
+            {
+              "section": 3,
+              "heading": "Agent tracing APIs"
+            },
+            {
+              "section": 4,
+              "heading": "Start a conversation"
+            },
+            {
+              "section": 5,
+              "heading": "Start a turn"
+            },
+            {
+              "section": 6,
+              "heading": "Start an LLM call"
+            },
+            {
+              "section": 7,
+              "heading": "Start a tool call"
+            },
+            {
+              "section": 8,
+              "heading": "Usage patterns for agent tracing"
+            },
+            {
+              "section": 9,
+              "heading": "Context manager or try-finally pattern"
+            },
+            {
+              "section": 10,
+              "heading": "Manual start and end pattern"
+            },
+            {
+              "section": 11,
+              "heading": "Semantic conventions"
+            },
+            {
+              "section": 12,
+              "heading": "How data appears in the Weights & Biases UI"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "agent-evals",
+          "section": 0
+        },
+        "result": {
+          "source_id": "S4",
+          "page_id": "agent-evals",
+          "section": 0,
+          "title": "Evaluate your AI agent with Weave",
+          "heading": "Evaluate your AI agent with Weave",
+          "url": "https://docs.coreweave.com/products/wandb/weave/agent-evals",
+          "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+          "text": "# Evaluate your AI agent with Weave\n\n> Evaluate single-turn and multi-turn AI agents in Weave using the agents workflow and EvaluationLogger, scored with an LLM judge.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\nUnlike a single LLM call, an agent pursues a goal across multiple turns, calling tools and acting on their results. Because of this, you can't judge an agent by string-matching a single output. Instead, you evaluate its behavior across a trajectory.\n\nThis tutorial shows you how to evaluate an agent with Weave using the agents workflow. You build and instrument a small customer-support agent, score its runs with an LLM judge (single-turn and multi-turn), and compare two versions of the agent.\n\n",
+          "page_context": "# Evaluate your AI agent with Weave\n\n> Evaluate single-turn and multi-turn AI agents in Weave using the agents workflow and EvaluationLogger, scored with an LLM judge.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\nUnlike a single LLM call, an agent pursues a goal across multiple turns, calling tools and acting on their results. Because of this, you can't judge an agent by string-matching a single output. Instead, you evaluate its behavior across a trajectory.\n\nThis tutorial shows you how to evaluate an agent with Weave using the agents workflow. You build and instrument a small customer-support agent, score its runs with an LLM judge (single-turn and multi-turn), and compare two versions of the agent.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Evaluate your AI agent with Weave"
+            },
+            {
+              "section": 1,
+              "heading": "What you'll learn"
+            },
+            {
+              "section": 2,
+              "heading": "Prerequisites"
+            },
+            {
+              "section": 3,
+              "heading": "Build and trace the agent"
+            },
+            {
+              "section": 4,
+              "heading": "Score the agent with an LLM judge"
+            },
+            {
+              "section": 5,
+              "heading": "Organize and compare evaluations"
+            },
+            {
+              "section": 6,
+              "heading": "Score a multi-turn conversation"
+            },
+            {
+              "section": 7,
+              "heading": "Extend your scorers"
+            },
+            {
+              "section": 8,
+              "heading": "Next steps"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 2
+        },
+        "result": {
+          "source_id": "S5",
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 2,
+          "title": "Score agent turns with a remote scorer",
+          "heading": "Enable remote scoring",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+          "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+          "text": "## Enable remote scoring\n\nRemote scoring is off until it's enabled for your organization or deployment, and the scoring worker calls a scorer endpoint only if its host is on an allowlist. How you enable it depends on your deployment type.\n\n**Multi-tenant Cloud**\n\nTo enable remote scorers for an organization, an organization or billing admin must:\n\n1. Open `https://forge.coreweave.com/account-settings/[ORGANIZATION]/settings`, replacing `[ORGANIZATION]` with the organization that owns your project.\n2. Select the **Remote scoring** tab.\n3. Turn on **Enable remote scoring**.\n4. Under **Allowed hosts**, click **Add host** and enter each host that remote scorers may call. Saving with remote scoring enabled requires at least one host. Leave the port blank to allow any port on that host.\n5. Click **Save settings**.\n\n**Dedicated Cloud**\n\nAsk Forge to enable remote scoring for your deployment and configure its allowed hosts.\n\n**Self-Managed**\n\nIf you run Weave in a [W\\&B Self-Managed](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/self-managed.md) deployment, set these environment variables through `extraEnv` on each scoring worker: the online evaluation worker, the call scoring worker, and the agent scoring worker.\n\n| Environment variable | Default | Effect |\n| - | - | - |\n| `WF_SCORING_WORKER_REMOTE_SCORING_ENABLED` | `false` | Turns on outbound requests to remote scorers. When `false`, no remote scorer runs, regardless of other settings. |\n| `WF_SCORING_WORKER_REMOTE_HTTP_TIMEOUT_SECONDS` | `30` | Timeout for each request to a scorer endpoint. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_HOSTS` | empty | Comma-separated operator allowlist of `host` or `host:port` entries. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_VALIDATE_HOSTS` | `true` | Enforces the allowed hosts lists. Private, loopback, and cloud metadata addresses are rejected regardless of this setting. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOW_INSECURE_HTTP` | `false` | Permits `http://` endpoint URLs. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_PRIVATE_CIDRS` | empty | Comma-separated CIDR networks, such as `10.0.0.0/8`, whose private addresses remote scorers may call. |\n\nTo show the remote scoring settings and scorer options in the Weave UI, also set `GORILLA_GATE_WEAVE_REMOTE_SCORING=true` on the W\\&B server.\n\n**Allowed host rules**\n\nThe scoring worker checks every scorer endpoint URL, and separately the OAuth token endpoint URL when a scorer uses OAuth, against these rules:\n\n* An entry matches an exact host, with an optional port. An entry without a port allows any port on that host.\n* An entry that starts with `*.` matches subdomains at any depth, but not the domain itself. `*.corp.example.com` matches `a.corp.example.com` and `a.b.corp.example.com`, not `corp.example.com`. The suffix after `*.` must contain at least two labels, so `*.com` is rejected. A wildcard can't be combined with an IP address.\n* When both an operator allowlist and an organization allowlist exist, the URL must satisfy both. An empty operator allowlist adds no restriction. When no allowlist exists at all, the worker rejects every host.\n* Loopback, private, internal, and cloud metadata addresses are rejected. On Self-Managed, private addresses in the networks listed in `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_PRIVATE_CIDRS` are allowed.\n* HTTPS is required unless the deployment permits insecure HTTP.\n* Redirects aren't followed.\n\n",
+          "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Score agent turns with a remote scorer"
+            },
+            {
+              "section": 1,
+              "heading": "How agent turn scoring works"
+            },
+            {
+              "section": 2,
+              "heading": "Enable remote scoring"
+            },
+            {
+              "section": 3,
+              "heading": "Build the scorer endpoint"
+            },
+            {
+              "section": 4,
+              "heading": "Request"
+            },
+            {
+              "section": 5,
+              "heading": "Response"
+            },
+            {
+              "section": 6,
+              "heading": "Authenticate requests from Weave"
+            },
+            {
+              "section": 7,
+              "heading": "Create a remote scorer signal"
+            },
+            {
+              "section": 8,
+              "heading": "Weave UI"
+            },
+            {
+              "section": 9,
+              "heading": "Python SDK"
+            },
+            {
+              "section": 10,
+              "heading": "Sample code"
+            },
+            {
+              "section": 11,
+              "heading": "Test the signal"
+            },
+            {
+              "section": 12,
+              "heading": "Troubleshooting"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 6
+        },
+        "result": {
+          "source_id": "S6",
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 6,
+          "title": "Score agent turns with a remote scorer",
+          "heading": "Authenticate requests from Weave",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+          "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+          "text": "## Authenticate requests from Weave\n\nWeave authenticates to your endpoint with a bearer token. The request carries no Forge credential. The token proves to your endpoint that the request came from Weave, not the reverse. Each `RemoteScorer` uses one of two modes:\n\n| Mode | What Weave does | What you configure |\n| - | - | - |\n| `oauth_client_credentials` | Requests a token from your OAuth token endpoint with the client credentials grant, sending the client ID and secret with HTTP Basic authentication (`client_secret_basic`), then sends that token to your scorer endpoint. | The token endpoint URL, the client ID, the name of the secret that holds the client secret, and an optional scope. |\n| `static_bearer` | Sends a fixed token to your scorer endpoint. | The name of the secret that holds the token. |\n\nStore the client secret or bearer token in the secret store of the team that owns the project before you register the scorer. The `RemoteScorer` configuration holds only the secret name. The scoring worker resolves the value at scoring time.\n\n",
+          "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Score agent turns with a remote scorer"
+            },
+            {
+              "section": 1,
+              "heading": "How agent turn scoring works"
+            },
+            {
+              "section": 2,
+              "heading": "Enable remote scoring"
+            },
+            {
+              "section": 3,
+              "heading": "Build the scorer endpoint"
+            },
+            {
+              "section": 4,
+              "heading": "Request"
+            },
+            {
+              "section": 5,
+              "heading": "Response"
+            },
+            {
+              "section": 6,
+              "heading": "Authenticate requests from Weave"
+            },
+            {
+              "section": 7,
+              "heading": "Create a remote scorer signal"
+            },
+            {
+              "section": 8,
+              "heading": "Weave UI"
+            },
+            {
+              "section": 9,
+              "heading": "Python SDK"
+            },
+            {
+              "section": 10,
+              "heading": "Sample code"
+            },
+            {
+              "section": 11,
+              "heading": "Test the signal"
+            },
+            {
+              "section": 12,
+              "heading": "Troubleshooting"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 9
+        },
+        "result": {
+          "source_id": "S7",
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 9,
+          "title": "Score agent turns with a remote scorer",
+          "heading": "Python SDK",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+          "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+          "text": "### Python SDK\n\nPublish a `RemoteScorer`, then activate a `Monitor` that lists it in `scorers` and targets `weave.genai.turn_ended` in `op_names`.\n\n```python lines theme={\"system\"}\nimport weave\nfrom weave.flow.monitor import Monitor\nfrom weave.scorers.remote_scorer import RemoteScorer, StaticBearerAuthConfig\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\nscorer = RemoteScorer(\n    name=\"policy_remote_scorer\",\n    endpoint_url=\"https://scoring.example.com/weave/score\",\n    config={\"threshold\": 0.9},  # Sent to your endpoint as scorer.config\n    auth_config=StaticBearerAuthConfig(\n        mode=\"static_bearer\",\n        bearer_secret_name=\"WEAVE_REMOTE_SCORER_BEARER_TOKEN\",\n    ),\n)\nweave.publish(scorer, name=\"policy_remote_scorer\")\n\nmonitor = Monitor(\n    name=\"policy_remote_signal\",\n    scorers=[scorer],\n    op_names=[\"weave.genai.turn_ended\"],  # Score completed agent turns\n    sampling_rate=1.0,\n)\nmonitor.activate()\n```\n\nFor OAuth client credentials, pass an `OAuthClientCredentialsConfig` as `auth_config` instead.\n\n",
+          "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Score agent turns with a remote scorer"
+            },
+            {
+              "section": 1,
+              "heading": "How agent turn scoring works"
+            },
+            {
+              "section": 2,
+              "heading": "Enable remote scoring"
+            },
+            {
+              "section": 3,
+              "heading": "Build the scorer endpoint"
+            },
+            {
+              "section": 4,
+              "heading": "Request"
+            },
+            {
+              "section": 5,
+              "heading": "Response"
+            },
+            {
+              "section": 6,
+              "heading": "Authenticate requests from Weave"
+            },
+            {
+              "section": 7,
+              "heading": "Create a remote scorer signal"
+            },
+            {
+              "section": 8,
+              "heading": "Weave UI"
+            },
+            {
+              "section": 9,
+              "heading": "Python SDK"
+            },
+            {
+              "section": 10,
+              "heading": "Sample code"
+            },
+            {
+              "section": 11,
+              "heading": "Test the signal"
+            },
+            {
+              "section": 12,
+              "heading": "Troubleshooting"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/trace-agents",
+          "section": 1
+        },
+        "result": {
+          "source_id": "S8",
+          "page_id": "guides/tracking/trace-agents",
+          "section": 1,
+          "title": "Trace your agents",
+          "heading": "Before you begin",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+          "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+          "text": "## Before you begin\n\nTo get started, install the `weave` package and initialize your project. This step registers your team and project with Weave so that the SDK routes spans to the correct location in the UI.\n\n**Python**\n\n```bash lines theme={\"system\"}\npip install weave\n```\n\nReplace `[YOUR-TEAM]` with your CoreWeave Forge team name and `[YOUR-PROJECT]` with your Weights & Biases project name.\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n```\n\nCall `weave.init()` before any `start_conversation()`, `start_turn()`, `start_llm()`, `start_tool()`, or `start_subagent()` call. All agent tracing functions no-op silently when tracing is disabled or the init call is absent, so you can leave instrumentation in production code and control it through configuration.\n\n**TypeScript**\n\n```bash lines theme={\"system\"}\nnpm install weave\n```\n\nReplace `[YOUR-TEAM]` with your CoreWeave Forge team name and `[YOUR-PROJECT]` with your Weights & Biases project name.\n\n```typescript lines twoslash theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\n\nawait weave.init('[YOUR-TEAM]/[YOUR-PROJECT]');\n```\n\nCall `weave.init()` before any `startConversation()`, `startTurn()`, `startLLM()`, `startTool()`, or `startSubagent()` call. All agent tracing functions no-op silently when tracing is disabled or the init call is absent, so you can leave instrumentation in production code and control it through configuration.\n\n",
+          "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Trace your agents"
+            },
+            {
+              "section": 1,
+              "heading": "Before you begin"
+            },
+            {
+              "section": 2,
+              "heading": "The agent data model"
+            },
+            {
+              "section": 3,
+              "heading": "Agent tracing APIs"
+            },
+            {
+              "section": 4,
+              "heading": "Start a conversation"
+            },
+            {
+              "section": 5,
+              "heading": "Start a turn"
+            },
+            {
+              "section": 6,
+              "heading": "Start an LLM call"
+            },
+            {
+              "section": 7,
+              "heading": "Start a tool call"
+            },
+            {
+              "section": 8,
+              "heading": "Usage patterns for agent tracing"
+            },
+            {
+              "section": 9,
+              "heading": "Context manager or try-finally pattern"
+            },
+            {
+              "section": 10,
+              "heading": "Manual start and end pattern"
+            },
+            {
+              "section": 11,
+              "heading": "Semantic conventions"
+            },
+            {
+              "section": 12,
+              "heading": "How data appears in the Weights & Biases UI"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/trace-agents",
+          "section": 3
+        },
+        "result": {
+          "source_id": "S9",
+          "page_id": "guides/tracking/trace-agents",
+          "section": 3,
+          "title": "Trace your agents",
+          "heading": "Agent tracing APIs",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+          "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+          "text": "## Agent tracing APIs\n\nThe following sections describe each top-level tracing function and the arguments it accepts. Use them to instrument the conversation, turn, LLM call, and tool call layers of the data model described in the previous section.\n\nWeave exposes the following top-level functions. Each function returns an object that works as a context manager (using `with` in Python, or `try/finally` in TypeScript) or that you can close manually by calling `.end()`.\n\n",
+          "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Trace your agents"
+            },
+            {
+              "section": 1,
+              "heading": "Before you begin"
+            },
+            {
+              "section": 2,
+              "heading": "The agent data model"
+            },
+            {
+              "section": 3,
+              "heading": "Agent tracing APIs"
+            },
+            {
+              "section": 4,
+              "heading": "Start a conversation"
+            },
+            {
+              "section": 5,
+              "heading": "Start a turn"
+            },
+            {
+              "section": 6,
+              "heading": "Start an LLM call"
+            },
+            {
+              "section": 7,
+              "heading": "Start a tool call"
+            },
+            {
+              "section": 8,
+              "heading": "Usage patterns for agent tracing"
+            },
+            {
+              "section": 9,
+              "heading": "Context manager or try-finally pattern"
+            },
+            {
+              "section": 10,
+              "heading": "Manual start and end pattern"
+            },
+            {
+              "section": 11,
+              "heading": "Semantic conventions"
+            },
+            {
+              "section": 12,
+              "heading": "How data appears in the Weights & Biases UI"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "agent-evals",
+          "section": 6
+        },
+        "result": {
+          "source_id": "S10",
+          "page_id": "agent-evals",
+          "section": 6,
+          "title": "Evaluate your AI agent with Weave",
+          "heading": "Score a multi-turn conversation",
+          "url": "https://docs.coreweave.com/products/wandb/weave/agent-evals",
+          "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+          "text": "## Score a multi-turn conversation\n\nReal conversations span several turns, and a capable agent carries context forward. It shouldn't re-ask for an order ID the user already gave. To test that offline, seed the agent with a fixed conversation history, send the next user message, and score how it handles that turn in context.\n\nEach dataset row is one such scenario: the prior turns plus the next message that the agent must answer. Below, the order ID appears only in the history, so a good agent reuses it instead of asking again:\n\n```python lines theme={\"system\"}\nrow = {\n    \"conversation_history\": [\n        {\"role\": \"user\", \"content\": \"Hi, can you check the status of my order A1001?\"},\n        {\"role\": \"assistant\", \"content\": \"Your order A1001 was delivered 5 days ago.\"},\n    ],\n    \"next_user_message\": \"Thanks. Actually, I'd like to return it for a refund.\",\n    \"success_criteria\": \"Uses the prior context (order A1001) to issue the refund without re-asking the ID.\",\n}\n\nwith ev.log_prediction(inputs=row) as pred:\n    with start_conversation(agent_name=\"support-agent\", conversation_id=new_id()) as conv:\n        reply, transcript = run_agent_turn(\n            conv, row[\"next_user_message\"], history=row[\"conversation_history\"],\n        )\n    pred.output = reply\n    judge_task = {\"user_request\": row[\"next_user_message\"], \"success_criteria\": row[\"success_criteria\"]}\n    pred.log_score(\"task_completion\", judge_task_completion(judge_task, transcript))\n```\n\nAs with the single-turn evaluation, each row links back to its full transcript, so you can inspect whether the agent used the prior context or re-asked for the order ID.\n\n> [!NOTE]\n>\n> This approach scores the next turn against a fixed history, which is the practical offline method. Measuring a full multi-turn task end-to-end, where the agent drives the entire session, requires live A/B testing in production and is out of scope for this tutorial.\n\n",
+          "page_context": "# Evaluate your AI agent with Weave\n\n> Evaluate single-turn and multi-turn AI agents in Weave using the agents workflow and EvaluationLogger, scored with an LLM judge.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\nUnlike a single LLM call, an agent pursues a goal across multiple turns, calling tools and acting on their results. Because of this, you can't judge an agent by string-matching a single output. Instead, you evaluate its behavior across a trajectory.\n\nThis tutorial shows you how to evaluate an agent with Weave using the agents workflow. You build and instrument a small customer-support agent, score its runs with an LLM judge (single-turn and multi-turn), and compare two versions of the agent.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Evaluate your AI agent with Weave"
+            },
+            {
+              "section": 1,
+              "heading": "What you'll learn"
+            },
+            {
+              "section": 2,
+              "heading": "Prerequisites"
+            },
+            {
+              "section": 3,
+              "heading": "Build and trace the agent"
+            },
+            {
+              "section": 4,
+              "heading": "Score the agent with an LLM judge"
+            },
+            {
+              "section": 5,
+              "heading": "Organize and compare evaluations"
+            },
+            {
+              "section": 6,
+              "heading": "Score a multi-turn conversation"
+            },
+            {
+              "section": 7,
+              "heading": "Extend your scorers"
+            },
+            {
+              "section": 8,
+              "heading": "Next steps"
+            }
+          ]
+        }
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "**Short answer:** Weave scores a turn only after it ends, using a separate scoring worker [S2]. The docs I read don't say how long scoring takes or what latency the user sees. The user's answer comes from your agent code, and the scorer isn't described as a step inside that code. Scoring is triggered by the turn-ended event, so it can't be a prerequisite for finishing the turn.\n\n## Compact setup outline\n\n1. **Inspect conversations and tool calls.**\n   - Run `pip install weave`, then call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")` before any tracing call [S8].\n   - Instrument the agent with `start_conversation()`, `start_turn()`, `start_llm()` and `start_tool()` [S8].\n   - These calls no-op silently if `weave.init()` is missing or tracing is disabled [S8].\n   - The data model is conversation \u2192 turn \u2192 LLM calls \u2192 tool executions. The **Agents** tab shows a multi-turn timeline with nested tool calls [S3].\n\n2. **Rerun regression questions.**\n   - The agent-evals tutorial shows a pattern using `EvaluationLogger`. Each dataset row is a fixed conversation history plus the next user message [S10].\n   - The agent runs inside `start_conversation(...)` and the result is logged with `log_prediction` and `log_score`. Each row links back to its full transcript [S10].\n   - The tutorial also covers comparing two versions of the agent [S4]. I didn't read that section, so check it before relying on it.\n   - Caveat: this scores the next turn against a fixed history. The docs say measuring a full multi-turn task end to end needs live A/B testing [S10].\n   - That tutorial scores with an LLM judge [S4]. For your own policy check you'd substitute your own scorer. I didn't verify how to plug an HTTP scorer into `EvaluationLogger`.\n\n3. **Score live answers with your endpoint.** Use a remote scorer signal.\n   - Weave sends each completed turn to your endpoint in an HTTP `POST` and records the response as feedback. Results show as tags or ratings on the **Signals** tab [S1].\n   - Create it in the UI or in Python. In Python, publish a `RemoteScorer`, then activate a `Monitor` with `op_names=[\"weave.genai.turn_ended\"]` [S7].\n\n## Prerequisites before Weave can call your endpoint (multi-tenant cloud)\n\n- **Remote scoring must be enabled.** It is off until enabled [S5]. An organization or billing admin must open the organization's settings in Forge. They then select **Remote scoring** and turn on **Enable remote scoring** [S5].\n- **Your endpoint host must be allowlisted.** Under **Allowed hosts**, add each host. Saving requires at least one host [S5]. With no allowlist, the worker rejects every host [S5].\n- **The URL must pass the host rules** [S5]:\n  - HTTPS is required unless the deployment permits insecure HTTP.\n  - Private, loopback and cloud-metadata addresses are rejected.\n  - Redirects aren't followed.\n  - If you use OAuth, the token endpoint URL is checked too.\n- **Credentials must be stored first.** Put the bearer token or OAuth client secret in the project team's secret store before you register the scorer. The scorer configuration holds only the secret name [S6].\n- **Your endpoint must accept bearer-token authentication.** Weave uses either `static_bearer` or `oauth_client_credentials` [S6].\n- **The response must use the structured result format.** Agent turn scoring requires it, because tags and ratings are stored as typed feedback columns [S2].\n\n## Does scoring finish before the user gets the answer?\n\nThe docs describe this sequence [S2]:\n\n1. A root span ends and Weave emits `weave.genai.turn_ended`.\n2. The agent scoring worker loads the matching signals and applies their filters and sample rate.\n3. The worker sends the `POST`.\n4. The worker validates the response and writes feedback.\n\nThe worker retries failed attempts, up to three attempts within 30 seconds [S2]. The docs don't say whether your agent's reply waits on any of this. I'd treat scoring as after-the-fact monitoring, not as a gate on the reply. If you need to block unsafe answers before they're sent, run that check in your own code. I found nothing in the snapshot that says Weave scoring can do this.\n\n**Next step:** Ask your org admin to enable remote scoring and allowlist your scorer host. Then store the bearer token as a team secret, and create the signal."
+        },
+        "result": {
+          "passed": false,
+          "claims": [
+            {
+              "text": "Weave scores a turn only after it ends, using a separate agent scoring worker, triggered by weave.genai.turn_ended.",
+              "source_ids": [
+                "S2"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Scoring can't be a prerequisite for finishing the turn; the docs don't say whether the agent's reply waits on scoring.",
+              "source_ids": [
+                "S2"
+              ],
+              "status": "partial",
+              "supported": false
+            },
+            {
+              "text": "Tracing setup: pip install weave, weave.init, start_conversation/start_turn/start_llm/start_tool; calls no-op silently if init is missing or tracing is disabled.",
+              "source_ids": [
+                "S8"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Data model is conversation, turn, LLM calls, tool executions; the Agents tab shows a multi-turn timeline with nested tool calls.",
+              "source_ids": [
+                "S3"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Regression pattern: dataset rows hold a fixed history plus the next user message. The agent runs inside start_conversation, the result is logged with log_prediction and log_score, and each row links to its transcript. Scoring the next turn against a fixed history is the offline method, and end-to-end multi-turn measurement needs live A/B testing.",
+              "source_ids": [
+                "S10"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "The tutorial compares two agent versions and scores with an LLM judge.",
+              "source_ids": [
+                "S4"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "A remote scorer sends each completed turn to your endpoint by HTTP POST and records the response as feedback shown on the Signals tab.",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "In Python, publish a RemoteScorer and activate a Monitor with op_names=[\"weave.genai.turn_ended\"].",
+              "source_ids": [
+                "S7"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "On multi-tenant cloud, an org or billing admin must enable remote scoring in Forge organization settings and add at least one allowed host. With no allowlist the worker rejects every host.",
+              "source_ids": [
+                "S5"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "URL rules: HTTPS unless insecure HTTP is permitted, private/loopback/metadata addresses rejected, redirects not followed, and the OAuth token URL is also checked.",
+              "source_ids": [
+                "S5"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Store the bearer token or OAuth secret in the team secret store before registering; the scorer config holds only the secret name; the auth modes are static_bearer or oauth_client_credentials.",
+              "source_ids": [
+                "S6"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Agent turn scoring requires the structured result format because tags and ratings are stored as typed feedback columns.",
+              "source_ids": [
+                "S2"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "The worker retries failed attempts up to three attempts within 30 seconds, and the four-step sequence from turn end to feedback write is accurate.",
+              "source_ids": [
+                "S2"
+              ],
+              "status": "supported",
+              "supported": true
+            }
+          ],
+          "issues": [
+            "The sentence \"Scoring is triggered by the turn-ended event, so it can't be a prerequisite for finishing the turn\" is the answer's own inference, not stated in the docs. It follows from the sequence in S2 (root span ends, then the event). The docs say nothing about when the user actually receives the reply. The later hedge (\"docs don't say whether your agent's reply waits\") is the accurate framing, so the inference should be labelled as such.",
+            "The retry description leaves out one detail from S2: a timeout uses the whole 30 seconds and isn't retried, and S2 advises returning 503 quickly. This is a minor omission, not a fault.",
+            "Revise partial or unsupported material claims."
+          ],
+          "coverage": [],
+          "mode": "support",
+          "status": "failed"
+        }
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "**Short answer:** The docs don't say whether the user receives the answer before or after scoring finishes, so I can't give a definite yes or no. They describe scoring as starting once a turn has ended: a turn ends, Weave emits `weave.genai.turn_ended`, and a separate agent scoring worker then scores it [S2]. My inference, which the docs don't state, is that this makes scoring follow the turn and not run inside it. The docs also don't say how the reply timing relates to scoring.\n\n## Compact setup outline\n\n1. **Inspect conversations and tool calls.**\n   - Run `pip install weave`, then call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")` before any tracing call [S8].\n   - Instrument the agent with `start_conversation()`, `start_turn()`, `start_llm()` and `start_tool()` [S8].\n   - These calls no-op silently if `weave.init()` is missing or tracing is disabled [S8].\n   - The data model is conversation \u2192 turn \u2192 LLM calls \u2192 tool executions. The **Agents** tab shows a multi-turn timeline with nested tool calls [S3].\n\n2. **Rerun regression questions.**\n   - The agent-evals tutorial shows a pattern using `EvaluationLogger`. Each dataset row is a fixed conversation history plus the next user message [S10].\n   - The agent runs inside `start_conversation(...)` and the result is logged with `log_prediction` and `log_score`. Each row links back to its full transcript [S10].\n   - The tutorial also covers comparing two versions of the agent [S4]. I didn't read that section, so check it before relying on it.\n   - Caveat: this scores the next turn against a fixed history. The docs say measuring a full multi-turn task end to end needs live A/B testing [S10].\n   - That tutorial scores with an LLM judge [S4]. For your own policy check you'd substitute your own scorer. I didn't verify how to plug an HTTP scorer into `EvaluationLogger`.\n\n3. **Score live answers with your endpoint.** Use a remote scorer signal.\n   - Weave sends each completed turn to your endpoint in an HTTP `POST` and records the response as feedback. Results show as tags or ratings on the **Signals** tab [S1].\n   - Create it in the UI or in Python. In Python, publish a `RemoteScorer`, then activate a `Monitor` with `op_names=[\"weave.genai.turn_ended\"]` [S7].\n\n## Prerequisites before Weave can call your endpoint (multi-tenant cloud)\n\n- **Remote scoring must be enabled.** It is off until enabled [S5]. An organization or billing admin must open the organization's settings in Forge. They then select **Remote scoring** and turn on **Enable remote scoring** [S5].\n- **Your endpoint host must be allowlisted.** Under **Allowed hosts**, add each host. Saving requires at least one host [S5]. With no allowlist, the worker rejects every host [S5].\n- **The URL must pass the host rules** [S5]:\n  - HTTPS is required unless the deployment permits insecure HTTP.\n  - Private, loopback and cloud-metadata addresses are rejected.\n  - Redirects aren't followed.\n  - If you use OAuth, the token endpoint URL is checked too.\n- **Credentials must be stored first.** Put the bearer token or OAuth client secret in the project team's secret store before you register the scorer. The scorer configuration holds only the secret name [S6].\n- **Your endpoint must accept bearer-token authentication.** Weave uses either `static_bearer` or `oauth_client_credentials` [S6].\n- **The response must use the structured result format.** Agent turn scoring requires it, because tags and ratings are stored as typed feedback columns [S2].\n\n## Scoring sequence and retries\n\nThe docs describe this sequence [S2]:\n\n1. A root span ends and Weave emits `weave.genai.turn_ended`.\n2. The agent scoring worker loads the matching signals and applies their filters and sample rate.\n3. The worker sends the `POST`.\n4. The worker validates the response and writes feedback.\n\nThe worker retries failed attempts, up to three attempts within 30 seconds [S2]:\n\n- `5xx`, `408` and `429` responses are retried [S2].\n- A timeout uses the whole 30 seconds, so a timed-out request isn't retried [S2].\n- Other `4xx` responses aren't retried [S2].\n- If your endpoint can't score a turn in time, the docs advise returning `503` quickly so that Weave retries [S2].\n\nI'd treat scoring as after-the-fact monitoring and not as a gate on the reply. If you need to block unsafe answers before they're sent, run that check in your own code. I found nothing in the snapshot that says Weave scoring can do this, though that doesn't prove it can't.\n\n**Next step:** Ask your org admin to enable remote scoring and allowlist your scorer host. Then store the bearer token as a team secret, and create the signal."
+        },
+        "result": {
+          "passed": true,
+          "claims": [
+            {
+              "text": "Docs don't state whether the user receives the answer before scoring finishes; scoring begins after a turn ends via weave.genai.turn_ended and a separate worker (inference labeled as such).",
+              "source_ids": [
+                "S2"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Tracing setup: pip install weave, weave.init before start_conversation/start_turn/start_llm/start_tool; calls no-op silently if init missing or tracing disabled.",
+              "source_ids": [
+                "S8"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Data model conversation \u2192 turn \u2192 LLM calls \u2192 tool executions; Agents tab shows multi-turn timeline with nested tool calls.",
+              "source_ids": [
+                "S3"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Regression pattern with EvaluationLogger: fixed history plus next user message per row, run inside start_conversation, log_prediction/log_score, rows link to transcript; limitation that full multi-turn end-to-end needs live A/B testing.",
+              "source_ids": [
+                "S10",
+                "S4"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Remote scorer signal: Weave POSTs completed turn to endpoint, records feedback shown on Signals tab; created in UI or Python via RemoteScorer + Monitor with op_names weave.genai.turn_ended.",
+              "source_ids": [
+                "S1",
+                "S7"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Multi-tenant prerequisites: admin enables remote scoring in Forge Remote scoring tab, at least one allowed host, no allowlist means rejection, HTTPS/private address/redirect/OAuth token URL rules.",
+              "source_ids": [
+                "S5"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Credentials stored in team secret store first; scorer holds only secret name; modes static_bearer or oauth_client_credentials.",
+              "source_ids": [
+                "S6"
+              ],
+              "status": "supported",
+              "supported": true
+            },
+            {
+              "text": "Structured result format required for agent turn scoring; sequence and retry behavior (3 attempts/30s, 5xx/408/429 retried, timeout not retried, other 4xx not retried, return 503 quickly).",
+              "source_ids": [
+                "S2"
+              ],
+              "status": "supported",
+              "supported": true
+            }
+          ],
+          "issues": [],
+          "coverage": [],
+          "mode": "support",
+          "status": "passed"
+        }
+      }
+    ],
+    "conversation_id": "1d28a028-594b-44ce-bef1-0005dd9529c4",
+    "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/1d28a028-594b-44ce-bef1-0005dd9529c4",
+    "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+    "source_sha256": "a6621741d5868bdb88ee64137a5e4c459d222898c28ad50702545ebeafb2da81",
+    "prompt_sha256": "88101087a3809fde2cdee658c97d39289b5af635b620c7ca9a14de9549570413",
+    "config_sha256": "49cc7734a6df29a6067960601a6c8e4540ed2253038ea047df999a07cfc3400b",
+    "verify_mode": "support",
+    "cache_enabled": true,
+    "trace_id": "c957ccaf48671af9c323f38d0101f046",
+    "model": "claude-sonnet-5-5",
+    "elapsed_seconds": 68.15,
+    "planner_usage": {
+      "input_tokens": 16,
+      "output_tokens": 6140
+    },
+    "metrics": {
+      "calls": [
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPuNvbgdESTDsvAPAiNg",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 1920,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 192,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 1.6861,
+          "estimated_usd": 0.00212
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPuP3om3nwGEebqmsbUe",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 8460
+            },
+            "cache_creation_input_tokens": 8460,
+            "cache_read_input_tokens": 1920,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 316,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.7806,
+          "estimated_usd": 0.024506
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPuPFeA4bQwxd9SFubHo",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 5994
+            },
+            "cache_creation_input_tokens": 5994,
+            "cache_read_input_tokens": 10380,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 581,
+            "output_tokens_details": {
+              "thinking_tokens": 104
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 3.9466,
+          "estimated_usd": 0.021837
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPuPYbdALFrjGkqULx8o",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 10228
+            },
+            "cache_creation_input_tokens": 10228,
+            "cache_read_input_tokens": 16374,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 1732,
+            "output_tokens_details": {
+              "thinking_tokens": 189
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 13.1609,
+          "estimated_usd": 0.0445314
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPuQWuxe3bedTkyw9BQA",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1750
+            },
+            "cache_creation_input_tokens": 1750,
+            "cache_read_input_tokens": 26602,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 1590,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 7.4414,
+          "estimated_usd": 0.0229432
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPuR4fATBB2m3JmWfHdB",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 15155
+            },
+            "cache_creation_input_tokens": 15155,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 2706,
+            "output_tokens_details": {
+              "thinking_tokens": 1416
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 18.7611,
+          "estimated_usd": 0.0649555
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPuSTX8A8oCZVye17Vgn",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 2952
+            },
+            "cache_creation_input_tokens": 2952,
+            "cache_read_input_tokens": 28352,
+            "inference_geo": "global",
+            "input_tokens": 2,
+            "output_tokens": 1729,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 9.2977,
+          "estimated_usd": 0.0275092
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgPuT8f5pgqrCm234cQ3C",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 13817
+            },
+            "cache_creation_input_tokens": 13817,
+            "cache_read_input_tokens": 1486,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 1619,
+            "output_tokens_details": {
+              "thinking_tokens": 820
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 11.0428,
+          "estimated_usd": 0.0508891
+        }
+      ],
+      "model_calls": 8,
+      "tokens": {
+        "input_tokens": 24,
+        "output_tokens": 10465,
+        "cache_creation_input_tokens": 58356,
+        "cache_read_input_tokens": 87034
+      },
+      "total_input_tokens": 145414,
+      "estimated_usd": 0.2592914,
+      "known_estimated_usd": 0.2592914,
+      "unpriced_calls": 0,
+      "by_purpose": {
+        "planner": {
+          "calls": 6,
+          "known_estimated_usd": 0.1434468
+        },
+        "verification": {
+          "calls": 2,
+          "known_estimated_usd": 0.11584459999999999
+        }
+      },
+      "research": {
+        "searches": 3,
+        "passage_reads": 10,
+        "distinct_pages_read": 3,
+        "repeated_tool_requests": 0,
+        "drafts_submitted": 2,
+        "code_runs": 0
+      },
+      "pricing": {
+        "checked_at": "2026-10-25",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "rates": {
+          "claude-sonnet-5-5": {
+            "input": 2,
+            "output": 10,
+            "write_5m": 2.5,
+            "write_1h": 4,
+            "read": 0.1
+          },
+          "claude-opus-5-5": {
+            "input": 4,
+            "output": 20,
+            "write_5m": 5,
+            "write_1h": 8,
+            "read": 0.2
+          }
+        }
+      },
+      "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+    },
+    "error_type": null
+  }
+}
