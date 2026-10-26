@@ -174,7 +174,7 @@ def test_research_budget_stops_an_unproductive_loop(corpus):
     assert "research limit" in result["answer"]
 
 
-@pytest.mark.parametrize("recheck_passes", [True, False])
+@pytest.mark.parametrize("recheck_passes", [True, False, "empty_claims"])
 def test_partial_recovery_requires_its_own_full_check(corpus, recheck_passes):
     rejected = response(
         (
@@ -197,7 +197,13 @@ def test_partial_recovery_requires_its_own_full_check(corpus, recheck_passes):
             },
         )
     )
-    fake = FakeModel([response(READ, ANSWER), rejected, verdict(recheck_passes)])
+    recheck = (
+        response(("record_verdict", {"passed": True, "claims": [], "issues": []}))
+        if recheck_passes == "empty_claims"
+        else verdict(recheck_passes)
+    )
+    recheck_passes = recheck_passes is True
+    fake = FakeModel([response(READ, ANSWER), rejected, recheck])
     result = Agent(corpus, Settings(project="test/test", max_steps=1), fake).run("Explain setup.")
     assert result["recovery_attempted"]
     assert result["recovered_partial"] is recheck_passes

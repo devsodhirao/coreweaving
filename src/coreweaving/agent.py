@@ -540,7 +540,9 @@ class Agent:
                 verdict.issues.append(
                     "Product claims need cited evidence; research-process claims need recorded research actions."
                 )
-            if candidate.kind == "answer" and not verdict.claims:
+            if (candidate.kind == "answer" and not verdict.claims) or (
+                recovery and not any(claim.kind == "product" for claim in verdict.claims)
+            ):
                 verdict.passed = False
                 verdict.issues.append("Verifier must identify the factual claims it checked.")
             if mode == "support+coverage":
