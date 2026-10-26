@@ -164,3 +164,110 @@ def test_verifier_chat_is_a_child_of_subagent_not_turn(fake_provider, monkeypatc
         assert chat.attributes["coreweaving.purpose"] == "verification"
     finally:
         provider.shutdown()
+
+
+def test_provider_and_agent_span_payloads_are_sanitized_before_export(fake_provider, monkeypatch):
+    import json
+
+    secret = "synthetic-configured-secret-12345"
+    monkeypatch.setenv("WANDB_API_KEY", secret)
+    model, requests = fake_provider
+    original_create = model.client.messages.create
+
+    def create(**kwargs):
+        result = original_create(**kwargs)
+        return result.model_copy(
+            update={"content": [result.content[0].model_copy(update={"text": secret})]}
+        )
+
+    model.client.messages.create = create
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    tracer = provider.get_tracer("security-fixture")
+    monkeypatch.setattr(
+        "weave.conversation.conversation.otel_trace.get_tracer", lambda *a, **k: tracer
+    )
+    try:
+        result = model.call(
+            model="claude-sonnet-5-5",
+            system="Stable instructions.",
+            messages=[{"role": "user", "content": secret}],
+            tools=[],
+            purpose="planner",
+        )
+        spans = exporter.get_finished_spans()
+        assert spans
+        assert secret not in json.dumps([requests, result, [dict(s.attributes) for s in spans]])
+        assert "[REDACTED_SECRET]" in requests[0]["messages"][0]["content"]
+    finally:
+        provider.shutdown()
+
+
+def test_provider_exception_is_sanitized_before_context_manager_records_it(
+    fake_provider, monkeypatch
+):
+    secret = "synthetic-configured-secret-12345"
+    monkeypatch.setenv("WANDB_API_KEY", secret)
+    model, _ = fake_provider
+
+    def fail(**kwargs):
+        raise ConnectionError("Request contained " + secret)
+
+    model.client.messages.create = fail
+    with pytest.raises(RuntimeError) as error:
+        model.call(
+            model="claude-sonnet-5-5",
+            system="Stable instructions.",
+            messages=[],
+            tools=[],
+            purpose="planner",
+        )
+    assert secret not in str(error.value)
+    assert error.value.__suppress_context__
+
+
+@pytest.mark.parametrize("writes,reads", [(None, None), (0, 0), (91, 1693)])
+def test_trace_input_includes_cache_but_provider_receipt_stays_native(
+    fake_provider, monkeypatch, writes, reads
+):
+    model, _ = fake_provider
+    original_create = model.client.messages.create
+
+    def create(**kwargs):
+        response = original_create(**kwargs)
+        return response.model_copy(
+            update={
+                "usage": response.usage.model_copy(
+                    update={
+                        "cache_creation_input_tokens": writes,
+                        "cache_read_input_tokens": reads,
+                    }
+                )
+            }
+        )
+
+    model.client.messages.create = create
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    tracer = provider.get_tracer("cache-accounting-fixture")
+    monkeypatch.setattr(
+        "weave.conversation.conversation.otel_trace.get_tracer", lambda *a, **k: tracer
+    )
+    try:
+        result = model.call(
+            model="claude-sonnet-5-5",
+            system="Stable instructions.",
+            messages=[{"role": "user", "content": "Question"}],
+            tools=[],
+            purpose="planner",
+        )
+        chat = next(s for s in exporter.get_finished_spans() if s.name.startswith("chat "))
+        assert chat.attributes["gen_ai.usage.input_tokens"] == 12 + (writes or 0) + (reads or 0)
+        assert chat.attributes["gen_ai.usage.output_tokens"] == 3
+        assert result["usage"]["input_tokens"] == 12
+        assert result["usage"]["cache_creation_input_tokens"] == writes
+        assert result["usage"]["cache_read_input_tokens"] == reads
+    finally:
+        provider.shutdown()

@@ -1,13 +1,15 @@
 """The whole agent loop: choose tools, gather evidence, verify, repair, answer."""
 
 import hashlib
+import html
 import json
 import re
 import time
+import unicodedata
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from typing import Literal
+from typing import Annotated, Literal
 
 import weave
 from opentelemetry import trace as otel_trace
@@ -18,6 +20,8 @@ from coreweaving.config import (
     Settings,
     VerifyMode,
     conversation_url,
+    redact_sensitive,
+    safe_exception,
     source_fingerprint,
 )
 from coreweaving.corpus import Corpus
@@ -48,7 +52,9 @@ run_python executes offline Python standard-library examples, not Weave API call
 Never claim an SDK example was tested if the container cannot import its packages.
 
 Submit your final draft using submit_answer. Cite material documentation claims
-inline using [S1], [S2], etc., only from read_page evidence. Cite code-run observations
+inline using [S1], [S2], etc., only from read_page evidence. Include the exact
+unique list of those IDs in submit_answer.source_ids (empty for a pure clarification).
+Never format a source marker as a Markdown link, image, or reference definition. Cite code-run observations
 using [C1], etc. Keep precise API names. Do not invent features, guarantees, limits,
 configuration flags, URLs, or numerical claims. In particular, failing to find a
 feature is NOT proof it cannot exist: describe the limits of the searched snapshot.
@@ -88,6 +94,12 @@ A pure clarification can pass with no claims or citations. An insufficient-evide
 response can pass if it describes the search honestly, avoids unsupported assertions,
 and cites any product facts it still includes. Absence in search results never proves
 the nonexistence of a feature. Do not judge style or demand unrelated extra detail.
+Classify claims as product (default) or research_process. Research_process is only
+an honest statement about the supplied search/read actions or their evidence limits.
+It may have no source IDs when those actions support it. Never use this category
+for product facts, API claims, feature nonexistence, or code execution claims.
+Those remain product claims and require cited evidence. If research actions do not
+support the stated process or limit, mark the claim partial or unsupported.
 Use only source IDs cited in the draft for claim support. The runtime controls mode
 and status; return passed, claims, issues, and coverage. Leave coverage empty in
 support-only mode: no whole-task coverage assessment was performed.
@@ -122,6 +134,7 @@ class Claim(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     text: str = Field(min_length=1)
+    kind: Literal["product", "research_process"] = "product"
     source_ids: list[str]
     status: Literal["supported", "partial", "unsupported"]
 
@@ -190,7 +203,12 @@ class Verification(BaseModel):
         return "passed" if self.passed else "failed"
 
 
+SourceId = Annotated[str, Field(pattern=r"^[SC][1-9][0-9]*$", strict=True)]
+
+
 class Candidate(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    source_ids: list[SourceId]
     answer: str = Field(min_length=1, max_length=14000)
     kind: Literal["answer", "clarification", "insufficient"] = "answer"
 
@@ -256,26 +274,46 @@ class Session:
             if item.get("page_id") == passage.page_id and item.get("section") == passage.section:
                 return item
         source_id = "S" + str(1 + sum(key.startswith("S") for key in self.evidence))
-        item = passage.evidence(source_id)
+        original = passage.evidence(source_id)
+        item = redact_sensitive(original)
+        if item != original:
+            item["credential_redacted"] = True
         self.evidence[source_id] = item
         return item
 
 
-def citation_markers(answer: str) -> list[str]:
-    """Find source-like prose brackets, excluding common code/link syntax.
-
-    This is a bounded citation check, not a complete Markdown parser. Bare prose
-    brackets beginning S/C plus digits are reserved for source citations.
-    """
+def _citation_prose(answer: str) -> str:
+    # Code is literal data. Source-like link labels remain visible to validation.
     prose = re.sub(
         r"(?ms)^ {0,3}`{3,}[^\n]*\n.*?^ {0,3}`{3,}[ \t]*(?:\n|$)"
         r"|^ {0,3}~{3,}[^\n]*\n.*?^ {0,3}~{3,}[ \t]*(?:\n|$)",
         "",
         answer,
     )
-    prose = re.sub(r"`+[^`]*`+", "", prose)
-    prose = re.sub(r"!?\[[^\]\n]*\](?:\([^\n)]*\)|\[(?![SC][0-9]+\])[^\]\n]*\])", "", prose)
-    return re.findall(r"(?<!\\)\[[ \t]*[SC][0-9]+[^\]\[\n]*(?:\]|(?=[\[\n]|$))", prose)
+    return re.sub(r"`+[^`]*`+", "", prose)
+
+
+def citation_markers(answer: str) -> list[str]:
+    prose = _citation_prose(answer)
+    pattern = r"(?i)(?<!\\)\[[ \t]*[SC][ \t]*[0-9]+[^\]\[\n]*(?:\]|(?=[\[\n]|$))"
+    markers = []
+    for match in re.finditer(pattern, prose):
+        marker = match.group()
+        tail = prose[match.end() :]
+        if (
+            tail.startswith("(")
+            or re.match(r"\[(?![SC][1-9][0-9]*\])", tail)
+            or re.match(r"[ \t]*:", tail)
+        ):
+            marker += " (source markers cannot be links or definitions)"
+        if match.start() and prose[match.start() - 1] == "!":
+            marker += " (source markers cannot be images)"
+        markers.append(marker)
+    normalized = unicodedata.normalize("NFKC", html.unescape(prose))
+    raw_markers = re.findall(pattern, prose)
+    if re.findall(pattern, normalized) != raw_markers:
+        markers.append("Noncanonical encoded or Unicode source marker")
+    return markers
 
 
 def malformed_citations(answer: str) -> list[str]:
@@ -283,7 +321,7 @@ def malformed_citations(answer: str) -> list[str]:
         dict.fromkeys(
             marker
             for marker in citation_markers(answer)
-            if not re.fullmatch(r"\[[SC][0-9]+\]", marker)
+            if not re.fullmatch(r"\[[SC][1-9][0-9]*\]", marker)
         )
     )
 
@@ -293,9 +331,32 @@ def cited_ids(answer: str) -> list[str]:
         dict.fromkeys(
             marker[1:-1]
             for marker in citation_markers(answer)
-            if re.fullmatch(r"\[[SC][0-9]+\]", marker)
+            if re.fullmatch(r"\[[SC][1-9][0-9]*\]", marker)
         )
     )
+
+
+def citation_contract(answer: str, kind: str, source_ids, evidence: dict) -> list[str]:
+    issues = []
+    malformed = malformed_citations(answer)
+    if malformed:
+        issues.append(
+            "Malformed source citations; use [Snumber] or [Cnumber]: " + repr(malformed)[:500]
+        )
+    inline = cited_ids(answer)
+    if source_ids is not None:
+        if not isinstance(source_ids, list) or any(
+            not isinstance(i, str) or not re.fullmatch(r"[SC][1-9][0-9]*", i) for i in source_ids
+        ):
+            issues.append("Invalid structured source IDs.")
+        elif len(source_ids) != len(set(source_ids)) or set(source_ids) != set(inline):
+            issues.append("Structured source IDs must be unique and match the inline citations.")
+    missing = [i for i in inline if i not in evidence]
+    if missing:
+        issues.append(f"Unknown citations: {missing}")
+    if kind == "answer" and not inline:
+        issues.append("A factual answer must cite read evidence.")
+    return issues
 
 
 def relevant_evidence(session: Session, actions: list[dict], answer: str = "") -> list[dict]:
@@ -336,17 +397,12 @@ class Agent:
         def failed(issue: str) -> Verification:
             return Verification(passed=False, mode=mode, issues=[issue])
 
-        malformed = malformed_citations(candidate.answer)
-        if malformed:
-            return failed(
-                "Malformed source citations; use [Snumber] or [Cnumber]: " + repr(malformed)[:500]
-            )
-        ids = cited_ids(candidate.answer)
-        missing = [source_id for source_id in ids if source_id not in session.evidence]
-        if missing:
-            return failed(f"Unknown citations: {missing}")
-        if candidate.kind == "answer" and not ids:
-            return failed("A factual answer must cite read evidence.")
+        issues = citation_contract(
+            candidate.answer, candidate.kind, candidate.source_ids, session.evidence
+        )
+        if issues:
+            return failed(" ".join(issues))
+        ids = candidate.source_ids
         evidence = (
             relevant_evidence(session, actions, candidate.answer)
             if mode == "support+coverage"
@@ -388,20 +444,31 @@ class Agent:
                 ]
                 if len(blocks) != 1 or response["stop_reason"] == "max_tokens":
                     raise ValueError("Verifier returned no single complete verdict.")
-                verdict = Verification.model_validate(blocks[0]["input"])
+                verdict = Verification.model_validate(redact_sensitive(blocks[0]["input"]))
             except (ValueError, TypeError, KeyError) as exc:
-                verifier.record_error(exc)
+                verifier.record_error(safe_exception(exc))
                 verdict = failed("Verifier returned an invalid or incomplete verdict.")
             verdict.mode = mode
             if any(claim.status != "supported" for claim in verdict.claims):
                 verdict.passed = False
                 verdict.issues.append("Revise partial or unsupported material claims.")
             if any(
-                not claim.source_ids or not set(claim.source_ids).issubset(ids)
+                (claim.kind == "product" and not claim.source_ids)
+                or (
+                    claim.kind == "research_process"
+                    and not any(
+                        action["tool"] in ("search_docs", "read_page")
+                        and "error" not in action.get("result", {})
+                        for action in actions
+                    )
+                )
+                or not set(claim.source_ids).issubset(ids)
                 for claim in verdict.claims
             ):
                 verdict.passed = False
-                verdict.issues.append("Each factual claim must use evidence cited in the draft.")
+                verdict.issues.append(
+                    "Product claims need cited evidence; research-process claims need recorded research actions."
+                )
             if candidate.kind == "answer" and not verdict.claims:
                 verdict.passed = False
                 verdict.issues.append("Verifier must identify the factual claims it checked.")
@@ -445,7 +512,7 @@ class Agent:
             return {**session.add_passage(passage), "outline": self.corpus.outline(passage.page_id)}
         if name == "run_python":
             # Tool input cannot override container time, memory, or output limits.
-            result = run_python(code=arguments["code"])
+            result = redact_sensitive(run_python(code=arguments["code"]))
             source_id = "C" + str(1 + sum(key.startswith("C") for key in session.evidence))
             evidence = {"source_id": source_id, "code": arguments["code"], **result}
             session.evidence[source_id] = evidence
@@ -460,9 +527,12 @@ class Agent:
         *,
         eval_attributes: dict | None = None,
     ) -> dict:
+        question = redact_sensitive(question)
         if not question.strip() or len(question) > 12000:
             raise ValueError("Enter a question between 1 and 12,000 characters.")
         session = session or Session()
+        session.history = redact_sensitive(session.history)
+        session.evidence = redact_sensitive(session.evidence)
         call_start = len(self.llm.calls)
         started = time.monotonic()
         actions, checks = [], []
@@ -483,8 +553,10 @@ class Agent:
         )
         config_sha256 = fingerprint(asdict(self.config))
         attributes = {
-            **(eval_attributes or {}),
+            **redact_sensitive(eval_attributes or {}),
             "coreweaving.snapshot": self.corpus.snapshot_id,
+            "coreweaving.docs_sdk_version": self.corpus.docs_sdk_version,
+            "coreweaving.runtime_sdk_version": weave.__version__,
             "coreweaving.source_sha256": source_sha256,
             "coreweaving.prompt_sha256": prompt_sha256,
             "coreweaving.config_sha256": config_sha256,
@@ -496,6 +568,7 @@ class Agent:
             "insufficient",
             Verification(passed=False, mode=self.config.verify_mode),
         )
+        released_source_ids = []
         repairs, tool_count = 0, 0
         error_type = None
         with weave.start_conversation(
@@ -525,6 +598,7 @@ class Agent:
                             purpose="planner",
                             cache_enabled=self.config.cache_enabled,
                         )
+                        response = redact_sensitive(response)
                         for key in usage:
                             usage[key] += response["usage"].get(key, 0)
                         if response["stop_reason"] == "max_tokens":
@@ -570,8 +644,9 @@ class Agent:
                                     else:
                                         result = self.execute(name, arguments, session)
                                 except (ValueError, TypeError, KeyError) as exc:
-                                    span.record_error(exc)
-                                    result = {"error": str(exc)[:500]}
+                                    span.record_error(safe_exception(exc))
+                                    result = {"error": redact_sensitive(str(exc))[:500]}
+                                result = redact_sensitive(result)
                                 span.result = json.dumps(result)
                             actions.append({"tool": name, "input": arguments, "result": result})
                             results.append(
@@ -589,6 +664,7 @@ class Agent:
                         messages.append({"role": "user", "content": results})
                         if accepted:
                             answer, kind = accepted.answer, accepted.kind
+                            released_source_ids = accepted.source_ids
                             break
                         if (
                             repairs > self.config.max_revisions
@@ -609,7 +685,7 @@ class Agent:
                         )
                 except Exception as exc:
                     # Keep operational failures visible; do not substitute a confident answer.
-                    turn.record_error(exc)
+                    turn.record_error(safe_exception(exc))
                     error_type = type(exc).__name__
                     kind = "error"
                     answer = (
@@ -645,6 +721,9 @@ class Agent:
         sources = [session.evidence[i] for i in cited_ids(answer) if i in session.evidence]
         return {
             "answer_id": str(uuid.uuid4()),
+            "question": question,
+            "source_ids": released_source_ids,
+            "citation_contract_version": 2,
             "conversation_context": input_history,
             "answer": answer,
             "kind": kind,

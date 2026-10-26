@@ -197,7 +197,7 @@ def test_independent_integrity_rejects_malformed_citations_without_changing_asse
 def test_integrity_accepts_valid_citations_with_ordinary_links_and_arrays():
     output = answer()
     output["answer"] += (
-        " [S8-UI guide](https://example.test/ui) [S99](https://example.test/docs)"
+        " [UI guide](https://example.test/ui) [Docs](https://example.test/docs)"
         ' [1, 2] [scorer] ["weave.genai.turn_ended"] `[S2, S3]`'
     )
     checks = evaluate.integrity(output, 1, False)
@@ -543,3 +543,33 @@ def test_run_returns_summary_and_preserves_unscored_prediction_on_failure(monkey
     assert (tmp_path / "results/partial/summary.json").exists()
     with pytest.raises(FileExistsError):
         asyncio.run(evaluate.run_evaluation(args))
+
+
+def test_citation_integrity_checks_earlier_delivered_turns_and_labels_legacy():
+    prior, final = answer(), answer()
+    prior["answer"] = "An earlier invented claim [S99]"
+    output = {**final, "turns": [prior, final]}
+    checks = evaluate.integrity(output, 1, False)
+    assert not checks["citations_resolve"]
+    assert checks["citation_turns"][0]["issues"]
+    assert checks["citation_turns"][0]["structured_contract"] == "legacy_inline_only"
+    assert not checks["citation_turns"][1]["issues"]
+    final["source_ids"] = ["S2"]
+    assert evaluate.integrity(final, 1, False)["citation_turns"][0]["issues"]
+
+
+def test_factual_answer_with_no_citations_is_integrity_failure():
+    output = answer()
+    output["answer"] = "An unsupported product claim."
+    assert not evaluate.integrity(output, 1, False)["citations_resolve"]
+
+
+def test_eval_ops_mask_before_trace_serialization():
+    from coreweaving.config import REDACTED
+
+    assert evaluate.DocumentationModel.predict.postprocess_inputs(
+        {"prompts": ["api_key=legacy1234567890"]}
+    ) == {"prompts": ["api_key=" + REDACTED]}
+    assert evaluate.judge_provider_request.postprocess_output(
+        {"content": "Bearer synthetic1234567890"}
+    ) == {"content": "Bearer " + REDACTED}

@@ -1,4 +1,6 @@
 import json
+import runpy
+from pathlib import Path
 
 import pytest
 
@@ -44,3 +46,17 @@ def test_legacy_workflow_warning_travels_with_a_later_section():
     passage = Corpus().read("guides/evaluation/custom-monitors", 2).evidence("S1")
     assert "previous approach" in passage["page_context"]
     assert "Signals" in passage["page_context"]
+
+
+def test_reference_sdk_metadata_matches_pinned_source_and_preserves_snapshot():
+    directory = Path(__file__).resolve().parents[1] / "data/docs"
+    reference_sdk_metadata = runpy.run_path(str(directory.parents[1] / "scripts/fetch_docs.py"))[
+        "reference_sdk_metadata"
+    ]
+    manifest = json.loads((directory / "manifest.json").read_text())
+    metadata = reference_sdk_metadata(manifest["pages"], directory)
+    assert metadata == {key: manifest[key] for key in metadata}
+    corpus = Corpus(directory)
+    assert corpus.docs_sdk_version == metadata["reference_sdk_version"] == "0.53.1"
+    assert corpus.snapshot_id == "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4"
+    assert reference_sdk_metadata([], directory)["reference_sdk_version"] == "unknown"

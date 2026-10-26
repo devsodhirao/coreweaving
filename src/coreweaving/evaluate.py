@@ -20,14 +20,22 @@ import weave
 from pydantic import BaseModel, ConfigDict, Field
 from weave.trace.context import call_context
 
-from coreweaving.agent import Agent, Session, cited_ids, malformed_citations
+from coreweaving.agent import Agent, Session, citation_contract, cited_ids, malformed_citations
 from coreweaving.budget import current_budget, model_budget
-from coreweaving.config import ROOT, Settings, init_weave, settings, source_fingerprint
+from coreweaving.config import (
+    ROOT,
+    Settings,
+    init_weave,
+    redact_sensitive,
+    safe_exception,
+    settings,
+    source_fingerprint,
+)
 from coreweaving.corpus import Corpus
 from coreweaving.metrics import MeteredModel, summarize
 
 RUN_DIRECTORY: Path | None = None
-RUBRIC_VERSION = "2.1-assertions"
+RUBRIC_VERSION = "2.2-assertions-citation-contract"
 VERIFY_MODES = ("off", "support", "support+coverage")
 
 RUBRIC = """Evaluate the FINAL documentation answer in its conversation context.
@@ -119,10 +127,8 @@ def parse_grade(response: dict, assertions: list[dict]) -> Grade:
 
 def integrity(output: dict, minimum_pages: int, require_code: bool) -> dict:
     """Structural answer checks; verification and page count are not quality gates."""
-    ids = set(cited_ids(output["answer"]))
     malformed = malformed_citations(output["answer"])
     sources = output.get("sources", [])
-    known = {source["source_id"] for source in sources}
     pages = {source["page_id"] for source in sources if "page_id" in source}
     turns = output.get("turns") or [output]
     executed = any(
@@ -132,8 +138,29 @@ def integrity(output: dict, minimum_pages: int, require_code: bool) -> dict:
         for turn in turns
         for action in turn.get("actions", [])
     )
+    citation_turns = [*turns]
+    if output["answer"] != turns[-1]["answer"]:
+        citation_turns.append(output)
+    citation_issues = [
+        {
+            "turn": index,
+            "issues": citation_contract(
+                turn["answer"],
+                turn.get("kind", "answer"),
+                turn.get("source_ids"),
+                {item["source_id"]: item for item in turn.get("sources", [])},
+            ),
+            "structured_contract": "checked" if "source_ids" in turn else "legacy_inline_only",
+        }
+        for index, turn in enumerate(citation_turns, 1)
+    ]
+    malformed = list(
+        dict.fromkeys(
+            marker for turn in citation_turns for marker in malformed_citations(turn["answer"])
+        )
+    )
     checks = {
-        "citations_resolve": not malformed and ids.issubset(known),
+        "citations_resolve": not any(item["issues"] for item in citation_issues),
         "citation_format_valid": not malformed,
         "code_executed_when_required": not require_code or executed,
         "no_runtime_error": all(turn.get("error_type") is None for turn in turns),
@@ -143,6 +170,7 @@ def integrity(output: dict, minimum_pages: int, require_code: bool) -> dict:
         **checks,
         "passed": all(checks.values()),
         "malformed_citations": malformed,
+        "citation_turns": citation_issues,
         "source_pages": len(pages),
         "page_coverage_met": len(pages) >= minimum_pages,
         "page_coverage_is_diagnostic": True,
@@ -244,7 +272,11 @@ def normalized_weave_usage(usage: dict) -> dict:
     return {"requests": 1, **normalized}
 
 
-@weave.op(name="coreweaving_judge_request")
+@weave.op(
+    name="coreweaving_judge_request",
+    postprocess_inputs=redact_sensitive,
+    postprocess_output=redact_sensitive,
+)
 def judge_provider_request(
     *,
     model: str,
@@ -256,6 +288,7 @@ def judge_provider_request(
     cache_enabled: bool = True,
 ) -> dict:
     """One ordinary traced Call; no orphan agent LLM span or evaluator conversation."""
+    system, messages, tools = redact_sensitive((system, messages, tools))
     request_system = (
         [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}]
         if cache_enabled
@@ -301,9 +334,13 @@ def judge_provider_request(
                 "model": response.model,
                 "response_id": response.id,
                 "provider_usage": usage,
-                "content": [block.model_dump(exclude_none=True) for block in response.content],
+                "content": redact_sensitive(
+                    [block.model_dump(exclude_none=True) for block in response.content]
+                ),
                 "stop_reason": response.stop_reason,
             }
+    except Exception as exc:
+        raise safe_exception(exc) from None
     finally:
         if client is not None:
             client.close()
@@ -312,7 +349,7 @@ def judge_provider_request(
 class JudgeLanguageModel:
     def call(self, *, required_tool: str, **kwargs):
         kwargs["system"] += f"\nReturn your result by calling {required_tool}."
-        response = judge_provider_request(**kwargs)
+        response = judge_provider_request(**redact_sensitive(kwargs))
         return {**response, "usage": response["provider_usage"]}
 
 
@@ -339,6 +376,7 @@ def evidence_name(output: dict) -> str:
 def persist_record(directory: Path | None, area: str, output: dict, record: dict) -> None:
     if directory is None:
         return
+    output, record = redact_sensitive((output, record))
     folder = directory / area
     folder.mkdir(parents=True, exist_ok=True)
     # A final JSON filename appears only after its bytes are complete. A hard link
@@ -374,10 +412,11 @@ class DocumentationModel(weave.Model):
     cache_enabled: bool = True
     suite: str = "regression"
 
-    @weave.op()
+    @weave.op(postprocess_inputs=redact_sensitive, postprocess_output=redact_sensitive)
     async def predict(
         self, prompts: list[str], case_id: str, trial_index: int = 1, example_id: str = ""
     ) -> dict:
+        prompts = redact_sensitive(prompts)
         identity = {
             "case_id": case_id,
             "trial_index": trial_index,
@@ -461,7 +500,7 @@ class QualityJudge(weave.Scorer):
     judge_model: str
     cache_enabled: bool = True
 
-    @weave.op()
+    @weave.op(postprocess_inputs=redact_sensitive, postprocess_output=redact_sensitive)
     async def score(
         self,
         output: dict,
@@ -472,6 +511,9 @@ class QualityJudge(weave.Scorer):
         require_code: bool,
         assertions: list[dict] | None = None,
     ) -> dict:
+        output, prompts, expected_behavior, reference_evidence, assertions = redact_sensitive(
+            (output, prompts, expected_behavior, reference_evidence, assertions)
+        )
         checks = integrity(output, minimum_pages, require_code)
         expected_assertions = validate_assertions(assertions)
         payload = {
@@ -739,6 +781,10 @@ async def run_evaluation(args):
     if Path(run_name).name != run_name or run_name in (".", ".."):
         raise ValueError("Run name must be a single directory name.")
     rows = dataset_rows(corpus, args.only, suite)
+    if redact_sensitive(rows) != rows:
+        raise ValueError(
+            "Evaluation data contains credential-like content; replace it with public fixtures."
+        )
     expanded = trial_rows(rows, trials, seed, trial_offset)
     RUN_DIRECTORY = ROOT / "results" / run_name
     RUN_DIRECTORY.mkdir(parents=True, exist_ok=False)

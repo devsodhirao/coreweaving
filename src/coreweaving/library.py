@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from coreweaving.config import ROOT
+from coreweaving.config import ROOT, redact_sensitive
 
 LIBRARY_PATH = ROOT / ".agent-cache" / "answers.sqlite3"
 REVIEW_STATES = ("unreviewed", "useful", "needs_correction")
@@ -33,6 +33,7 @@ def database(path: Path | None = None):
 
 
 def save_answer(question: str, result: dict, path: Path | None = None) -> None:
+    question, result = redact_sensitive((question, result))
     with database(path) as db:
         db.execute(
             "INSERT OR IGNORE INTO answers (id, created_at, question, result) VALUES (?, ?, ?, ?)",
@@ -48,17 +49,20 @@ def save_answer(question: str, result: dict, path: Path | None = None) -> None:
 def list_answers(path: Path | None = None) -> list[dict]:
     with database(path) as db:
         rows = db.execute("SELECT * FROM answers ORDER BY created_at DESC, id").fetchall()
-    return [
-        {
-            **dict(row),
-            "result": json.loads(row["result"]),
-            "review_history": json.loads(row["review_history"]),
-        }
-        for row in rows
-    ]
+    return redact_sensitive(
+        [
+            {
+                **dict(row),
+                "result": json.loads(row["result"]),
+                "review_history": json.loads(row["review_history"]),
+            }
+            for row in rows
+        ]
+    )
 
 
 def review_answer(answer_id: str, state: str, notes: str, path: Path | None = None) -> None:
+    notes = redact_sensitive(notes)
     if state not in REVIEW_STATES:
         raise ValueError("Unknown review state.")
     if state == "needs_correction" and not notes.strip():

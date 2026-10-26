@@ -62,6 +62,22 @@ def get(url: str) -> tuple[bytes, str, str]:
     raise AssertionError("unreachable")
 
 
+def reference_sdk_metadata(pages: list[dict], directory: Path = DESTINATION) -> dict:
+    """Source-tag version of the reference page, not a compatibility claim for all guides."""
+    page = next((p for p in pages if p["url"].endswith("/weave/reference/python-sdk.md")), None)
+    versions = set()
+    if page:
+        versions = set(
+            re.findall(
+                r"github\.com/wandb/weave/blob/v([^/\s)]+)/", (directory / page["file"]).read_text()
+            )
+        )
+    return {
+        "reference_sdk_version": next(iter(versions)) if len(versions) == 1 else "unknown",
+        "reference_sdk_page": page["canonical_url"] if page else "unknown",
+    }
+
+
 def snapshot(refresh: bool = False, locked: bool = False, weave_only: bool = False) -> dict:
     DESTINATION.mkdir(parents=True, exist_ok=True)
     manifest_path = DESTINATION / "manifest.json"
@@ -146,6 +162,7 @@ def snapshot(refresh: bool = False, locked: bool = False, weave_only: bool = Fal
             if index % 25 == 0:
                 print(f"{index}/{len(requested)} checked", flush=True)
     manifest = {
+        **reference_sdk_metadata(pages),
         "schema_version": 1,
         "generated_at": datetime.now(UTC).isoformat(),
         "indexes": indexes,

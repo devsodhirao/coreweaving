@@ -91,3 +91,18 @@ def test_invalid_reviews_fail_without_mutating_saved_history(tmp_path, answer):
     with pytest.raises(KeyError):
         review_answer("missing-id", "useful", "", path)
     assert list_answers(path) == before
+
+
+def test_library_defensively_masks_questions_results_and_review_notes(
+    tmp_path, answer, monkeypatch
+):
+    import json
+
+    secret = "synthetic-configured-credential-12345"
+    monkeypatch.setenv("WANDB_API_KEY", secret)
+    path = tmp_path / "answers.sqlite3"
+    answer["answer"] = secret
+    save_answer(secret, answer, path)
+    review_answer(answer["answer_id"], "useful", "Bearer " + secret, path)
+    assert secret not in json.dumps(list_answers(path))
+    assert secret.encode() not in path.read_bytes()

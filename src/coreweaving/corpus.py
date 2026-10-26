@@ -56,6 +56,8 @@ class Passage:
 class Corpus:
     def __init__(self, directory: Path = ROOT / "data/docs"):
         manifest = json.loads((directory / "manifest.json").read_text())
+        # The reference page's source tag does not establish every guide's compatibility.
+        self.docs_sdk_version = manifest.get("reference_sdk_version") or "unknown"
         self.pages: dict[str, list[Passage]] = {}
         self.passages: list[Passage] = []
         hashes = []

@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -13,6 +14,76 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parents[2]
 AGENT_NAME = "coreweaving"
 VerifyMode = Literal["off", "support", "support+coverage"]
+REDACTED = "[REDACTED_SECRET]"
+_SECRET_ENV = ("ANTHROPIC_API_KEY", "WANDB_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN")
+_SECRET_KEY = re.compile(
+    r"(?i)^(?:(?:anthropic|wandb|openai|github)[_-])?(?:api[_-]?key|access[_-]?token|"
+    r"auth[_-]?token|authorization|password|client[_-]?secret|secret[_-]?key|token)$"
+)
+_TOKEN = re.compile(
+    r"(?<![\w-])(?:sk-[A-Za-z0-9_-]{12,}|agt_[A-Za-z0-9_-]{12,}|"
+    r"wandb_v1_[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{20,}|"
+    r"github_pat_[A-Za-z0-9_]{20,})(?![\w-])"
+)
+_ASSIGNMENT = re.compile(
+    r"""(?ix)(["']?(?:(?:anthropic|wandb|openai|github)[_-])?
+    (?:api[_-]?key|access[_-]?token|auth[_-]?token|authorization|password|client[_-]?secret|secret[_-]?key)
+    ["']?\s*[:=]\s*)(["']?)([^\s,"'{};]+)(["']?)"""
+)
+
+
+def redact_sensitive(value):
+    """Mask configured secrets and common credential forms before any sink.
+
+    This is deterministic credential masking, not general PII detection. Unknown
+    encoded/split secrets may escape it. Credential-labelled example values can
+    be false positives; bare 40-hex hashes remain intact unless configured as a
+    secret (legacy W&B keys are also caught in labelled assignments).
+    """
+    secrets = sorted({os.getenv(key, "") for key in _SECRET_ENV} - {""}, key=len, reverse=True)
+
+    def text(value):
+        for secret in secrets:
+            value = value.replace(secret, REDACTED)
+        value = re.sub(
+            r"-----BEGIN (?:[A-Z ]+)?PRIVATE KEY-----.*?-----END (?:[A-Z ]+)?PRIVATE KEY-----",
+            REDACTED,
+            value,
+            flags=re.S,
+        )
+        value = _TOKEN.sub(REDACTED, value)
+        value = re.sub(
+            r"(?i)\bBearer\s+(?!token\b|tokens\b|authentication\b|credentials\b|scheme\b|\[REDACTED_SECRET\])[^\s\"'<>]+",
+            "Bearer " + REDACTED,
+            value,
+        )
+        return _ASSIGNMENT.sub(lambda m: m[1] + m[2] + REDACTED + m[4], value)
+
+    def walk(item, depth=0):
+        if depth > 40:
+            raise ValueError("Input exceeds the sanitization depth limit.")
+        if isinstance(item, str):
+            return text(item)
+        if isinstance(item, dict):
+            return {
+                text(key) if isinstance(key, str) else key: REDACTED
+                if isinstance(key, str)
+                and _SECRET_KEY.fullmatch(key)
+                and isinstance(child, str)
+                and child
+                else walk(child, depth + 1)
+                for key, child in item.items()
+            }
+        if isinstance(item, (list, tuple)):
+            return type(item)(walk(child, depth + 1) for child in item)
+        return item
+
+    return walk(value)
+
+
+def safe_exception(error: Exception) -> RuntimeError:
+    """A fresh exception has no original traceback/body attached for tracing."""
+    return RuntimeError(f"{type(error).__name__}: {redact_sensitive(str(error))[:500]}")
 
 
 def source_fingerprint() -> str:

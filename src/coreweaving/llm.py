@@ -8,6 +8,7 @@ from weave.conversation.adapters.anthropic import usage_from_anthropic
 from weave.conversation.types import TextPart, ToolCallPart, ToolCallResponsePart
 
 from coreweaving.budget import current_budget
+from coreweaving.config import redact_sensitive, safe_exception
 
 
 def trace_message(message: dict) -> weave.Message:
@@ -50,6 +51,7 @@ class LanguageModel:
         cache_enabled: bool = True,
         span_parent=None,
     ) -> dict:
+        system, messages, tools = redact_sensitive((system, messages, tools))
         if required_tool:
             # Sonnet/Opus 5.5 reject forced tool_choice. Ask for the schema tool
             # and validate its presence and arguments at the application boundary.
@@ -80,23 +82,39 @@ class LanguageModel:
                 ]
                 request["cache_control"] = {"type": "ephemeral"}
             budget = current_budget()
-            if budget:
-                with budget.reserve(
-                    model=model,
-                    system=request["system"],
-                    messages=messages,
-                    tools=tools,
-                    max_tokens=max_tokens,
-                    purpose=purpose,
-                ) as ticket:
-                    response = self.client.with_options(max_retries=0).messages.create(**request)
-                    ticket.complete(response.model, response.usage.model_dump(), response.id)
-            else:
-                response = self.client.messages.create(**request)
-            blocks = [block.model_dump(exclude_none=True) for block in response.content]
+            try:
+                if budget:
+                    with budget.reserve(
+                        model=model,
+                        system=request["system"],
+                        messages=messages,
+                        tools=tools,
+                        max_tokens=max_tokens,
+                        purpose=purpose,
+                    ) as ticket:
+                        response = self.client.with_options(max_retries=0).messages.create(
+                            **request
+                        )
+                        ticket.complete(response.model, response.usage.model_dump(), response.id)
+                else:
+                    response = self.client.messages.create(**request)
+            except Exception as exc:
+                if type(exc).__name__ == "BudgetExceeded":
+                    raise
+                raise safe_exception(exc) from None
+            blocks = redact_sensitive(
+                [block.model_dump(exclude_none=True) for block in response.content]
+            )
+            # OTel input includes cache reads/writes. Anthropic's input_tokens
+            # excludes both; Weave 0.54's adapter copies that net count unchanged.
+            # Normalize the span only; retain raw usage for our cost ledger.
+            traced_usage = usage_from_anthropic(response)
+            traced_usage.input_tokens += (traced_usage.cache_creation_input_tokens or 0) + (
+                traced_usage.cache_read_input_tokens or 0
+            )
             span.record(
                 output_messages=[trace_message({"role": "assistant", "content": blocks})],
-                usage=usage_from_anthropic(response),
+                usage=traced_usage,
                 response_id=response.id,
                 response_model=response.model,
                 finish_reasons=[response.stop_reason or ""],

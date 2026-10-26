@@ -17,6 +17,12 @@ from coreweaving.corpus import Corpus
 
 
 def response(*calls):
+    calls = [
+        (name, {**args, "source_ids": args.get("source_ids", cited_ids(args["answer"]))})
+        if name == "submit_answer"
+        else (name, args)
+        for name, args in calls
+    ]
     return {
         "content": [
             {"type": "tool_use", "id": f"call-{i}", "name": name, "input": args}
@@ -49,7 +55,11 @@ def verdict(passed=True):
 READ = ("read_page", {"page_id": "custom-agents-quickstart", "section": 5})
 ANSWER = (
     "submit_answer",
-    {"answer": 'Call weave.init("team/project") first. [S1]', "kind": "answer"},
+    {
+        "answer": 'Call weave.init("team/project") first. [S1]',
+        "kind": "answer",
+        "source_ids": ["S1"],
+    },
 )
 
 
@@ -134,8 +144,8 @@ def test_source_like_malformed_brackets_are_not_valid_citations(marker):
 
 def test_citations_distinguish_prose_markers_from_markdown_links_and_code_arrays():
     answer = r"""Use sources [S1] and [C2], then [S1][C2] again.
-[Weave docs](https://example.test/docs) and [S8-UI guide](https://example.test/ui).
-[S9](https://example.test/page) and [C3][example-link] are link labels.
+[Weave docs](https://example.test/docs) and [UI guide](https://example.test/ui).
+[Documentation](https://example.test/page) and [Guide][example-link] are link labels.
 Arrays: [1, 2], [scorer], ["weave.genai.turn_ended"], and `[S10, S11]`.
 Literal escaped notation: \[S12].
 ```python
@@ -484,7 +494,8 @@ def test_caught_tool_error_is_recorded_on_tool_span(corpus, monkeypatch):
     fake = FakeModel([response(("read_page", {"page_id": "invented-page", "section": 0}))])
     result = Agent(corpus, Settings(project="test/test", max_steps=1), fake).run("Read a page.")
     assert len(errors) == 1
-    assert isinstance(errors[0], ValueError)
+    assert isinstance(errors[0], RuntimeError)
+    assert str(errors[0]).startswith("ValueError:")
     assert "error" in result["actions"][0]["result"]
 
 
@@ -545,7 +556,9 @@ def test_verification_configuration_rejects_typographical_modes():
 def test_unknown_citations_are_rejected_before_a_checked_mode_calls_the_auditor(corpus, mode):
     fake = FakeModel([])
     agent = Agent(corpus, Settings(project="test/test", verify_mode=mode), fake)
-    check = agent.verify(Candidate(answer="Unsupported source. [S999]"), Session(), "Question", [])
+    check = agent.verify(
+        Candidate(source_ids=["S1"], answer="Unsupported source. [S999]"), Session(), "Question", []
+    )
     assert check.passed is False
     assert check.status == "failed"
     assert check.mode == mode
@@ -702,3 +715,115 @@ def test_injected_document_instructions_remain_tool_data_and_cannot_grant_a_tool
     ]
     assert any(item.get("text") == injected_text for item in observations)
     assert executed == []
+
+
+@pytest.mark.parametrize(
+    "marker",
+    [
+        "[s1]",
+        "[S 1]",
+        "[Ｓ１]",
+        "&#91;S1&#93;",
+        "[S0]",
+        "[S01]",
+        "[S1](https://example.test)",
+        "![S1](https://example.test)",
+        "[S1]: https://example.test",
+        "[S1][evil]",
+    ],
+)
+def test_source_like_rendering_cannot_disguise_citation(marker):
+    assert malformed_citations(marker)
+
+
+def test_candidate_contract_requires_typed_references_and_forbids_extras():
+    for payload in [
+        {"answer": "Fact [S1]"},
+        {"answer": "Fact [S1]", "source_ids": ["s1"]},
+        {"answer": "Fact [S1]", "source_ids": [1]},
+        {"answer": "Fact [S1]", "source_ids": ["S1"], "url": "https://example.test"},
+    ]:
+        with pytest.raises(ValueError):
+            Candidate.model_validate(payload)
+
+
+@pytest.mark.parametrize("ids", [["S1", "S1"], [], ["S2"]])
+def test_declared_references_must_match_read_inline_evidence(corpus, ids):
+    session = Session()
+    session.add_passage(corpus.read(**READ[1]))
+    agent = Agent(corpus, Settings(project="test/test"), FakeModel([]))
+    verdict = agent.verify(
+        Candidate(answer="Initialize. [S1]", source_ids=ids), session, "How?", []
+    )
+    assert not verdict.passed
+    assert "Structured source IDs" in verdict.issues[0]
+
+
+def test_secret_masking_precedes_agent_messages_history_and_result(corpus, monkeypatch):
+    secret = "synthetic-configured-credential-12345"
+    monkeypatch.setenv("WANDB_API_KEY", secret)
+    session = Session(
+        history=[{"role": "user", "content": secret}, {"role": "assistant", "content": "OK"}]
+    )
+    fake = FakeModel(
+        [
+            response(
+                (
+                    "submit_answer",
+                    {"answer": "We removed " + secret, "kind": "clarification", "source_ids": []},
+                )
+            ),
+            response(("record_verdict", {"passed": True, "claims": [], "issues": []})),
+        ]
+    )
+    result = Agent(corpus, Settings(project="test/test"), fake).run("Question " + secret, session)
+    assert secret not in json.dumps([fake.requests, result, session.history], default=str)
+    assert result["question"] == "Question [REDACTED_SECRET]"
+
+
+@pytest.mark.parametrize(
+    "kind,status,research,expected",
+    [
+        ("research_process", "supported", True, True),
+        ("research_process", "supported", False, False),
+        ("product", "supported", True, False),
+        ("research_process", "partial", True, False),
+        ("research_process", "unsupported", True, False),
+    ],
+)
+def test_search_limit_claim_requires_supported_recorded_process(
+    corpus, kind, status, research, expected
+):
+    candidate = Candidate(
+        answer="I could not establish that from my search.", kind="insufficient", source_ids=[]
+    )
+    fake = FakeModel(
+        [
+            response(
+                (
+                    "record_verdict",
+                    {
+                        "passed": True,
+                        "claims": [
+                            {
+                                "text": candidate.answer,
+                                "kind": kind,
+                                "source_ids": [],
+                                "status": status,
+                            }
+                        ],
+                        "issues": [],
+                    },
+                )
+            )
+        ]
+    )
+    actions = (
+        [{"tool": "search_docs", "input": {"query": "unsupported API"}, "result": {"results": []}}]
+        if research
+        else []
+    )
+    check = Agent(corpus, Settings(project="test/test"), fake).verify(
+        candidate, Session(), "Question", actions
+    )
+    assert check.passed is expected
