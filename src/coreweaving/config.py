@@ -5,12 +5,14 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 import weave
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parents[2]
 AGENT_NAME = "coreweaving"
+VerifyMode = Literal["off", "support", "support+coverage"]
 
 
 def source_fingerprint() -> str:
@@ -30,6 +32,14 @@ class Settings:
     max_steps: int = 10
     max_tools: int = 18
     max_revisions: int = 2
+    verify_mode: VerifyMode = "support"
+    cache_enabled: bool = True
+
+    def __post_init__(self):
+        if self.verify_mode not in ("off", "support", "support+coverage"):
+            raise ValueError("VERIFY_MODE must be off, support, or support+coverage.")
+        if type(self.cache_enabled) is not bool:
+            raise ValueError("cache_enabled must be a boolean.")
 
 
 def settings() -> Settings:
@@ -39,10 +49,15 @@ def settings() -> Settings:
     ]
     if missing:
         raise RuntimeError("Set these names in .env: " + ", ".join(missing))
+    cache_value = os.getenv("CACHE_ENABLED", "true").lower()
+    if cache_value not in ("true", "false"):
+        raise ValueError("CACHE_ENABLED must be true or false.")
     return Settings(
         project=os.environ["WEAVE_PROJECT"],
         agent_model=os.getenv("AGENT_MODEL", "claude-sonnet-5-5"),
         judge_model=os.getenv("JUDGE_MODEL", "claude-opus-5-5"),
+        verify_mode=os.getenv("VERIFY_MODE", "support"),
+        cache_enabled=cache_value == "true",
     )
 
 

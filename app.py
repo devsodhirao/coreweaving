@@ -42,16 +42,56 @@ def resources():
 
 
 def show_result(result):
-    passed = result["verification"]["passed"]
+    verification = result["verification"]
+    passed = verification["passed"]
+    status = verification.get("status", "passed" if passed else "failed")
+    mode = verification.get("mode", result.get("verify_mode", "support"))
+    check_label = (
+        "Check not run · experimental answer"
+        if status == "not_run"
+        else "Source and coverage checks passed"
+        if passed and mode == "support+coverage"
+        else "Source check passed"
+        if passed
+        else "Check did not pass"
+    )
     st.caption(
-        f"{'Source check passed' if passed else 'Source check did not pass'} · "
-        f"{len(result['sources'])} sources · {result['elapsed_seconds']:.1f}s"
+        f"{check_label} · {len(result['sources'])} sources · {result['elapsed_seconds']:.1f}s"
     )
     st.markdown(result["answer"])
-    if result["sources"]:
-        with st.expander(f"Sources · {len(result['sources'])} sources"):
+    if coverage := verification.get("coverage"):
+        with st.expander("Did it answer the whole question?"):
+            st.caption(
+                "Support checks whether the facts match the sources. Coverage checks whether "
+                "the answer addresses the requested parts and relevant caveats. Both are model "
+                "judgments; your review remains separate."
+            )
+            for item in coverage:
+                label = {
+                    "covered": "Addressed",
+                    "missing": "Missing",
+                    "uncertain": "Needs evidence",
+                    "not_applicable": "Outside this question",
+                }.get(item["status"], item["status"])
+                st.markdown(f"**{label}:** {item['obligation']}")
+                st.write(item["reason"])
+                if item.get("source_ids"):
+                    st.caption("Evidence: " + ", ".join(item["source_ids"]))
+    elif status == "not_run":
+        st.warning("Verification was disabled for this experimental run.")
+    coverage_ids = {sid for item in verification.get("coverage", []) for sid in item["source_ids"]}
+    visible_sources = {source["source_id"]: source for source in result["sources"]}
+    visible_sources.update(
+        {
+            source["source_id"]: source
+            for source in result.get("all_read_evidence", [])
+            if source["source_id"] in coverage_ids
+        }
+    )
+    if visible_sources:
+        with st.expander(f"Sources · {len(visible_sources)} sources"):
             st.caption("Match [S1], [S2], and other citations to the passages below.")
-            for source in result["sources"]:
+            for source in visible_sources.values():
                 if "url" in source:
                     st.markdown(f"**[{source['source_id']}] [{source['title']}]({source['url']})**")
                     st.caption(source["heading"])
@@ -65,13 +105,17 @@ def show_result(result):
                     st.text(source.get("output", source.get("error", "")))
     with st.expander("What the check found"):
         st.caption(
-            "A separate model call compared the draft with these sources. "
-            "This check can miss mistakes; it is not a guarantee of correctness."
+            "The verifier compares claims with cited evidence. Coverage mode also looks for "
+            "missing requested parts in the research and conversation context. A successful "
+            "check can still miss mistakes; it is not a guarantee of correctness."
         )
         for index, check in enumerate(result["verification_attempts"], 1):
             st.markdown(f"**Draft {index}: {'passed' if check['passed'] else 'needs revision'}**")
             for claim in check["claims"]:
-                st.write(("✓ " if claim["supported"] else "✗ ") + claim["text"])
+                claim_status = claim.get(
+                    "status", "supported" if claim.get("supported") else "unsupported"
+                )
+                st.write(f"{claim_status.capitalize()}: {claim['text']}")
             for issue in check["issues"]:
                 st.write(issue)
         if not result["verification_attempts"]:
@@ -91,6 +135,13 @@ def show_result(result):
             )
             st.caption(
                 "Tokens are the pieces of text the model reads and produces. Re-reading context also counts."
+            )
+            tokens = metrics["tokens"]
+            st.caption(
+                f"Reused from cache: {tokens.get('cache_read_input_tokens', 0):,} tokens · "
+                f"Written to cache: {tokens.get('cache_creation_input_tokens', 0):,}. "
+                "Caching reuses an unchanged prompt prefix at a different price; it does not "
+                "prove an answer is correct or remove the need for source checks."
             )
             st.table(
                 [
@@ -244,6 +295,13 @@ except Exception as exc:
     st.info("Follow the README setup steps, then reload this page.")
     st.stop()
 
+if config.verify_mode == "off":
+    st.error(
+        "The conversational app requires source verification. "
+        "Use VERIFY_MODE=support or support+coverage; off is for evaluation experiments."
+    )
+    st.stop()
+
 if "session" not in st.session_state:
     st.session_state.session = Session()
     st.session_state.turns = []
@@ -260,6 +318,18 @@ with st.sidebar:
     st.markdown("**Keep the conversation going.**")
     st.write("Ask a follow-up, such as ‘How would I add that to my agent?’")
     st.caption("The assistant remembers the last six exchanges in this session.")
+    with st.expander("Purpose, permissions & memory"):
+        st.write("Purpose: help you understand and use Weave, with evidence you can inspect.")
+        st.caption(
+            "It can search and read the saved docs, run small offline Python examples, and "
+            "submit an answer for checking. It cannot change your accounts, deploy code, "
+            "install packages, or read your files."
+        )
+        st.caption(
+            "Conversation memory keeps six exchanges. New conversation clears that working "
+            "context; saved answers and public Weave traces remain. Your library review never "
+            "silently becomes a model instruction or a documentation fact."
+        )
     with st.expander("About this demo"):
         st.caption(f"{len(corpus.pages)} saved Weave documentation pages")
         st.caption(f"Snapshot: {corpus.snapshot_id[:12]}")

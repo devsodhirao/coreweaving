@@ -17,10 +17,26 @@ def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch, 
 
         def run(self, question, session, update):
             requests.append((question, session.conversation_id))
+            verification = {"passed": True, "issues": []}
+            if len(requests) == 2:
+                verification.update(
+                    status="passed",
+                    mode="support+coverage",
+                    coverage=[
+                        {
+                            "obligation": "Explain the requested Signal setup.",
+                            "status": "covered",
+                            "reason": "The answer gives the requested steps.",
+                            "source_ids": [],
+                        }
+                    ],
+                )
+            elif len(requests) == 3:
+                verification.update(passed=False, status="not_run", mode="off")
             return {
                 "answer_id": f"test-{len(requests)}",
                 "answer": f"Checked answer to: {question}",
-                "verification": {"passed": True, "issues": []},
+                "verification": verification,
                 "verification_attempts": [],
                 "sources": [],
                 "actions": [],
@@ -56,6 +72,8 @@ def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch, 
         assert [text for text, _ in requests] == ["Explain tracing.", "How do I add a Signal?"]
         assert requests[0][1] == requests[1][1]
         assert len(app.chat_input) == 1
+        assert any(x.label == "Did it answer the whole question?" for x in app.expander)
+        assert any("Explain the requested Signal setup." in x.value for x in app.markdown)
 
         app.radio[0].set_value("Answer library").run()
         assert not app.exception
@@ -81,6 +99,8 @@ def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch, 
         assert len(requests) == 3
         assert "multi-turn agent" in requests[-1][0]
         assert requests[-1][1] != requests[0][1]
+        assert any("Check not run" in x.value for x in app.caption)
+        assert any("Verification was disabled" in x.value for x in app.warning)
         app.run()
         assert len(requests) == 3
     finally:
