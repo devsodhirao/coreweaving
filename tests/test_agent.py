@@ -11,6 +11,7 @@ from coreweaving.agent import (
     Verification,
     cited_ids,
     malformed_citations,
+    partial_candidate,
 )
 from coreweaving.config import Settings
 from coreweaving.corpus import Corpus
@@ -171,6 +172,65 @@ def test_research_budget_stops_an_unproductive_loop(corpus):
     assert not result["verification"]["passed"]
     assert len(fake.requests) == 2
     assert "research limit" in result["answer"]
+
+
+@pytest.mark.parametrize("recheck_passes", [True, False])
+def test_partial_recovery_requires_its_own_full_check(corpus, recheck_passes):
+    rejected = response(
+        (
+            "record_verdict",
+            {
+                "passed": False,
+                "claims": [
+                    {
+                        "text": "Initialize Weave with a team/project.",
+                        "source_ids": ["S1"],
+                        "status": "supported",
+                    },
+                    {
+                        "text": "Weave guarantees perfect answers.",
+                        "source_ids": ["S1"],
+                        "status": "unsupported",
+                    },
+                ],
+                "issues": ["Remove the guarantee."],
+            },
+        )
+    )
+    fake = FakeModel([response(READ, ANSWER), rejected, verdict(recheck_passes)])
+    result = Agent(corpus, Settings(project="test/test", max_steps=1), fake).run("Explain setup.")
+    assert result["recovery_attempted"]
+    assert result["recovered_partial"] is recheck_passes
+    assert result["kind"] == "insufficient"  # Never pretend the whole task was completed.
+    assert result["verification_attempts"][-1]["recovery"]
+    assert result["verification"]["passed"] is recheck_passes
+    assert "guarantees perfect answers" not in result["answer"]
+    assert ("Partial answer" in result["answer"]) is recheck_passes
+    assert [r["purpose"] for r in fake.requests] == ["planner", "verification", "verification"]
+    payload = json.loads(fake.requests[-1]["messages"][0]["content"])
+    assert "guarantees perfect answers" not in payload["candidate"]["answer"]
+    assert payload["candidate"]["source_ids"] == ["S1"]
+
+
+def test_partial_recovery_excludes_bad_sources_code_and_known_coverage_gaps(corpus):
+    session = Session()
+    session.add_passage(corpus.read(**READ[1]))
+    session.evidence["C1"] = {"code": "print(1)", "output": "1"}
+    check = Verification(
+        passed=False,
+        claims=[
+            Claim(text="A fact.", source_ids=["S1"], status="supported"),
+            Claim(text="Not confirmed.", source_ids=["S1"], status="partial"),
+            Claim(text="A missing source.", source_ids=["S999"], status="supported"),
+            Claim(text="Execution result.", source_ids=["C1"], status="supported"),
+            Claim(text="```python\nprint(1)\n```", source_ids=["S1"], status="supported"),
+        ],
+    )
+    candidate = partial_candidate(check, session)
+    assert candidate.source_ids == ["S1"]
+    assert candidate.answer.endswith("- A fact. [S1]")
+    check = Verification(passed=False, claims=check.claims, coverage=[obligation(status="missing")])
+    assert partial_candidate(check, session) is None
 
 
 def test_follow_up_keeps_checked_dialogue_and_conversation_id(corpus):
@@ -827,3 +887,67 @@ def test_search_limit_claim_requires_supported_recorded_process(
         candidate, Session(), "Question", actions
     )
     assert check.passed is expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Use the same project [S1]:\n- Inspect its turns.",
+        "A supported fact [S1]: another clause.",
+        "**A supported fact [S1]:** the next step.",
+        "- A supported fact [S1]: a useful detail.",
+        "A fact [S1]; another fact [S1], followed by [S1].",
+    ],
+)
+def test_inline_citation_punctuation_is_not_a_reference_definition(text):
+    """Given inline source evidence, ordinary punctuation must not consume a repair."""
+    assert cited_ids(text) == ["S1"]
+    assert malformed_citations(text) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "[S1]: https://example.test/redirect",
+        "A paragraph.\n   [S1] : https://example.test/redirect",
+        "> [S1]: https://example.test/redirect",
+        "- [S1]: https://example.test/redirect",
+        "1. [S1]: https://example.test/redirect",
+        "A fact [S1](https://example.test/redirect): still a link.",
+        "![S1](https://example.test/image): still an image.",
+        "[S1][destination]\n[destination]: https://example.test/redirect",
+    ],
+)
+def test_reference_definitions_and_link_tricks_still_fail(text):
+    assert malformed_citations(text)
+    assert cited_ids(text) == []
+
+
+@pytest.mark.parametrize("mode", ["support", "support+coverage"])
+def test_inline_colon_reaches_auditor_without_spending_a_repair(corpus, mode):
+    draft = {"answer": "Initialize the project [S1]: then trace it.", "source_ids": ["S1"]}
+    fake = FakeModel(
+        [response(READ, ("submit_answer", draft)), audit(coverage=[obligation(source_ids=["S1"])])]
+    )
+    result = Agent(corpus, Settings(project="test/test", verify_mode=mode), fake).run("How?")
+    assert result["answer"] == draft["answer"]
+    assert len(result["verification_attempts"]) == 1
+    assert result["verification"]["passed"]
+    assert [r["purpose"] for r in fake.requests] == ["planner", "verification"]
+
+
+@pytest.mark.parametrize("mode", ["support", "support+coverage"])
+def test_planner_session_and_verifier_share_the_same_navigation_outline(corpus, mode):
+    session = Session()
+    fake = FakeModel([response(READ, ANSWER), audit(coverage=[obligation(source_ids=["S1"])])])
+    agent = Agent(corpus, Settings(project="test/test", verify_mode=mode), fake)
+    result = agent.run("How do I initialize Weave?", session)
+    tool_result = next(a["result"] for a in result["actions"] if a["tool"] == "read_page")
+    audit_payload = json.loads(fake.requests[-1]["messages"][0]["content"])
+    audit_evidence = audit_payload["evidence"][0]
+    assert audit_evidence == session.evidence["S1"] == tool_result
+    assert audit_evidence["outline"] == corpus.outline(READ[1]["page_id"])
+    assert "not unread section contents" in audit_evidence["outline_scope"]
+    assert all(set(section) == {"section", "heading"} for section in audit_evidence["outline"])
+    assert len(session.evidence) == 1  # Headings do not create read-page authority.
+    assert agent.execute("read_page", READ[1], session) == audit_evidence

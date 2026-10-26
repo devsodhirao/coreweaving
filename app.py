@@ -111,7 +111,9 @@ def show_result(result):
     status = verification.get("status", "passed" if passed else "failed")
     mode = verification.get("mode", result.get("verify_mode", "support"))
     check_label = (
-        "Check not run · experimental answer"
+        "Checked points · partial answer"
+        if result.get("recovered_partial")
+        else "Check not run · experimental answer"
         if status == "not_run"
         else "Source and coverage checks passed"
         if passed and mode == "support+coverage"
@@ -119,10 +121,40 @@ def show_result(result):
         if passed
         else "Check did not pass"
     )
-    st.caption(
-        f"{check_label} · {len(result['sources'])} sources · {result['elapsed_seconds']:.1f}s"
+    failed = not passed and status != "not_run"
+    evidence = result.get("all_read_evidence", [])
+    passages = [source for source in evidence if source.get("url")]
+    if failed and result.get("kind") == "insufficient":
+        st.markdown(
+            "I found relevant documentation, but couldn’t finish a checked answer."
+            if passages
+            else "I couldn’t finish a checked answer to this question."
+        )
+        pages = {source["url"]: source["title"] for source in passages}
+        if pages:
+            st.markdown("**The official pages I found:**")
+            for url, title in list(pages.items())[:3]:
+                st.markdown(f"- [{title}]({url})")
+    else:
+        st.markdown(result["answer"])
+    if status == "not_run":
+        st.warning("Verification was disabled for this experimental run.")
+    source_label = (
+        f"{len(passages)} document passages found · answer unverified"
+        if failed
+        else f"{len(result['sources'])} cited sources"
     )
-    st.markdown(result["answer"])
+    st.caption(f"{check_label} · {source_label} · {result['elapsed_seconds']:.1f}s")
+    if st.button("Sources & analysis", key="analysis_" + result["answer_id"]):
+        show_analysis(result)
+
+
+@st.dialog("Sources & analysis", width="large")
+def show_analysis(result):
+    """Observable evidence and checks, separate from the conversational answer."""
+    verification = result["verification"]
+    st.caption("Documents read, source checks and usage for this answer.")
+    st.link_button("Open this conversation in Weave ↗", result["trace_url"])
     if coverage := verification.get("coverage"):
         with st.expander("Did it answer the whole question?"):
             st.caption(
@@ -141,20 +173,22 @@ def show_result(result):
                 st.write(item["reason"])
                 if item.get("source_ids"):
                     st.caption("Evidence: " + ", ".join(item["source_ids"]))
-    elif status == "not_run":
-        st.warning("Verification was disabled for this experimental run.")
     coverage_ids = {sid for item in verification.get("coverage", []) for sid in item["source_ids"]}
     visible_sources = {source["source_id"]: source for source in result["sources"]}
     visible_sources.update(
         {
             source["source_id"]: source
             for source in result.get("all_read_evidence", [])
-            if source["source_id"] in coverage_ids
+            if source["source_id"] in coverage_ids or not verification["passed"]
         }
     )
     if visible_sources:
         with st.expander(f"Sources · {len(visible_sources)} sources"):
-            st.caption("Match [S1], [S2], and other citations to the passages below.")
+            st.caption(
+                "Match [S1], [S2], and other citations to the passages below."
+                if verification["passed"]
+                else "These passages were read during research; they are not an accepted answer."
+            )
             for source in visible_sources.values():
                 if "url" in source:
                     st.markdown(f"**[{source['source_id']}] [{source['title']}]({source['url']})**")
@@ -174,7 +208,8 @@ def show_result(result):
             "check can still miss mistakes; it is not a guarantee of correctness."
         )
         for index, check in enumerate(result["verification_attempts"], 1):
-            st.markdown(f"**Draft {index}: {'passed' if check['passed'] else 'needs revision'}**")
+            label = "Partial-answer recheck" if check.get("recovery") else f"Draft {index}"
+            st.markdown(f"**{label}: {'passed' if check['passed'] else 'needs revision'}**")
             for claim in check["claims"]:
                 claim_status = claim.get(
                     "status", "supported" if claim.get("supported") else "unsupported"
@@ -264,7 +299,6 @@ def show_result(result):
             st.markdown(f"**{action['tool']}**")
             st.json(action["input"], expanded=False)
             st.json(action["result"], expanded=False)
-    st.link_button("Inspect this conversation in Weave ↗", result["trace_url"])
 
 
 def show_library(corpus):

@@ -45,12 +45,32 @@ def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch, 
                 )
             elif len(requests) == 3:
                 verification.update(passed=False, status="not_run", mode="off")
+            elif len(requests) == 4:
+                verification.update(passed=False, status="failed")
             return {
                 "answer_id": f"test-{len(requests)}",
-                "answer": f"Checked answer to: {question}",
+                "answer": (
+                    "Internal research limit diagnostic."
+                    if len(requests) == 4
+                    else f"Checked answer to: {question}"
+                ),
+                "kind": "insufficient" if len(requests) in (4, 5) else "answer",
+                "recovered_partial": len(requests) == 5,
                 "verification": verification,
                 "verification_attempts": [],
                 "sources": [],
+                "all_read_evidence": [
+                    {
+                        "source_id": "S1",
+                        "url": "https://docs.wandb.ai/weave/guides/tracking/agents/",
+                        "title": "Tracing agents",
+                        "heading": "Conversations",
+                        "text": "A passage read during research.",
+                    },
+                    {"source_id": "C1", "code": "print(1)", "output": "1"},
+                ]
+                if len(requests) == 4
+                else [],
                 "actions": [],
                 "elapsed_seconds": 0.1,
                 "trace_url": "https://example.test/" + session.conversation_id,
@@ -84,8 +104,13 @@ def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch, 
         assert [text for text, _ in requests] == ["Explain tracing.", "How do I add a Signal?"]
         assert requests[0][1] == requests[1][1]
         assert len(app.chat_input) == 1
+        assert not any(x.label == "Did it answer the whole question?" for x in app.expander)
+        assert sum(b.label == "Sources & analysis" for b in app.button) == 2
+        app.button(key="analysis_test-2").click().run()
+        assert not app.exception
         assert any(x.label == "Did it answer the whole question?" for x in app.expander)
         assert any("Explain the requested Signal setup." in x.value for x in app.markdown)
+        assert len(requests) == 2  # Inspection must not rerun the agent.
 
         app.radio[0].set_value("Answer library").run()
         assert not app.exception
@@ -115,6 +140,26 @@ def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch, 
         assert any("Verification was disabled" in x.value for x in app.warning)
         app.run()
         assert len(requests) == 3
+
+        next(button for button in app.button if button.label == "New conversation").click().run()
+        app.chat_input[0].set_value("A question the checker cannot resolve.").run()
+        assert not app.exception
+        assert len(requests) == 4
+        assert any("1 document passages found" in x.value for x in app.caption)
+        assert not any("0 sources" in x.value for x in app.caption)
+        assert any("[Tracing agents]" in x.value for x in app.markdown)
+        assert not any("research limit" in x.value for x in app.markdown)
+        app.button(key="analysis_test-4").click().run()
+        assert not app.exception
+        assert any("A passage read during research." in x.value for x in app.text)
+        assert len(requests) == 4
+
+        next(button for button in app.button if button.label == "New conversation").click().run()
+        app.chat_input[0].set_value("Show the part that can be confirmed.").run()
+        assert not app.exception
+        assert any("Checked points · partial answer" in x.value for x in app.caption)
+        assert not any("Source check passed" in x.value for x in app.caption)
+        assert len(requests) == 5
     finally:
         st.cache_resource.clear()
 
