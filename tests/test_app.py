@@ -218,6 +218,8 @@ def test_pending_work_survives_navigation_and_saves_before_display(monkeypatch, 
         assert len(pending) == 1
         assert app.chat_input[0].disabled
         assert next(b for b in app.button if b.label == "New conversation").disabled
+        # A queued request is visible once while it runs, before any answer exists.
+        assert sum(item.value == "Explain tracing." for item in app.markdown) == 1
         app.radio[0].set_value("Answer library").run()
         app.run()
         assert not app.exception
@@ -235,6 +237,7 @@ def test_pending_work_survives_navigation_and_saves_before_display(monkeypatch, 
         assert requests == ["Explain tracing."]
         assert len(list_answers()) == 1 and len(pending) == 1
         assert any("Checked answer." in item.value for item in app.markdown)
+        assert sum(item.value == "Explain tracing." for item in app.markdown) == 1
         assert not app.chat_input[0].disabled
     finally:
         st.cache_resource.clear()

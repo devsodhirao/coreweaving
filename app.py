@@ -6,6 +6,7 @@ Streamlit controls to one pending job per session. No UI callback chooses tools.
 """
 
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 from importlib.metadata import version
 from queue import Empty, Queue
@@ -25,13 +26,21 @@ st.set_page_config(
 )
 st.markdown(
     """<style>
-.block-container {max-width:1060px;padding-top:4rem;padding-bottom:3rem}
+.block-container {max-width:1000px;padding-top:3rem;padding-bottom:3rem}
 [data-testid=stHeading] h1 {font-family:Georgia,serif;font-weight:400;
     font-size:clamp(2.25rem,4vw,3.4rem);letter-spacing:-1.5px;line-height:1.13}
 [data-testid=stSidebar] {background:#e8eee5}
 [data-testid=stChatMessage] {border:1px solid #d7dfd2;border-radius:12px;background:#fffefa;
     padding:1.4rem}
 [data-testid=stChatMessage] p {line-height:1.65}
+[data-testid=stChatMessage] li {line-height:1.65;margin-bottom:.45rem}
+[data-testid=stChatMessage] h2,[data-testid=stChatMessage] h3 {margin-top:1.2rem}
+[data-testid=stCaptionContainer] {color:#52655c}
+button:focus-visible,a:focus-visible,textarea:focus-visible {
+    outline:3px solid #236953!important;outline-offset:3px!important}
+[data-testid=stButton] button,[data-testid=stPopover] button {min-height:44px}
+[data-testid=stChatInput] textarea {min-height:48px}
+.st-key-welcome_input {margin:.6rem 0 1.5rem}
 .st-key-starter_learn,.st-key-starter_build,.st-key-starter_evaluate {
     background:#fffefa;border-radius:10px}
 .st-key-starters [data-testid=stCaptionContainer] {min-height:3.5rem}
@@ -98,17 +107,24 @@ def show_pending_turn():
             break
         stage, detail = event["stage"], event["detail"]
         if stage == "thinking":
-            job["progress"] = detail
+            job["progress"] = "Planning the next step"
         elif stage == "search_docs":
-            job["progress"] = "Searching: " + detail.get("query", "")
+            job["progress"] = "Finding relevant documentation"
         elif stage == "read_page":
-            job["progress"] = "Reading: " + detail.get("page_id", "documentation")
+            job["progress"] = "Reading source material"
+        elif stage == "run_python":
+            job["progress"] = "Trying the Python example offline"
+        elif stage == "submit_answer":
+            job["progress"] = "Checking the answer against its sources"
         elif stage == "verification":
-            job["progress"] = "Checking finished." if detail["passed"] else "Revising the draft."
-    st.info("Working on your question · " + job["progress"])
-    st.caption(
-        "You can browse the answer library while this finishes. One question runs at a time."
-    )
+            job["progress"] = (
+                "Saving your answer" if detail["passed"] else "Correcting a source mismatch"
+            )
+    elapsed = int(time.monotonic() - job["started_at"])
+    # Stages can repeat during research; elapsed time is real, not a percentage
+    # or an estimated completion promise. Polling never resubmits the question.
+    st.status(f"{job['progress']} · {elapsed}s", state="running")
+    st.caption("Your question is running. You can browse saved answers while you wait.")
 
 
 def show_result(result):
@@ -151,8 +167,32 @@ def show_result(result):
         if failed
         else f"{len(result['sources'])} cited sources"
     )
-    st.caption(f"{check_label} · {source_label} · {result['elapsed_seconds']:.1f}s")
-    if st.button("Sources & analysis", key="analysis_" + result["answer_id"]):
+    st.caption(
+        f"{check_label} · {source_label} · {result['elapsed_seconds']:.1f}s",
+        help="A source check assesses factual support. It can still miss mistakes or missing steps.",
+    )
+    # Put citation navigation beside the answer. Exact passages and audit details
+    # remain in the analysis window, with no extra model request for inspection.
+    if result["sources"]:
+        with st.popover(
+            "View cited sources",
+            key="citations_" + result["answer_id"],
+            icon=":material/menu_book:",
+        ):
+            st.caption("Match the [S] and [C] labels in the answer to its evidence.")
+            for source in result["sources"]:
+                if source.get("url"):
+                    st.markdown(f"**[{source['source_id']}]** [{source['title']}]({source['url']})")
+                    st.caption(source["heading"])
+                else:
+                    st.markdown(f"**[{source['source_id']}]** Offline Python execution")
+            st.caption("Open Sources & analysis for the exact passages and checks.")
+    if st.button(
+        "Sources & analysis",
+        key="analysis_" + result["answer_id"],
+        icon=":material/manage_search:",
+        help="Inspect passages, checks, time, cost and the Weave trace. No new model call.",
+    ):
         show_analysis(result)
 
 
@@ -229,7 +269,7 @@ def show_analysis(result):
     if metrics := result.get("metrics"):
         amount = metrics["estimated_usd"]
         label = (
-            f"Estimated model cost · ${amount:.4f}"
+            f"Estimated model cost · ${amount:.2f}"
             if amount is not None
             else "Model usage · partial estimate"
         )
@@ -257,7 +297,7 @@ def show_analysis(result):
                             "verification": "Source verification",
                         }.get(stage, stage),
                         "Calls": values["calls"],
-                        "Known estimate (USD)": f"${values['known_estimated_usd']:.5f}",
+                        "Known estimate (USD)": f"${values['known_estimated_usd']:.2f}",
                     }
                     for stage, values in metrics["by_purpose"].items()
                 ]
@@ -335,7 +375,7 @@ def show_library(corpus):
     columns = st.columns(3)
     columns[0].metric("Saved turns", len(records))
     columns[1].metric("Marked useful", sum(r["review_state"] == "useful" for r in records))
-    columns[2].metric("Known model estimate", f"${estimate:.4f}")
+    columns[2].metric("Known model estimate", f"${estimate:.2f}")
     st.caption(
         f"Across these saved turns only; {unknown} have missing or partial estimates. "
         "Includes research and source checks; excludes Signals and separate evaluation runs."
@@ -484,10 +524,9 @@ with st.sidebar:
         st.caption("New conversations and server restarts clear conversation memory.")
         st.caption("The local answer library persists across restarts. It is excluded from Git.")
 
-if busy:
-    show_pending_turn()
-
 if view == "Answer library":
+    if busy:
+        show_pending_turn()
     show_library(corpus)
     st.stop()
 
@@ -505,9 +544,13 @@ if not st.session_state.turns:
     # An inline welcome field avoids the pinned chat layout scrolling a narrow
     # first screen past its heading. Conversation input stays pinned below.
     with st.container(key="welcome_input"):
-        question = st.chat_input("Ask about Weave…", key="welcome_question", disabled=busy)
+        question = st.chat_input(
+            "What are you trying to do with Weave?", key="welcome_question", disabled=busy
+        )
 else:
-    question = st.chat_input("Ask about Weave…", key="conversation_question", disabled=busy)
+    question = st.chat_input(
+        "Ask a follow-up or add context…", key="conversation_question", disabled=busy
+    )
 
 starter_area = st.empty()
 if not st.session_state.turns and not busy:
@@ -542,6 +585,12 @@ for previous_question, previous_result in st.session_state.turns:
     with st.chat_message("assistant"):
         show_result(previous_result)
 
+if busy:
+    with st.chat_message("user"):
+        st.markdown(st.session_state.job["question"])
+    with st.chat_message("assistant"):
+        show_pending_turn()
+
 question = question or st.session_state.pop("pending_question", None)
 if question and not busy:
     question = redact_sensitive(question)
@@ -554,5 +603,6 @@ if question and not busy:
         "future": future,
         "events": events,
         "progress": "Starting research…",
+        "started_at": time.monotonic(),
     }
     st.rerun()
