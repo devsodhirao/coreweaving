@@ -1,71 +1,52 @@
-# Versioning the product, evidence, and memory
+# Versions and reproducibility
 
-A version should answer two questions: **what produced this result, and what must we recheck when something changes?** Git history alone cannot identify a model response: the documentation, prompts, configuration and grading rules also matter.
+A result needs the identity of its code, source material, model configuration and grading rules. These identify what ran; they do not establish correctness or guarantee identical model output.
 
-## Keep a small number of useful identities
+## What is recorded
 
-| Layer | Current record | Why it matters |
-| --- | --- | --- |
-| Runnable product | Full Git commit; package version in `pyproject.toml`; tracked `uv.lock`; digest-pinned sandbox image | Check out an implementation with its declared dependencies. A release tag names an accepted milestone. |
-| Agent behavior | `source_sha256`, `prompt_sha256`, `config_sha256`, verification mode and cache setting | Attribute an answer to the actual Python/app bytes, prompt/tool definitions and configuration, including local edits. The short source hash is the Weave agent version: it identifies the code build, while configuration and mode distinguish behavior. |
-| Model | Requested model name plus each returned model identifier, provider response ID and usage | Record what the provider reports. An alias is not proof that the provider's weights never change. |
-| Documentation | Corpus `snapshot_id`, locked manifest, saved original passages and URLs | Explain what evidence was available then. Restoring the locked snapshot checks its contents; an ordinary docs refresh is a new input. |
-| Evaluation | Git/source/snapshot identity, frozen expanded dataset and SHA, assertion IDs, rubric version, judge model, seed, trial identity and actual Weave evaluation ID | Keep cases, attempts and measurement rules attributable. Different grading rules cannot silently replace an earlier score. |
-| Answer memory | Unique answer ID, original result, context/evidence/usage, separate dated review history | A later opinion or a new implementation must not rewrite the original answer. Older saved records can legitimately have unknown version fields. |
+| Identity | Record and scope |
+| --- | --- |
+| Code | Full Git commit; `source_sha256` covers `src/coreweaving/*.py` and `app.py`. Its first 12 characters identify the Weave agent version. Documentation-only edits do not change this hash. |
+| Behavior | Prompt/tool bundle hash, configuration hash, verification mode and cache setting. The prompt hash does not describe every assembled request. |
+| Model | Requested and returned identifiers, provider response ID and usage. Mutable aliases may change behind the same name. |
+| Corpus | Snapshot ID, locked manifest/page hashes, original passages and URLs. Snapshot identity covers canonical URLs and bytes; the manifest separately records retrieval metadata. |
+| Evaluation | Source/snapshot, frozen dataset and assertions, rubric version, judge, trial/prediction IDs and Weave evaluation ID. |
+| Saved answers | Original result and evidence plus separate review history. Missing fields in older records remain unknown. |
 
-The prompt hash identifies the prompt/tool bundle, not every assembled provider request. Corpus identity covers canonical URLs and page bytes; the locked manifest also contains retrieval metadata, so the release records its separate hash.
-
-The source hash currently covers `src/coreweaving/*.py` and `app.py`. It does **not** identify the entire environment, lockfile, sandbox image or raw documentation; those have separate records. Hashes identify bytes, not correctness. A timestamp is useful provenance, not a substitute for a content identity.
-
-The manifest records `reference_sdk_version=0.53.1` from the Python reference page's source links. The installed SDK is `0.54.0`. These are separate trace attributes, and the sidebar shows the mismatch. This is the reference page's source tag, not a compatibility declaration for all 351 guides. Adding this metadata did not change the document bytes or corpus identity. API existence against the pinned runtime remains a separate future check.
+The locked environment and digest-pinned sandbox image are separate from the source hash. The package version is `0.1.0`; it is not a reliability rating. [Evidence by version](../results/README.md)
 
 ## Documentation freshness and version support
 
-**The assistant uses stored documentation. It tracks versions for provenance; it does not select or validate SDK releases.** The active corpus contains 351 Weave pages fetched October 24, 2026 at approximately 19:04 Pacific (October 25, 02:04 UTC), with snapshot identity `4db7c17b2869`. Fetch time is not the upstream publication date or a promise that the pages remain current.
+The assistant uses **one stored snapshot**, containing 351 pages fetched October 24, 2026 (Pacific), identity `4db7c17b2869`. The bundled archive restores those bytes offline. Fetch time is not an upstream publication date.
 
-| Capability | Current behavior and limit |
-| --- | --- |
-| Source identity | [Corpus](../src/coreweaving/corpus.py) validates page hashes; answers retain original passages and the snapshot ID. Hashes establish which bytes were used, not whether they are current or correct. |
-| Freshness | No live retrieval, scheduled update, upstream change detector or snapshot-age warning. The library compares a saved answer with the **loaded snapshot**, not the live website. Citation URLs can change independently of saved evidence. |
-| Release selection | One active corpus in the app. No SDK-version selector, release-specific search or migration comparison. The reference page's 0.53.1 label does not assign that version to all guides. |
-| Compatibility | Runtime Weave is pinned to 0.54.0, but generated examples are not automatically checked for API existence, signatures or compatibility. The offline Python tool does not execute live SDK integrations. |
-| Reproducibility | The bundled archive supports offline restoration of this snapshot. Identical inputs do not guarantee identical model responses or unchanged provider aliases. |
+Reference-page source links identify SDK **0.53.1**; runtime Weave is pinned to **0.54.0**. The sidebar and trace attributes record this mismatch. It does not establish a release version for every guide or validate generated examples against the installed SDK.
+
+There is no live retrieval, scheduled refresh, release selector, API-existence check or compatibility guarantee. Saved-answer freshness compares against the loaded snapshot, not the live site. Citation URLs can change while retained evidence stays intact. [Corpus implementation](../src/coreweaving/corpus.py)
 
 ## Updating the corpus
 
-This is a maintainer workflow, not an app feature.
+This is a manual maintainer operation:
 
-1. Preserve the existing checkout and evidence. In a separate checkout, `uv run python scripts/fetch_docs.py --refresh --weave-only` downloads current pages and rewrites the manifest. Inspect the exit status, failures and content changes: a failed refresh can still leave a new, incomplete manifest.
-2. Rebuild the bundled archive from the accepted pages and update the archive path/checksum in [fetch_docs.py](../scripts/fetch_docs.py). **Refresh does not do this automatically; no archive-building command is provided.** Validate a fresh offline restore before publishing. A refreshed manifest paired with the old bundle may fail locked restoration.
-3. Restart the app or clear its resource cache, then start a new conversation. [The app caches its loaded corpus](../app.py); changing files on disk alone does not activate new evidence. Reevaluate the new snapshot, record its identities and preserve the earlier results. Old saved answers remain historical and require review before reuse.
+1. Preserve the old checkout/results. In a separate checkout, `uv run python scripts/fetch_docs.py --refresh --weave-only` downloads current pages and rewrites the manifest. Inspect failures and changed content; a failed refresh can leave an incomplete manifest.
+2. Rebuild the bundled archive from accepted pages and update its path/checksum in [fetch_docs.py](../scripts/fetch_docs.py). Refresh does **not** build that archive automatically. Confirm a fresh offline restore before publishing.
+3. Restart the app or clear its resource cache, then start a new conversation. Review changed references and evaluate the new snapshot; changing files alone does not replace the cached corpus. Preserve historical answers and scores.
 
-## Changes should trigger proportionate evidence
+## What a change requires
 
-- **Presentation-only:** open the artifact, inspect desktop and mobile, exercise the changed control, and check markup/links/browser errors. Reuse existing answer records; do not pay for a new evaluation merely to change a heading.
-- **Python comments/docstrings:** the source hash still changes. Compare executable syntax and model-facing prompts/schemas, run local checks and refresh code excerpts. A Pydantic model docstring can change a generated tool description, so it must not be assumed behavior-neutral. Keep historical evaluations tied to their original hashes.
-- **Prompt, permissions, tool behavior or memory policy:** change the relevant Given/When/Then contract, test the boundary, then run targeted real cases. Record a new behavior identity. An expanded capability needs an explicit permission decision; a new version number cannot grant authority.
-- **Model, retrieval or documentation snapshot:** preserve the previous input, run the relevant regression and difficult cases, and compare quality, cost and latency. Existing answers remain historical; a freshness warning is a reason to review, not proof they are false.
-- **Dataset or judge rule:** assign a new dataset identity or rubric version. Preserve old scores and disclose why the instrument changed. If rescoring stored answers, label it as a rescore with the original prediction identity; it is not a fresh agent run.
-- **Stored-record format:** add an explicit schema version and migration before the first incompatible change. Back up the local database, retain original payloads and test old records. We have not needed an incompatible migration yet; SQLite currently has no migration framework.
+| Change | Required evidence |
+| --- | --- |
+| Public documentation | Check factual claims and local links; inspect any changed rendered artifact. Retain the existing runtime measurement. |
+| Python, prompts, tools or memory | Check the new source identity and relevant tests; run targeted behavioral checks. Pydantic docstrings can affect tool schemas, so a wording change may change behavior. |
+| Model, retrieval or snapshot | Freeze the other conditions; compare quality, refusals, cost and latency on appropriate tasks. Do not reuse historical controls as if only one variable changed. |
+| Dataset or judge | Version the instrument and preserve earlier scores. Explain the correction; a rescore is not a fresh agent run. |
+| Persistent record format | Preserve original payloads and test compatibility before migration. SQLite currently has no migration framework. |
 
-## Releases and rollback
+The original `submission-2026-10-26` tag remains at checkout `5225ea3` (runtime `755036e`). Later results describe runtime `3a49a50`; these are distinct milestones. Do not move a published tag or overwrite a completed run to present a new result as the old one.
 
-Use focused ordinary Git commits, followed by an annotated tag for a tested runnable milestone. The package declares `0.1.0`. The dated submission tag `submission-2026-10-26` identifies the submitted checkout and its recorded evidence; it is separate from a claim of production stability. Patch increments are compatible fixes; minor increments introduce capabilities or deliberate behavior changes. A future stable interface can justify `1.0.0`. This is our release convention, not a reliability score.
+To roll back, use a separate checkout with its locked environment and corpus. Preserve current saved answers/traces and check database compatibility before using an older runtime. A code rollback does not change account permissions or billing.
 
-A release records its code commit, source and dependency identities, documentation snapshot, runtime settings, evaluation directories, known limitations and check results. The release tag points to the final commit containing that evidence. Do not move a published tag to disguise a fix; create a new version. Keep experiments in separately named result directories and never overwrite a finished run.
+## Tested boundaries and remaining gaps
 
-Roll back by checking out the prior release into a separate working directory and restoring its locked environment and docs. Keep current answer records and public traces intact. Compare record compatibility before opening a newer database with old code. A rollback changes the runnable product, not history, account permissions or billing.
+[Corpus tests](../tests/test_corpus.py) reject modified snapshot bytes. [Agent tests](../tests/test_agent.py) check runtime identities; [evaluation tests](../tests/test_evaluate.py) preserve a completed turn when source changes mid-run. [Library tests](../tests/test_library.py) preserve original answers and review history.
 
-## BDD evidence already present
-
-- Given a recorded answer, when we review it or save it again, then its original result survives unchanged: `tests/test_library.py::test_repeat_save_is_idempotent_and_cannot_overwrite_review_or_evidence` and `test_explicit_reviews_keep_history_and_do_not_rewrite_source_check`.
-- Given newer source material, when records are read, then earlier snapshot identity remains attached to the earlier answer: `test_snapshot_identity_and_original_answers_survive_newer_runs`.
-- Given a modified locked corpus, when it loads, then the integrity check rejects it: `tests/test_corpus.py::test_modified_snapshot_is_rejected`.
-- Given a new agent turn, when it completes, then its runtime identities appear in its result and conversation attributes: `tests/test_agent.py::test_result_and_conversation_record_runtime_identity`.
-- Given source changes during an evaluation, when prediction continues, then the run detects the mismatch while preserving the completed turn: `tests/test_evaluate.py::test_source_change_preserves_already_produced_turn`.
-
-## Honest limits
-
-Two early local library records predate the new source/prompt/configuration identities and turn trace ID. They retain their original snapshot, model and usage; missing fields stay unknown. We do not backfill today's version into yesterday's answer.
-
-The app compares saved-answer snapshot identity with the loaded corpus; it does not check live freshness or every behavior/dependency identity. Per-run dependency/environment hashes and an explicit stored-payload schema version are future hardening. The release record can capture the locked environment without pretending those fields already exist on every historical turn. Provider nondeterminism, mutable model aliases and asynchronous external services mean even an identified configuration is not a promise of identical text on replay.
+Per-turn environment hashes and explicit stored-payload schema versions remain future work. Provider nondeterminism and external-service changes prevent byte-identical answers from being promised even when the recorded inputs match.

@@ -1,92 +1,66 @@
 # Evidence index
 
-All files contain recorded outputs or explicitly labeled fixtures. No example results are presented as real agent executions.
+Start with the [end-to-end review](brief-e2e-v1/review.md) for findings and this index for the underlying receipts. Recorded answers, failed attempts and labeled fixtures remain unchanged.
 
-## Which version was evaluated?
+## Current result and comparison
 
-These are historical measurements, each tied to its original implementation. Publication does not rerun or upgrade their evidence. The README rounds costs; JSON receipts retain full precision.
+The measured runtime is `3a49a50`, source SHA-256 `b746d92df4edb8ecebe5729d7f26becb995ec088217b47b2e12b4a2b98952a13`. Later documentation edits do not constitute another evaluation.
 
-| Measurement | Implementation and scope |
+| Measurement | Cases | Assertions | Basis |
+| --- | ---: | ---: | --- |
+| [Current regression](brief-final-regression-v1/summary.json) | 13/13 | 48/48 | Runtime `3a49a50`, rubric 2.3, $2.85 agent + judge. |
+| [Fresh baseline](brief-e2e-regression-v1/summary.json) | 10/13 | 44/48 | Source `b269258e7786`, rubric 2.2; a separate rerun of the earlier runtime. |
+| [Original tagged submission](submission-repair-regression-v3/summary.json) | 10/13 | 45/48 | Runtime `755036e`, source `b269258e7786`, rubric 2.2. Preserved by the immutable submission tag. |
+
+Rubric 2.3 corrected two unsolicited requirements in case 03. Questions, references and the other 46 assertions stayed fixed: **43/46 baseline → 46/46 current**. [Case-by-case comparison](brief-e2e-v1/comparison.json) separates these rubric corrections from behavior changes. Manual [answer review](brief-e2e-v1/final-answer-review.json) flags a generous hierarchy grade in case 02 and an incomplete illustrative sketch; 13/13 remains the recorded judge result, not a correctness guarantee.
+
+## Verification receipts
+
+| Check | Evidence and scope |
 | --- | --- |
-| [Current full regression: 13/13, 48/48 assertions](brief-final-regression-v1/summary.json) | Runtime `3a49a50`, source `b746d92df4ed`, rubric 2.3, $2.85. Questions/references unchanged; two fairness corrections and the common 46 comparison are explicit in the [end-to-end review](brief-e2e-v1/review.md). Manual review flags a generous case 02 hierarchy grade; the judge's score is preserved. |
-| [Fresh baseline: 10/13, 44/48](brief-e2e-regression-v1/summary.json) | Source `b269258e7786`, rubric 2.2, $2.40. All 13 cases / 15 turns reviewed; [failure diagnoses](brief-e2e-v1/baseline-review.json) distinguish retrieval, repair and instrument errors. |
-| [Focused repair: 4/4, 16/16](brief-repair-focused-v1/summary.json) | Cases 03/05/11/13, source `8a16ba410216`, rubric 2.3, $1.19. Precedes the final code-sketch guidance. |
-| [Final browser replay](brief-e2e-v1/ui-final/manual-review.json) | Four actual questions, 12/12 task checks, $0.58, median 41.1s. True follow-up, once-only delivery, sources/analysis on desktop/mobile. Generated SDK examples remain unexecuted. |
-| [Verifier probes](brief-verifier-final-v1/summary.json) | Seven selected drafts matched expected labels; [scope correction](brief-verifier-final-v1/scope-correction.json) names the captured seventh fixture. Corrected old/new six-fixture comparison tied 6/6; [initial fixture defect](brief-e2e-v1/verifier-fixture-review.json) retained. |
-| [Signal diagnosis](brief-e2e-v1/signal-diagnosis.json) and [calibration](brief-e2e-v1/signal-calibration/summary.json) | Old policy: 14 false-positive tags among 15 selected turns. Revised policy: 6/6 targeted fixtures plus [live feedback readback](brief-e2e-v1/backend-ui-final.json). General detection accuracy unmeasured. |
-| [Complete review and itemized costs](brief-e2e-v1/review.md) | This pass's listed model usage is $8.40, including imperfect/intermediate results and explicit Signal calibration. Automatic monitor scoring and unreturned charges excluded. 245 local tests/Ruff, fresh offline setup, all-turn backend checks, artifact inspection and private-file scan have separate receipts. |
-| [Tagged submission regression: 10/13, 45/48 assertions](submission-repair-regression-v3/summary.json) | Commit `755036e`, source `b269258e7786`, rubric 2.2, $2.56. All 13 cases completed; [failure review](submission-repair-v1/evaluation-review.json) preserves each verdict. |
-| [Pre-latency repaired regression](submission-repair-regression-v2/summary.json) | Commit `7f60a85`, source `c09d73e4c67c`, 12/13 and 46/48 assertions, $2.52. No recovery attempted; predates normalization of cited prose drafts. |
-| [Submission repairs and final UI](submission-repair-v1/review.md) | Offline bundled corpus, actual SDK-wrapper tests, bounded Opus recovery and UI progress/source controls. All four questions returned source-checked answers; 10/12 manual checks passed. The overview omitted Signal timing and the evaluation answer omitted judge fallibility; the tracing scaffold still leaves setup to the reader. |
-| [First repaired regression](submission-repair-regression-v1/summary.json) | Commit `7431cef`, source `ae63b1b797ed`, 12/13 and 46/48 assertions, $2.44. Its separate UI replay still refused the overview; retained before the recovery-model change. |
-| [Readiness evaluation failure](readiness-head-20261026-v1/summary.json) | Public `e4f48c7`: zero predictions/model calls because WeaveList sanitation failed. Infrastructure failure, not an answer-quality score. |
-| [Regression: 11/13, 45/48 assertions](regression-v2/summary.json) | Commit `179a052`, rubric `2.1-assertions`; estimated agent+judge cost $2.6336314. This predates later UI, citation and recovery fixes. The earlier 12/13 used a different rubric, so the score change is not a direct quality comparison. |
-| [Three-policy pilot](coverage-pilot-v1/summary.json) | Frozen source at `d79d64b`, six cases × two repeats per mode; off 7/12, support 10/12, coverage 8/12. Coverage remains available experimentally; support is the default. |
-| [Earlier targeted UI answers](preset-check-v4/backend.json) and [recovery replay](recovery-check-v1/receipt.json) | Source `1b981419`: two useful UI answers, 5/6 manual checks, with monitoring timing omitted. Separately, one verifier call accepted four supported partial facts. The replay is not an end-to-end UI completion. |
-| [Later fixes and readability pass](readability-review.json) | Empty-recovery guards and stable saved-answer selection were locally tested after those paid answers. Runtime `cebca8e` / source `a4b6f4d3` received read-only desktop/mobile inspection. Commit `c9107dd` / source `8e41f124` changes comments/docstrings while preserving executable syntax, prompts and schemas; 196 tests pass. No full quality evaluation ran on that earlier source; the repaired source has a separate run above. |
+| Local checks | [245 tests and Ruff](brief-e2e-v1/local-checks-final.json) on the measured runtime. These test boundaries and control flow, not general answer quality. |
+| Fresh setup | [Isolated installation](brief-e2e-v1/fresh-setup-final.json): zero cached pages, all 351 bundled pages restored with network blocked, runtime imports successful. No credentials or model calls. |
+| Actual app | [Final browser review](brief-e2e-v1/ui-final/manual-review.json): 4/4 questions, 12/12 task checks, $0.58, 23–45 seconds per answer. Same-context follow-up, once-only delivery, sources and analysis checked on desktop/mobile. [Message-history reproduction](brief-e2e-v1/ui-final/tracing-history-reproduction.json) uses stubs; generated SDK examples were not executed against a provider. |
+| Traces and usage | [Regression backend](brief-e2e-v1/backend-final.json): 15 turns, 243 spans, 93 agent model calls. [UI backend](brief-e2e-v1/backend-ui-final.json): four turns, 82 spans, 27 calls. Hierarchy, source identity, usage and evaluation links reconciled. |
+| Verifier | [Seven selected fixtures](brief-verifier-final-v1/summary.json) matched expected labels, including the captured invalid tool-history sketch. [Fixture review](brief-e2e-v1/verifier-fixture-review.json) and [scope correction](brief-verifier-final-v1/scope-correction.json) preserve the corrected six-fixture old/new tie of 6/6. These probes do not estimate accuracy. |
+| Signal | [Diagnosis](brief-e2e-v1/signal-diagnosis.json): old policy falsely tagged 14 of 15 selected turns. [Revised setup](brief-e2e-v1/signal-setup.json), [six-fixture calibration](brief-e2e-v1/signal-calibration/summary.json), [15 regression negatives](brief-e2e-v1/signal-final-review.json) and [four UI negatives](brief-e2e-v1/backend-ui-final.json) show the narrower policy working on these examples. Live positive recall is unmeasured. |
+| Public access | [Anonymous publication check](brief-e2e-v1/publication.json) records public repository commit `b06a508`, Agents and the final evaluation. This is evidence for that publication, not a fresh check of later documentation edits. |
+| Submission boundary | [Credential/private-file scan](brief-e2e-v1/submission-boundary-final.json) found no configured keys or private material in the checked candidates. `.env` was ignored and owner-only. This is a bounded scan, not general PII detection. |
 
-[Anonymous publication check](brief-e2e-v1/publication.json) confirms the reviewed repository, public Agents dashboard and final 13-row evaluation are visible without sign-in.
+Signals classify assistant-reported operational failure, explicit research-limit exhaustion, or factual setup instructions with no source marker. They review completed turns; they do not verify factual correctness or block delivery.
 
-## Recorded checks
+## Why support verification is the default
 
-| Evidence | Result and scope |
+The [historical pilot](coverage-pilot-v1/summary.json) ran six task families × two trials per policy; all 36 runs cost $9.65.
+
+| Policy | Cases | Factual assertions | Mean agent time |
+| --- | ---: | ---: | ---: |
+| Off | 7/12 | 39/44 | 20 s |
+| Support | 10/12 | 39/44 | 42 s |
+| Support + coverage | 8/12 | 32/44 | 55 s |
+
+Support's extra case passes came from citation integrity; factual assertions tied with off. Coverage refused two answerable tasks. [Failure review](coverage-pilot-v1/review.md) retains all 11 failed case-runs; [cost audit](coverage-pilot-v1/accounting-review-final.json) reconciles 330 unique provider requests. Six selected task families are not 36 independent tasks or a general reliability estimate.
+
+The recorded [Compare browser check](coverage-pilot-v1/compare-ui-review.json) showed missing summary values. The later [backend readback](coverage-pilot-v1/backend-final-readback.json) reconciled all six completed summaries and 36 case scores. The rendering cause is unknown; successful offline aggregation does not establish why the UI showed N/A. Replaying completed answers or deleting their evidence would not resolve that diagnosis.
+
+<details>
+<summary>Earlier failures and supporting measurements</summary>
+
+These records explain the repairs; their results apply to their recorded source and rubric.
+
+| Finding | Record |
 | --- | --- |
-| [Code/readability review](readability-review.json) | Comments/docstrings, requirement-led README and detailed code map; executable syntax, prompts, schemas, rubric and Signal definition unchanged. 196 tests pass; lint/format clean. Private guide mappings/excerpts updated and checked outside Git. No new model calls or quality results. |
-| [Brief alignment check](brief-alignment-check.json) | Original requirements cross-checked against implementation, recorded evaluations, active Signal configuration and the guides. Corrected publication status, Signal timing and release-tag wording; final runtime unchanged. This receipt predates publication. |
-| [Preset investigation and final status](preset-check-summary.json) | 24 actual UI turns across four recorded source versions, plus one strict recovery replay; $2.8676069 estimated model cost. V2 met 23/24 manual checks; a subsequent prompt regression was reverted. Final targeted V4 delivered both answers and met 5/6 checks, with monitoring timing still omitted. Source `a4b6f4d3`, before the documentation-only readability pass, has 196 passing tests and later guards for empty recovery verdicts and saved-answer selection. No full regression on that source. |
-| [Partial recovery replay](recovery-check-v1/receipt.json) · [Independent review](recovery-check-v1/implementation-review.json) | One real verifier call accepted four supported points from a failed historical answer for $0.0300105. The narrowed text is explicitly partial. A later empty-claims waiver was reproduced and fixed with local tests. This is not a rescore or a complete answer to the original question. |
-| [Earlier local setup](final-setup-preset-fixes.json) | Local clone of `9518441`, then updated to `cebca8e`; locked 91-package environment, 351 documents restored with zero failures and 12 runtime modules imported. No credentials copied or model calls made. |
-| [Earlier read-only UI check](final-readonly-ui.json) · [Submission boundary](final-submission-boundary.json) | Desktop/mobile inspection after final restart preserves the chosen saved answer and trace across duplicate-question records. No model submissions. Configured credentials absent from submission candidates; private owner notes remain outside Git. |
-| [Earlier correction pass](correction-pass.json) · [Earlier local setup](final-local-setup.json) | Source `fb73d32`/`c7ca9220`: 174 tests, Ruff clean, 351 documents restored in an isolated local clone. README 169→126 lines and build log 132→51; runtime 3,407→3,674 for that boundary/UI correction. These counts predate the preset fixes. |
-| [Final artifact check](artifact-final-check.json) · [Final walkthrough check](walkthrough-final-check.json) | Local served bytes, HTML structure, links and desktop/mobile rendering checked. Latest changes are not deployed to the owner-private hosted artifact. |
-| [Earlier navigation/security app check](ui-recovery-v1/browser.json) · [Backend readback](ui-recovery-v1/backend.json) | Two real turns saved/displayed once despite mid-turn navigation, same conversation, 13 returned model calls and $0.253286. Synthetic credential absent from backend payloads and saved records; native trace costs reconcile. Both source checks pass, but answers overqualify valid API composition. Functional/security evidence, not a replacement quality evaluation. |
-| [Earlier regression](regression-v2/summary.json) | 13 cases on `179a052`, rubric 2.1: 11/13 and 45/48 assertions, $2.6336314. Completed before the UI/security fixes; before the later repaired-source reruns above. [Both failures reviewed](regression-v2/review.json). |
-| [Credential boundary check](security-boundary-check.json) | Exact configured credentials absent from tracked/non-ignored submission candidates; `.env` ignored and owner-only. Additional synthetic credential boundary tests are in the test suite; no general PII guarantee. |
-| [Interrupted UI evidence](ui-interrupted-starter.json) | Two earlier turns stopped during Streamlit navigation before saving, after $0.2199673 of returned usage. Origin of submissions unknown. These are real failed attempts, separate from evaluation costs. |
-| [Coverage pilot](coverage-pilot-v1/summary.json) | All 36 case-runs completed under $10: off 7/12, source support 10/12, coverage 8/12. Total estimate $9.6452267. Support stays the default; coverage is experimental. |
-| [Failure analysis](coverage-pilot-v1/review.md) | All 11 failed case-runs inspected. Separates provenance, missing setup/retrieval, false abstention and rubric limitations; original verdicts retained. |
-| [Independent final cost audit](coverage-pilot-v1/accounting-review-final.json) | 330 unique provider requests, 42 agent turns and 36 scored case-runs reconcile exactly to the shared ledger. Agent $5.4628391, judge $4.1823876; no missing/unpriced returned usage. |
-| [Live failure flagged by Signal](coverage-pilot-v1/live-signal-review.json) | Active monitor tagged a real coverage-mode refusal for review about 5.2 seconds after turn end. Single observed event; underlying scorer usage unavailable and charges excluded. |
-| [Post-pilot citation check](coverage-pilot-v1/citation-replay-v2.1.json) | New bounded format guard detects malformed citation strings in two stored answers. Deterministic post-hoc replay only; primary pilot scores unchanged. |
-| [Compare browser check](coverage-pilot-v1/compare-ui-review.json) | Anonymous comparison links, six actual case rows in each repeat. Some summary columns still show missing information. |
-| [Dataset authoring and fairness review](dataset-review.json) | Six capability cases/22 assertions and 48 additional regression assertions, frozen before paid outputs. Original regression bytes remain unchanged. Includes the inherited normative case03 caution and valid alternative-source review. |
-| [Cache transport probe](caching-probe-v1/cache.json) | Three synthetic identical-prompt requests: uncached, cold cache and warm cache. Warm call reused 2,491 input tokens; total estimated $0.0116026. Not a real-answer savings benchmark. |
-| [Assertion judge calibration](assertion-calibration-v2/calibration.json) | Four labeled synthetic answers: supported, missing a necessary detail, fabricated API argument, unnecessary refusal. All expected verdicts matched; estimated $0.2876096. Not general judge reliability. |
-| [Judge backend readback](judge-trace-readback-v2.json) | Four scorer Calls and one provider child each, matching responseIDs, usage, parent rollups and cost. No evaluator Agent spans observed during the calibration interval. Native total_tokens is zero; component counts are correct. |
-| [Agent backend readback](agent-trace-readback-v2.json) | Actual verifier subagents and correctly parented chats, all-span evaluation IDs and source/prompt/configuration/snapshot metadata. Off control has no verifier. |
-| [Fresh setup v2](fresh-setup-v2.json) | Public clone d79d64b; locked 91-package install, 351 hashed pages, 11 imports and both datasets, no credentials or paid calls. |
-| [Final code setup check](fresh-setup-final.json) | The isolated public clone fetched 179a052, checked the same locked environment and all 351 hashed pages, and loaded both datasets with network connections blocked. No credentials or paid calls; unchanged downloads were reused. |
-| [Artifact interactions](artifact-interaction-check-v1.json) | 37 check groups across desktop/mobile plan, research and walkthrough pages; navigation, selectors and calculator exercised. Covers its recorded pre-results file hashes; final changed bytes have separate release checks. |
-| [Proposal review](proposal-review.json) | Audit of Claude's suggested evaluation pass at `82bcaae`: local results, installed API support, scoring/trial pitfalls and statistical arithmetic. Review only; no new model runs or quality measurements. |
-| [submission-v1](submission-v1/summary.json) | Historical full `weave.Evaluation`: 12/13 pass, evaluated commit `1c39ad8`, source/dataset/snapshot hashes recorded. Individual answers and judge explanations are in `cases/`. |
-| [Submission delivery recovery](submission-v1/remote-recovery.json) | Actual completed evaluation record replayed through `calls_complete` after the eager end endpoint returned 502. Original timestamps and scores preserved; remote output verified. |
-| [baseline-v1](baseline-v1/summary.json) | Earlier 13/13 run before page introductions were attached to every passage. Local results complete; its parent call end was not ingested. Not a controlled comparison with the submission run. |
-| [pipeline-check](pipeline-check/summary.json) | Initial three-case check, 3/3. Same parent-call delivery problem; per-case evidence preserved. |
-| [delivery-check](delivery-check/summary.json) | One real clarification case, 1/1, after the transport fix at `d98a17c`. The harness automatically recovered delivery and read back the correct summary. This is not a second full evaluation. |
-| [Judge calibration](judge-calibration.json) | Supported recorded answer accepted; synthetic false guarantee rejected despite a real citation ID and passing verifier metadata. Two diagnostic fixtures, not held-out performance evidence. |
-| [Signal setup](signal-setup.json) | Active new-agent Monitor, model, prompt, sampling, and labeled negative fixture ID. |
-| [Signal feedback](signal-feedback.json) | Background `wandb.agent_monitor` feedback from the active monitor, including tag, reason, confidence, and exact trigger/scorer references. |
-| [Initial successful Signal feedback](signal-feedback-initial.json) | Earlier proof during the integration diagnosis. Retained separately from the final setup receipt. |
-| [Signal filter verification](signal-filter-verification.json) | Included agent failure versus excluded evaluator control, with exact monitor query and observation window. Earlier prompt-only filtering was insufficient. |
-| [Fresh install](fresh-install.json) | Separate checkout, locked dependency install, 351 docs restored from upstream, 15 passing tests, and an actual checked answer. |
-| [Trace verification](trace-verification.json) | Two actual two-turn conversations, their model/tool/verifier span counts, recorded token usage, and trace IDs queried from Weave. |
-| [Interface review](ui-review.json) | Layouts at 390, 768, and 1440 pixels; plan and guide navigation; actual starter submission and evidence panels; final two-turn conversation after the input transition fix. All 16 local tests passed, including a fake-agent regression for repeated submissions. Separate from the 13-case quality evaluation. |
-| [Usage and answer-library check](learning-foundation.json) | Two real turns in one conversation, preserved context/evidence, all-call usage and local unreviewed records. Estimated model charges $0.304304 and $0.116720 ($0.421024 combined). First answer required one revision. This is a functional check, not a new quality evaluation; no owner acceptance or comparative efficiency claim. Includes implementation hashes and test scope. |
+| Baseline failures and intermediate UI defect | [Baseline review](brief-e2e-v1/baseline-review.json), [initial browser review](brief-e2e-v1/ui-baseline/manual-review.json), [invalid tool-history reproduction](brief-e2e-v1/ui-repair/tracing-history-reproduction.json). Original criteria and interrupted harness evidence remain beside the outputs. |
+| Focused repair before the final runtime | [Four-case run](brief-repair-focused-v1/summary.json): 4/4, 16/16 on source `8a16ba410216`; [intermediate UI](brief-e2e-v1/ui-repair/manual-review.json) still exposed a code-history defect. |
+| SDK-container infrastructure failure | [Readiness run](readiness-head-20261026-v1/summary.json): zero predictions and model calls on `e4f48c7`. A failed evaluation harness, not a 0/13 answer-quality score. |
+| Earlier full evaluations | [Original submission run](submission-v1/summary.json), [assertion regression](regression-v2/summary.json), repaired [v1](submission-repair-regression-v1/summary.json) and [v2](submission-repair-regression-v2/summary.json). Different versions and rubrics; do not rank them as controlled comparisons. |
+| Trace transport and costs | [Original completion recovery](submission-v1/remote-recovery.json), [agent trace readback](agent-trace-readback-v2.json), [judge readback](judge-trace-readback-v2.json), [cache probe](caching-probe-v1/cache.json). A warm synthetic call reused 2,491 tokens; this is not a real-answer savings benchmark. |
+| Citation, security and monitoring boundaries | [Malformed-citation replay](coverage-pilot-v1/citation-replay-v2.1.json), [credential boundary](security-boundary-check.json), [Signal filtering](signal-filter-verification.json), [historical live failure tag](coverage-pilot-v1/live-signal-review.json). These retain their original scope and policies. |
 
-The failed historical case is [03-tracing-and-signals](submission-v1/cases/03-tracing-and-signals.json). It received 4/4 correctness and 2/4 uncertainty, primarily for omitting the expected caution about fallible monitoring. The judge also questioned text from a page introduction that was actually supplied in `page_context`. The judgment is retained as recorded; manual calibration remains useful.
+</details>
 
-Internal source-check success, structural checks, judge quality, and online review tags measure different things. None establishes a correctness guarantee. The 13-case dataset was used during development; no general accuracy or adoption claim follows from it.
+## Reading the numbers
 
-## How to read the new comparison
+Case success requires all assertions plus judge-quality and integrity gates. Source-check status, retrieval overlap and online tags are separate diagnostics. The judge shares the assistant's model family, and these tasks were reused during development; selected fixture passes cannot establish general reliability.
 
-Quality and policy compliance are separate. An off-mode answer can pass the quality judge, while its verification status remains not-run. A passing internal check can still be incomplete. Reference-page overlap is a retrieval diagnostic; different valid passages can support the same answer. Each case must pass every assertion plus secondary quality/structural gates. The assertion pass fraction reports valid graded assertions; judge failures are errors, not invented negative verdicts.
-
-Repeated trials are grouped by case. The experiment has six selected task families, not 36 independent random tasks. The standard error across complete case means describes this small sample; it does not establish production accuracy. Coverage changes both what the verifier sees and the policy it applies. Cache warmth, arm order and model nondeterminism remain potential confounders. Reasoning effort is unchanged.
-
-Cost includes all returned agent and judge calls, including repairs and ungraded attempts. Where interruption prevented a completed receipt, the budget ledger preserves returned usage separately. Unknown usage stays unknown. Budget reservations can stop a run before the nominal limit because they conservatively cover the next request; this is not an invoice cap. Online Signals and unreturned provider charges are excluded.
-
-The known Weave eager call/end 502 can drop a parent completion. The harness replays only that original completed record through calls_complete and verifies output/timestamps. During pending storage merges the default list query can expose both an unfinished and a complete physical version, and the browser can show duplicate/N/A rows. call_read and latest_only=True return the completed version; eval_results_query independently establishes actual case scores. Do not rerun paid answers or delete evidence to tidy the display.
-
-An additional trace-accounting defect was found after the pilot: Weave 0.54's Anthropic adapter copied the provider's net input count into an OTel field that includes cache reads/writes. Native cost calculations could therefore become negative. The provider receipts and local estimates above use the original disjoint buckets and remain valid. The application now normalizes only the tracing boundary; historical spans remain historical. Backend/UI display corrections warrant a focused upstream report, not a replacement dashboard in this assignment.
-
-Compare the same six rows within each repeat: [Repeat 1](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving/weave/compare-evaluations?evaluationCallIds=%5B%2201a1758f-00ff-7c2c-b882-9c58fcaf56b2%22%2C%2201a17592-36c1-763a-a3f5-71b3790b104c%22%2C%2201a17597-1a0c-734b-9b84-5d459dcae1db%22%5D&tab=results) · [Repeat 2](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving/weave/compare-evaluations?evaluationCallIds=%5B%2201a1759d-0ba1-7d8e-ac2d-cee70f93761b%22%2C%2201a175a2-8f41-7e63-9f74-81d6d8d67f35%22%2C%2201a175a9-3f42-73eb-a0c6-b11f3b2e0fc9%22%5D&tab=results). The two repeats have distinct dataset-row identities and therefore use separate comparison views.
+Costs are rounded estimates from returned provider usage, including repairs and evaluation judging. JSON retains exact usage, IDs and hashes. Background Signal scoring and unreturned charges are excluded unless a receipt explicitly includes them; experiment reservations are not billing caps. Raw records remain in their original folders.

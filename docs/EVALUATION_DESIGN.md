@@ -1,58 +1,54 @@
-# What the evaluation should test
+# Evaluation design
 
-The [13 regression questions](../evals/cases.json) test whether the assistant completes useful documentation tasks with evidence. Their [48 assertions](../evals/regression-assertions.json) check specific behaviors; a separate LLM judge scores correctness, completeness, grounding and uncertainty. Citation and execution integrity are deterministic gates. A case must pass all three layers.
+The [13 questions](../evals/cases.json) test useful documentation tasks: setup, multi-page synthesis, ambiguity, follow-ups, execution and false premises. The [48 assertions](../evals/regression-assertions.json) define required outcomes against the frozen [documentation manifest](../data/docs/manifest.json). References go to the offline judge, not the agent.
 
-This is a **development regression suite**. We have inspected its failures while changing the application. Passing all 13 would show success on these tasks in that run; it would not establish general reliability, resistance to all prompt injections or superiority over a general assistant. Repeat runs, different wording and new tasks are needed to test whether improvements generalize.
+**Current result: 13/13 cases, 48/48 assertions** on runtime `3a49a50`, rubric `2.3-task-aligned-assertions`. This is a reused development suite: its failures informed repairs. A green run demonstrates those recorded outcomes, not general reliability or superiority over another assistant. [Run](../results/brief-final-regression-v1/summary.json) · [Manual answer audit](../results/brief-e2e-v1/final-answer-review.json)
 
-## Fairness review of all 13 cases
+## What each layer measures
 
-The source IDs below refer to the frozen documentation entries in [manifest.json](../data/docs/manifest.json), restored from the [bundled snapshot](../data/docs/weave-snapshot-4db7c17b2869.zip). Section numbers belong to that snapshot. They identify the evidence reviewed, not required citation targets: a valid alternative passage can support a correct answer.
+| Layer | Question and boundary |
+| --- | --- |
+| Runtime source verifier | Do the passages actually read support the answer's material claims? Support mode checks claims made, not complete task coverage. Deterministic citation checks precede the model audit. |
+| Offline LLM judge | Did the answer satisfy the question? Checks per-case assertions and scores correctness, completeness, grounding and uncertainty. Each dimension must reach 3/4, every assertion must pass, and citation/execution integrity must pass for a case to pass. |
+| Human review and diagnostics | Inspect actual answers, sources and code, including questionable judge decisions. Reference-page/section overlap diagnoses retrieval; selected references are not exhaustive, and alternate valid evidence is acceptable. |
 
-| Case | Assessment and why | Frozen source evidence |
-| --- | --- | --- |
-| [01 — Initialize Weave](../evals/cases.json) | Fair. The user asks what initialization does and which project identifier to supply; authentication, routing and initialization order answer that request. | `custom-agents-quickstart`, §§2, 5 |
-| [02 — Calls versus Agents](../evals/cases.json) | Fair. The distinction requires explaining conversations, turns and the LLM/tool activity inside turns. Listing these nouns without their relationship leaves out the relevant difference. | `guides/tracking/trace-agents`, §§0–3; `guides/tracking/ops`, §0 |
-| [03 — Trace and add a Signal](../evals/cases.json) | Mostly fair. Stable conversation identity, turn instrumentation and required Signal fields are necessary. Optional controls and an unsolicited fallibility disclaimer should not automatically fail an otherwise complete procedure; the two versioned corrections appear below. | `guides/tracking/trace-agents`, §§1–5; `guides/tracking/create-custom-signal`, §§0–1 |
-| [04 — Map dataset columns](../evals/cases.json) | Fair. Model-input preprocessing and scorer mappings solve different parts of the explicit request. The assertions allow equivalent adapters and preserve the original dataset columns. | `guides/core-types/evaluations`, §15; `guides/evaluation/scorers`, §§5–6, 11 |
-| [05 — Evaluation versus monitoring](../evals/cases.json) | Fair. The user explicitly asks why both are useful and how to restrict Signal scoring. Filters and sampling belong in this answer. | `guides/core-types/evaluations`, §§0–1, 10; `guides/tracking/create-custom-signal`, §§0–1; `guides/tracking/view-agent-signals`, §0 |
-| [06 — Ambiguous monitoring](../evals/cases.json) | Fair. There is no established referent for “it.” A focused clarification avoids inventing a framework or previous conversation; pure clarification needs no citation. | `guides/tracking/view-agent-signals`, §0; the question's missing context |
-| [07 — Missing traces](../evals/cases.json) | Fair. The test accepts relevant questions or conditional documented checks. It rejects an invented diagnosis and requests for secret credentials. | `guides/tracking/trace-agents`, §§1, 12; `guides/tracking/trace-agents-otel`, §§1–3 |
-| [08 — Invented API](../evals/cases.json) | Fair core. Do not invent the requested API or a correctness guarantee. Offering a documented alternative is a usefulness policy; a snapshot search cannot prove universal nonexistence. | `guides/core-types/evaluations`, §§0–1; `guides/tracking/create-custom-signal`, §§0–1 |
-| [09 — Unsupported scoring targets](../evals/cases.json) | Fair. The source explicitly limits remote-scorer Signals to completed turns and excludes individual LLM/tool spans and whole conversations. | `guides/tracking/remote-scorer-signals`, §§0–1 |
-| [10 — Follow-up token usage](../evals/cases.json) | Fair, with an assertion gap. The answer must retain direct-Anthropic context and record correct input/output/cache totals and model identity. Cache arithmetic must remain correct when an adapter is used too. | `custom-agents-quickstart`, §§2, 7–8 |
-| [11 — Follow-up sampling](../evals/cases.json) | Fair. Agent filtering and approximately 10% sampling directly answer the follow-up. The test correctly rejects a deterministic every-tenth-turn promise. | `guides/tracking/create-custom-signal`, §§0–1 |
-| [12 — Execute scorer logic](../evals/cases.json) | Fair. The user explicitly requests execution, the three scores, their mean and connection to `weave.Evaluation`. Running plain Python must not be presented as running a live Weave evaluation. | `guides/core-types/evaluations`, §§1, 6, 10; `guides/evaluation/scorers`, §§2, 5 |
-| [13 — Quoted malicious instruction](../evals/cases.json) | Fair. Resisting the instruction is insufficient if the response loses the user's actual guarantee question. This case tests a hostile instruction quoted by the user; it does not inject content into the retrieved corpus. | `guides/core-types/evaluations`, §§0–1; `guides/tracking/create-custom-signal`, §§0–1 |
+The planner and support verifier use Sonnet; the offline judge and recovery check use Opus. Separate calls and reference access give different roles, not independent model families. Shared biases can survive both checks. A source check does not prove SDK compatibility; the sandbox executes plain Python, not generated Weave integrations. [Evaluation code](../src/coreweaving/evaluate.py)
 
-## Two corrections to case 03
+## Are the tasks fair?
 
-**Implemented in rubric `2.3-task-aligned-assertions`.** The completed baseline retains the original assertions. These are fairness corrections, not permission to waive missing required setup steps. The other 46 assertions are unchanged.
+These judgments compare the questions with the frozen sources. Required behavior follows the user's request; optional advice is not silently added to the rubric.
 
-The frozen custom-Signal procedure labels **Only score turns matching** and **Sample rate** as optional. Case 03 does not ask to restrict scoring. Cases 05 and 11 do, so their explicit requirements should remain.
+| Case | Valid expectation and qualification |
+| --- | --- |
+| 01 — Initialize Weave | Explain authentication, project routing and initialization order. |
+| 02 — Calls versus Agents | Explain the conversation → turn → LLM/tool relationship. Final grading was generous about implicit nesting; the recorded pass remains visible alongside the manual disagreement. |
+| 03 — Trace and add a Signal | Include conversation identity, turn instrumentation and required Signal fields. Two optional demands were corrected below. |
+| 04 — Map dataset columns | Address model-input preprocessing and scorer mappings; accept equivalent adapters. |
+| 05 — Evaluation versus monitoring | Explain why both help and how to restrict Signal scoring; this question explicitly requests those controls. |
+| 06 — Ambiguous monitoring | Clarify the missing referent without inventing context. Pure clarification needs no citation. |
+| 07 — Missing traces | Offer relevant questions or conditional checks, not an invented diagnosis or requests for secrets. |
+| 08 — Invented API | Reject the invented guarantee and offer documented alternatives. Snapshot search cannot prove universal nonexistence. |
+| 09 — Unsupported scoring targets | Explain remote-scorer Signals' documented completed-turn scope. |
+| 10 — Follow-up token usage | Retain direct-Anthropic context and correct usage/model accounting. The current assertion only explicitly checks total-input arithmetic for direct `weave.Usage`; adapters leave a rubric gap. |
+| 11 — Follow-up sampling | Retain agent filtering and approximately 10% sampling; avoid promising every tenth turn. |
+| 12 — Execute scorer logic | Actually run the requested plain-Python calculation and connect it to evaluation without claiming a live Weave run. |
+| 13 — Quoted malicious instruction | Resist the quoted instruction and answer the real guarantee question. This is user-message injection, not an attack inserted into retrieved documents. |
 
-`reg-03-a4` now reads:
+## Rubric 2.3: two fairness corrections
 
-> If discussing Signal filtering or sampling, describes them as optional controls over matching agent turns. Does not substitute Op trace sampling or invent a mandatory filtering step. Omitting these optional controls is acceptable for this question.
+The frozen Signal procedure makes filtering and sampling optional. Case 03 asks for setup, not restriction of scoring. It also makes no request for a fallibility lecture. The changed assertions are:
 
-The same procedure describes an LLM judge but does not require a fallibility disclaimer. An answer that promises guaranteed correctness is wrong; an accurate procedural answer need not add an unsolicited caution.
+- **`reg-03-a4`:** “If discussing Signal filtering or sampling, describes them as optional controls over matching agent turns. Does not substitute Op trace sampling or invent a mandatory filtering step. Omitting these optional controls is acceptable for this question.”
+- **`reg-03-a5`:** “Does not present a Signal tag, or the absence of a tag, as proof that an answer is correct, incorrect or safe. An explicit fallibility caution is welcome but is not required when the answer makes no reliability guarantee.”
 
-`reg-03-a5` now reads:
+Required **Scorer name** and **Inference model or custom runtime** remain in `reg-03-a3`. Cases 05 and 11 still require the filtering/sampling details they request. Questions, references and the other 46 assertions are unchanged.
 
-> Does not present a Signal tag, or the absence of a tag, as proof that an answer is correct, incorrect or safe. An explicit fallibility caution is welcome but is not required when the answer makes no reliability guarantee.
+The fresh baseline scored **10/13, 44/48** under rubric 2.2; the final run scored **13/13, 48/48** under 2.3. Excluding the two changed assertions gives **43/46 → 46/46**. Case 03 already supplied the required setup fields; its improved grade reflects fairness correction. Cases 05/11 delivered previously missing outcomes. Runtime changes occurred together on inspected tasks, so this comparison cannot isolate their causal effects. The tagged submission's separate **10/13, 45/48** result is preserved. [Comparison and versions](../results/brief-e2e-v1/comparison.json)
 
-Keep `reg-03-a3`: **Scorer name** and **Inference model or custom runtime** are documented setup fields. Omitting them is a real procedural gap. Update the corresponding expected-behavior wording with any assertion change so the judge does not receive contradictory instructions.
+## What the experiments can tell us
 
-## Other boundaries to keep explicit
+The historical six-task, two-repeat pilot scored off **7/12**, support **10/12**, coverage **8/12**. Off and support tied on **39/44 factual assertions**; support's three extra case passes came from citation integrity. Coverage refused two answerable tasks. The pilot had **no citation-checks-only arm**, so it cannot establish the model auditor's added benefit or justify its latency by itself. [Pilot](../results/coverage-pilot-v1/summary.json) · [Case review](../results/coverage-pilot-v1/review.md)
 
-- **Case 10 adapter gap:** `reg-10-a4` currently conditions correct total-input accounting on explicit `weave.Usage` construction. A future revision should require correct accounting regardless of representation; an adapter's name alone is not evidence that its output matches the pinned SDK's semantics.
-- **Case 13 scope:** add a separately labeled retrieved-document attack before claiming indirect prompt-injection coverage. The current quoted-user case does not supply that evidence.
-- **Reference overlap is diagnostic:** a correct answer can use different valid passages. Do not make reading the author's preferred page a pass condition.
-- **Judge comments are not additional assertions:** review them against the actual question and sources. Do not implement every suggested detail merely because a judge mentioned it.
+Selected verifier probes exposed false rejection of deductions and false acceptance of invalid code. Correcting an unfair fixture yielded an old/new tie at **6/6**. The final policy matched **7/7 selected labels**: six synthetic fixtures and one captured bad tool-history draft. These are development checks, not held-out accuracy estimates. [Fixture correction](../results/brief-e2e-v1/verifier-fixture-review.json) · [Exact final scope](../results/brief-verifier-final-v1/scope-correction.json)
 
-## Preserve comparisons and fix behavior
-
-Keep original questions, outputs and scores attached to their original dataset and rubric identities. Publish fairness corrections under new identities and show the old and new criteria separately. A changed rubric is not an application-quality improvement; a changed runtime does not inherit an earlier score.
-
-Behavior changes should generalize: cover the user's explicit requests and necessary setup fields, preserve a direct answer through repair, and distinguish documented claims from bounded observations about the evidence. Do not insert case IDs, expected answers or test-specific wording into the agent. Test these behaviors with different examples, then repeat the suite and review the remaining failures.
-
-The [evidence index](../results/README.md) preserves completed measurements. The [code map](CODE_MAP.md#follow-the-evaluation) explains how questions, references, agent output and scores remain separate.
+A useful next comparison would hold out new tasks, compare deterministic citations alone with citations plus model verification, and independently review false accepts, false refusals, task completion and latency. That experiment has not been run. Existing outputs and scores remain attached to their original source, dataset and rubric identities. [Evidence index](../results/README.md)
