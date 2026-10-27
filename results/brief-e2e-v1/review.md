@@ -34,6 +34,8 @@ The historical pilot found **39/44 factual assertions with verification off and 
 
 Live review exposed both false rejection of reasonable deductions and false acceptance of invalid generated code. The current policy matched **7/7 selected draft labels**: three supported deductions, three fabricated claims and the captured bad sketch. The corrected old/new six-fixture comparison tied **6/6**; it provides no measured improvement. [Final probe](../brief-verifier-final-v1/summary.json) · [Scope correction](../brief-verifier-final-v1/scope-correction.json)
 
+The pilot compared verification off with citation checks plus a model audit; it had no citation-checks-only arm. It therefore does not isolate the model auditor’s added value or show that its latency is justified. The next verifier experiment should compare those two policies on held-out, manually reviewed tasks.
+
 Keep support verification for source integrity, and judge usefulness separately. A “source check passed” label is not proof of correctness, completeness or SDK compatibility. Claims of broad accuracy would require new held-out tasks, more trials, reviewed labels and a judge from another model family.
 
 ## Comparable measurements

@@ -25,6 +25,8 @@ These are historical measurements, each tied to its original implementation. Pub
 | [Earlier targeted UI answers](preset-check-v4/backend.json) and [recovery replay](recovery-check-v1/receipt.json) | Source `1b981419`: two useful UI answers, 5/6 manual checks, with monitoring timing omitted. Separately, one verifier call accepted four supported partial facts. The replay is not an end-to-end UI completion. |
 | [Later fixes and readability pass](readability-review.json) | Empty-recovery guards and stable saved-answer selection were locally tested after those paid answers. Runtime `cebca8e` / source `a4b6f4d3` received read-only desktop/mobile inspection. Commit `c9107dd` / source `8e41f124` changes comments/docstrings while preserving executable syntax, prompts and schemas; 196 tests pass. No full quality evaluation ran on that earlier source; the repaired source has a separate run above. |
 
+[Anonymous publication check](brief-e2e-v1/publication.json) confirms the reviewed repository, public Agents dashboard and final 13-row evaluation are visible without sign-in.
+
 ## Recorded checks
 
 | Evidence | Result and scope |
