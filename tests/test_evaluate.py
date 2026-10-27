@@ -3,11 +3,13 @@
 import asyncio
 import copy
 import json
+import sys
 import uuid
 from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
+from weave.trace.vals import WeaveList
 
 from coreweaving import evaluate
 from coreweaving.budget import model_budget
@@ -441,6 +443,17 @@ def test_prediction_attempts_have_unique_ids_real_parent_metadata_and_all_turn_u
     assert attrs["weave.eval.example_id"] == "case-a:trial:2"
 
 
+def test_prediction_accepts_real_weave_dataset_prompts(fake_prediction):
+    prompts = WeaveList(["First", "Follow-up"], server=None)
+    model = evaluate.DocumentationModel(
+        agent_model="fake", snapshot_id="snapshot", source_sha256="source", verify_mode="off"
+    )
+    output = asyncio.run(model.predict(prompts, "case-a"))
+    assert [call[0] for call in fake_prediction] == ["First", "Follow-up"]
+    assert len(output["turns"]) == 2
+    assert list(prompts) == ["First", "Follow-up"]
+
+
 def test_source_change_preserves_already_produced_turn(fake_prediction, monkeypatch, tmp_path):
     hashes = iter(["source", "changed"])
     monkeypatch.setattr(evaluate, "source_fingerprint", lambda: next(hashes))
@@ -489,7 +502,8 @@ def test_dataset_rejects_missing_assertions_and_unknown_selected_ids(monkeypatch
         evaluate.dataset_rows(None, ["absent"])
 
 
-def test_run_returns_summary_and_preserves_unscored_prediction_on_failure(monkeypatch, tmp_path):
+@pytest.fixture
+def evaluation_environment(monkeypatch, tmp_path):
     (tmp_path / "evals").mkdir()
     (tmp_path / "evals/cases.json").write_text("[]")
     monkeypatch.setattr(evaluate, "ROOT", tmp_path)
@@ -515,6 +529,10 @@ def test_run_returns_summary_and_preserves_unscored_prediction_on_failure(monkey
         evaluate.weave, "publish", lambda dataset: SimpleNamespace(uri=lambda: "weave://dataset")
     )
 
+
+def test_run_returns_summary_and_preserves_unscored_prediction_on_failure(
+    evaluation_environment, monkeypatch, tmp_path
+):
     class BrokenEvaluation:
         def __init__(self, **kwargs):
             assert kwargs["trials"] == 1
@@ -545,6 +563,79 @@ def test_run_returns_summary_and_preserves_unscored_prediction_on_failure(monkey
         asyncio.run(evaluate.run_evaluation(args))
 
 
+@pytest.mark.parametrize(
+    "outcome, expected_status",
+    [
+        ("quality_pass", "complete"),
+        ("quality_failure", "complete"),
+        ("judge_error", "completed_with_errors"),
+        ("judge_invalid", "completed_with_errors"),
+        ("missing_case", "partial"),
+        ("prediction_error", "partial"),
+        ("run_error", "partial"),
+    ],
+)
+def test_cli_status_distinguishes_quality_failures_from_incomplete_evaluation(
+    evaluation_environment, monkeypatch, tmp_path, outcome, expected_status
+):
+    class FakeJudge:
+        def call(self, **kwargs):
+            if outcome == "judge_error":
+                raise ConnectionError("Judge unavailable.")
+            payload = grade_payload()
+            if outcome == "quality_failure":
+                payload["assertions"][0]["passed"] = False
+            elif outcome == "judge_invalid":
+                payload["assertions"] = []
+            return {**judge_response(payload), "usage": {"input_tokens": 0, "output_tokens": 0}}
+
+    class FakeEvaluation:
+        def __init__(self, **kwargs):
+            self.judge = kwargs["scorers"][0]
+            self.evaluate = SimpleNamespace(call=self.run)
+
+        async def run(self, evaluation, model):
+            if outcome == "run_error":
+                raise ConnectionError("Evaluation transport unavailable.")
+            if outcome == "missing_case":
+                return {}, None  # Weave can swallow prediction errors without raising.
+            prediction = {
+                **answer("off"),
+                "case_id": "a",
+                "prediction_id": str(uuid.uuid4()),
+                "example_id": "a:trial:1",
+                "agent_metrics": summarize([], []),
+            }
+            if outcome == "prediction_error":
+                prediction["error_type"] = "RuntimeError"
+                evaluate.persist_record(
+                    evaluate.RUN_DIRECTORY, "prediction-errors", prediction, prediction
+                )
+                return {}, None
+            evaluate.persist_record(evaluate.RUN_DIRECTORY, "predictions", prediction, prediction)
+            await self.judge.score(
+                prediction, ["Initialize?"], "Initialize.", [passage()], 1, False, ASSERTIONS
+            )
+            return {}, None
+
+    monkeypatch.setattr(evaluate, "JudgeLanguageModel", FakeJudge)
+    monkeypatch.setattr(evaluate.weave, "Evaluation", FakeEvaluation)
+    monkeypatch.setattr(sys, "argv", ["evaluate", "--name", outcome, "--verify-mode", "off"])
+    if expected_status == "complete":
+        evaluate.main()
+    else:
+        with pytest.raises(SystemExit) as error:
+            evaluate.main()
+        assert error.value.code == 1
+    saved = json.loads((tmp_path / "results" / outcome / "summary.json").read_text())
+    assert saved["status"] == expected_status
+    assert saved["passed"] == (1 if outcome == "quality_pass" else 0)
+    assert saved["judge_failures"] == (1 if outcome.startswith("judge_") else 0)
+    if outcome == "missing_case":
+        assert saved["missing_example_ids"] == ["a:trial:1"]
+        assert saved["run_error"] is None
+
+
 def test_citation_integrity_checks_earlier_delivered_turns_and_labels_legacy():
     prior, final = answer(), answer()
     prior["answer"] = "An earlier invented claim [S99]"
@@ -568,7 +659,7 @@ def test_eval_ops_mask_before_trace_serialization():
     from coreweaving.config import REDACTED
 
     assert evaluate.DocumentationModel.predict.postprocess_inputs(
-        {"prompts": ["api_key=legacy1234567890"]}
+        {"prompts": WeaveList(["api_key=legacy1234567890"], server=None)}
     ) == {"prompts": ["api_key=" + REDACTED]}
     assert evaluate.judge_provider_request.postprocess_output(
         {"content": "Bearer synthetic1234567890"}

@@ -958,7 +958,11 @@ def main():
     parser.add_argument("--trial-offset", type=int, default=0)
     parser.add_argument("--budget-usd", type=float, default=10.0)
     parser.add_argument("--seed", type=int, default=20261026)
-    asyncio.run(run_evaluation(parser.parse_args()))
+    result = asyncio.run(run_evaluation(parser.parse_args()))
+    # Completed quality failures are valid measurements; missing work or failed
+    # judges mean the evaluation itself did not finish successfully.
+    if result["status"] != "complete":
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

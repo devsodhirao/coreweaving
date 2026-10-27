@@ -74,8 +74,12 @@ def redact_sensitive(value):
                 else walk(child, depth + 1)
                 for key, child in item.items()
             }
-        if isinstance(item, (list, tuple)):
-            return type(item)(walk(child, depth + 1) for child in item)
+        # Trace wrappers can require constructor metadata (for example WeaveList's
+        # server). Sanitized values are plain containers, as with dictionaries above.
+        if isinstance(item, list):
+            return [walk(child, depth + 1) for child in item]
+        if isinstance(item, tuple):
+            return tuple(walk(child, depth + 1) for child in item)
         return item
 
     return walk(value)
