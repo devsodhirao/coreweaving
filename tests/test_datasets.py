@@ -9,7 +9,9 @@ import pytest
 from coreweaving.config import ROOT
 from coreweaving.corpus import Corpus
 
-REGRESSION_SHA256 = "7b02ab61e6db30975a76b78f4c489fe5327dc18db017b4a61410b014524bb783"
+# Rubric 2.3 changes only case03 grading expectations; questions and references stay frozen.
+REGRESSION_SHA256 = "8a573923782d9dbf3876ffb5f117fea39c93f5ffa86a19147d9067d1b6d83a51"
+REGRESSION_QUESTIONS_SHA256 = "b482982f25be6e699cef1e61c6788766be504be7e4c3bde7c8b72ee813a8cd19"
 FAMILIES = {
     "non-jargon-paraphrase",
     "real-api-false-premise",
@@ -29,8 +31,13 @@ def corpus():
     return Corpus()
 
 
-def test_regression_questions_and_references_remain_byte_for_byte_frozen():
+def test_regression_v23_inputs_remain_byte_for_byte_frozen():
     assert hashlib.sha256((ROOT / "evals/cases.json").read_bytes()).hexdigest() == REGRESSION_SHA256
+
+
+def test_regression_questions_and_references_match_original_suite():
+    tasks = [{key: case[key] for key in ("id", "prompts", "references")} for case in load("cases.json")]
+    assert hashlib.sha256(json.dumps(tasks, sort_keys=True).encode()).hexdigest() == REGRESSION_QUESTIONS_SHA256
 
 
 def test_capability_suite_has_six_distinct_families_and_one_context_switch():

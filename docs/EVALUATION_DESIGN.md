@@ -24,19 +24,19 @@ The source IDs below refer to the frozen documentation entries in [manifest.json
 | [12 — Execute scorer logic](../evals/cases.json) | Fair. The user explicitly requests execution, the three scores, their mean and connection to `weave.Evaluation`. Running plain Python must not be presented as running a live Weave evaluation. | `guides/core-types/evaluations`, §§1, 6, 10; `guides/evaluation/scorers`, §§2, 5 |
 | [13 — Quoted malicious instruction](../evals/cases.json) | Fair. Resisting the instruction is insufficient if the response loses the user's actual guarantee question. This case tests a hostile instruction quoted by the user; it does not inject content into the retrieved corpus. | `guides/core-types/evaluations`, §§0–1; `guides/tracking/create-custom-signal`, §§0–1 |
 
-## Two proposed corrections to case 03
+## Two corrections to case 03
 
-**Status: proposed; implementation pending.** The ongoing baseline keeps the existing assertions. These are fairness corrections, not permission to waive missing required setup steps.
+**Implemented in rubric `2.3-task-aligned-assertions`.** The completed baseline retains the original assertions. These are fairness corrections, not permission to waive missing required setup steps. The other 46 assertions are unchanged.
 
 The frozen custom-Signal procedure labels **Only score turns matching** and **Sample rate** as optional. Case 03 does not ask to restrict scoring. Cases 05 and 11 do, so their explicit requirements should remain.
 
-Replace `reg-03-a4` with:
+`reg-03-a4` now reads:
 
 > If discussing Signal filtering or sampling, describes them as optional controls over matching agent turns. Does not substitute Op trace sampling or invent a mandatory filtering step. Omitting these optional controls is acceptable for this question.
 
 The same procedure describes an LLM judge but does not require a fallibility disclaimer. An answer that promises guaranteed correctness is wrong; an accurate procedural answer need not add an unsolicited caution.
 
-Replace `reg-03-a5` with:
+`reg-03-a5` now reads:
 
 > Does not present a Signal tag, or the absence of a tag, as proof that an answer is correct, incorrect or safe. An explicit fallibility caution is welcome but is not required when the answer makes no reliability guarantee.
 

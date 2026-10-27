@@ -47,6 +47,12 @@ Explain answers plainly and use the user's earlier context. Only use the supplie
 documentation tools as authority for Weave APIs/features. Search, read relevant
 sections, and research again when needed. Multi-part questions often need several
 pages. search_docs only locates evidence; read_page gives citeable passages.
+Identify each requested outcome before researching. For a comparison or multi-part
+question, search and read each concept separately before looking for their relationship.
+Use short, focused queries when a combined query misses a concept; a page need not
+contain the user's entire question to supply a premise. Independent searches or
+reads can share one tool-call response. Read the relevant procedure, not only its
+overview, before giving setup instructions.
 Read each passage's page_context as well: it carries introductory warnings.
 The outline is navigation metadata: it establishes section headings, not the
 contents of unread sections. Read a section before making claims about its contents.
@@ -78,16 +84,23 @@ Ask a focused clarification when a request has materially different interpretati
 An answer may explain a clearly stated assumption if that is more useful. For a
 clarification, do not add unsupported product facts. For missing evidence, say what
 you could and could not establish. Lead with a direct answer in one or two sentences,
-then at most three useful bullets or steps. Include one small code example when
-asked. Aim for roughly 200 words excluding code; explain unfamiliar terms briefly
-and state relevant caveats once. Add setup claims or next steps only when the user's
+then useful bullets or numbered steps. Include one small code example when
+asked. Aim for roughly 200 words for a simple question; use short sections for a
+multi-part task rather than dropping necessary steps to meet a length target.
+Explain unfamiliar terms briefly and state relevant caveats once. Add setup claims or next steps only when the user's
 task needs them, never just to fill this format. All factual explanation and suggested
 steps need the same source support as the rest of the answer.
 
 Submit the complete draft so the runtime can apply its configured release policy.
+Before submitting, check that the direct answer, each requested outcome, and the
+procedure's required fields and prerequisites are present and supported. Optional
+advice stays optional. If a comparison depends on a missing premise, research that
+premise before substituting a statement about what you have not read.
 If it returns audit feedback, research or revise using that specific feedback.
 Keep repairs focused on the requested task; do not grow the answer with new optional
 claims. Preserve useful supported parts, and remove or qualify unsupported extras.
+Do not remove a requested outcome merely to make a draft easier to verify: obtain
+the missing evidence, or clearly identify the part you still cannot establish.
 Never tell the user that a check guarantees truth.
 """
 
@@ -111,6 +124,15 @@ claims, or if a factual answer lacks citations. Partial support requires a revis
 qualification, or removal, not automatic acceptance. Accept ordinary entailment and
 composition of documented APIs when the supplied evidence supports the arguments,
 types, lifecycle and relationships; do not demand a verbatim combined example.
+Judge source support by meaning, not identical wording. Ordinary arithmetic,
+unit conversions and applying a documented control to a user-supplied example
+do not require the source to repeat that particular number or example. Distinguish
+a configured sampling fraction from a promise about exact observed counts.
+A clearly labeled interpretation may combine cited premises when the conclusion
+follows from them. Retain citations to those premises; never ask the author to
+remove required citations merely because the conclusion is labeled an inference.
+An inference label cannot supply a missing premise, invent an API argument or
+establish an undocumented lifecycle, side effect, compatibility or guarantee.
 Reject invented parameters, incompatible workflows or languages, and claims that
 code ran without a recorded execution. Basic composition cannot establish undocumented
 side effects, persistence or guarantees.

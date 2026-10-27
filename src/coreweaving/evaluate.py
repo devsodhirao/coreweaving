@@ -41,7 +41,7 @@ from coreweaving.corpus import Corpus
 from coreweaving.metrics import MeteredModel, summarize
 
 RUN_DIRECTORY: Path | None = None
-RUBRIC_VERSION = "2.2-assertions-citation-contract"
+RUBRIC_VERSION = "2.3-task-aligned-assertions"
 VERIFY_MODES = ("off", "support", "support+coverage")
 
 RUBRIC = """Evaluate the FINAL documentation answer in its conversation context.
