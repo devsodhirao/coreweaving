@@ -10,13 +10,15 @@ An agentic assistant that answers complex questions about **Weave documentation*
 
 | Requirement | Implementation and evidence |
 | --- | --- |
-| Go beyond a single retrieval step | The model repeatedly chooses search, page reads, offline Python or draft submission; [recorded answers](results/preset-check-summary.json) preserve the sequence. |
+| Go beyond a single retrieval step | The model repeatedly chooses search, page reads, offline Python or draft submission; [final recorded traces](results/submission-repair-v1/backend.json) preserve the sequence. |
 | Multi-turn conversation | Six exchanges plus original source evidence; contextual follow-ups were exercised in the browser and evaluation. |
 | Self-verification | Citation validation, a separate source-check call, repair feedback and strictly rechecked partial recovery. [Behavior contracts](docs/BEHAVIOR_CONTRACT.md) |
-| New Weave agent tracing | Conversation → turn → model/tool spans, with a verifier subagent. [Backend readback](results/preset-check-v4/backend.json) |
+| New Weave agent tracing | Conversation → turn → model/tool spans, with a verifier subagent. [Final backend readback](results/submission-repair-v1/backend.json) |
 | Online Signals | A filtered completed-turn monitor flagged a real failure. [Observed feedback](results/coverage-pilot-v1/live-signal-review.json) |
 | `weave.Evaluation` and LLM judge | Thirteen regression questions plus six capability cases; results and failure analysis appear below. |
 | Runnable public submission | [Public source](https://github.com/devsodhirao/coreweaving), local setup, architecture and recorded UI/evaluation checks. Email submission is a separate owner action. |
+
+[Requirement audit](results/submission-repair-v1/brief-check.json) maps each requirement to evidence and qualifications. [Agent reading route](AGENTS.md) points to the implementation and recorded results.
 
 ## Run locally
 
@@ -63,7 +65,7 @@ flowchart LR
     D --> V[Source verifier]
     V -->|repair feedback| A
     V -->|accepted| U[Answer + sources + usage + trace]
-    E[Weave Evaluation: cases + independent judge] --> A
+    E[Weave Evaluation: cases + separate reference-based judge] --> A
     A -. conversations, turns, model and tool spans .-> W[Weave Agents]
     W --> S[Signal scores completed turns]
 ```

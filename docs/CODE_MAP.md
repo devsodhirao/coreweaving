@@ -28,6 +28,34 @@ These are engineering reasons for the choices, with the evidence needed to recon
 
 **Scope discipline:** the assistant, tracing, Signal and required evaluation are the core submission. The library, cost accounting, experiment reconciliation and artifacts explain development choices but increase the code to maintain. Voice, adaptive UI, specialist routing and graph retrieval remain proposals. The build exceeded the brief's time budget; [dated milestones](AI_BUILD_LOG.md) make that explicit.
 
+## Retrieval alternatives considered
+
+BM25 is the implemented baseline, not a measured winner. No embedding, reranking or graph retrieval comparison was run.
+
+| Approach | Reason to consider it | Decision here |
+| --- | --- | --- |
+| BM25 | Local, inspectable matching of words and exact API identifiers. | Implemented; paraphrases and mixed-topic queries can rank the wrong passages. |
+| Dense embeddings | Retrieve related meaning when wording differs. | Considered, unmeasured; another model and index to version. A hosted vector database is not required for this corpus size. |
+| Hybrid BM25 + embeddings | Preserve literal matches while adding semantic candidates; reciprocal rank fusion combines rankings. | Most proportionate alternative to compare on labeled retrieval failures. |
+| Contextual retrieval | Index each chunk with context explaining its role in the document. | Deferred. Our introductory `page_context` is attached after retrieval, not generated contextual indexing. |
+| Link expansion / knowledge graph | Follow prerequisites and relationships across pages. | Validated links would be simpler than an extracted graph; neither is implemented. |
+
+Research supports testing alternatives, not assuming an improvement: [BEIR](https://arxiv.org/abs/2104.08663) finds BM25 a useful baseline across varied tasks; [RRF](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion) combines ranked results; [Contextual Retrieval](https://www.anthropic.com/research/contextual-retrieval) reports benefits from contextual embeddings plus contextual BM25, not BM25 alone. Its reported 49% reduction is not a result from this project. [GraphRAG](https://arxiv.org/abs/2404.16130) targets global corpus synthesis; that does not establish an advantage for our API questions. [Jev](DECISION_MODELS.md) is a decision-model option, not a replacement retriever.
+
+A useful comparison would hold the snapshot, chunks, queries and result budget fixed, then compare BM25, dense retrieval and their fused rankings on relevant-section recall, rank and latency. Only then check downstream answer quality. Reading the right passage but omitting its instructions is a reasoning/completion failure; embeddings alone would not fix it. Keep chunk-boundary repairs separate so their effect can be measured.
+
+## How the agent reads documentation
+
+The 351 source pages are Markdown. The manifest provides URLs, fetch times and hashes; [Corpus](../src/coreweaving/corpus.py) indexes titles and headings. Search returns structured navigation hints. A read provides a passage, original URL/hash, introductory context and a page outline; only read passages become citation evidence. [Structure check](../results/submission-repair-v1/corpus-structure-check.json)
+
+These boundaries matter:
+
+- Heading splitting respects ordinary code fences, but the later 7,000-character cap can split long examples. The snapshot contains 34 overlength sections across 30 pages; 61 split positions fall inside fenced code under the parser's fence rules.
+- Introductory context is limited to 2,000 characters. It does not preserve every prerequisite or parent heading. Internal links remain text and may require another search.
+- Section numbers identify positions within a snapshot; conversation citation IDs are not permanent cross-version links. BM25 remains lexical, with weaker paraphrase matching.
+
+Preserving paragraph/code boundaries and exposing validated internal links are bounded retrieval improvements to evaluate. They are not implemented or credited with a quality gain here.
+
 ## Follow one question
 
 | Step | Function to open | Input → output, and the boundary it owns |
