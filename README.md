@@ -1,28 +1,28 @@
 # Coreweaving
 
-An agentic assistant that answers complex questions about **Weave documentation**. It uses a **multi-step tool-calling loop**, retains **multi-turn context**, and **verifies drafts against sources** before responding. It implements Weave's **new agent tracing model**, **online Signals**, and a completed **`weave.Evaluation` suite with 13 varied questions and an LLM judge**. The web app runs locally for the interview; recorded results include failures and their analysis.
+A conversational assistant for **complex Weave documentation questions**. It chooses tools across multiple steps, carries context across turns, and checks drafts against the passages it read. The implementation uses Weave’s **new agent tracing model**, **online Signals**, and **`weave.Evaluation` with 13 varied questions and an LLM judge**. It runs locally for the interview; recorded failures explain the design changes.
 
-**[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving)** · [Results](results/README.md) · [Code map](docs/CODE_MAP.md) · [AI build log](docs/AI_BUILD_LOG.md)
+**[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving)** · [End-to-end review](results/brief-e2e-v1/review.md) · [Code map](docs/CODE_MAP.md) · [AI build log](docs/AI_BUILD_LOG.md)
 
 ![The local assistant](docs/images/app-start.png)
 
 ## How this meets the brief
 
-| Requirement | Implementation and evidence |
-| --- | --- |
-| Go beyond a single retrieval step | The model repeatedly chooses search, page reads, offline Python or draft submission; [final recorded traces](results/submission-repair-v1/backend.json) preserve the sequence. |
-| Multi-turn conversation | Six exchanges plus original source evidence; contextual follow-ups were exercised in the browser and evaluation. |
-| Self-verification | Citation validation, a separate source-check call, repair feedback and strictly rechecked partial recovery. [Behavior contracts](docs/BEHAVIOR_CONTRACT.md) |
-| New Weave agent tracing | Conversation → turn → model/tool spans, with a verifier subagent. [Final backend readback](results/submission-repair-v1/backend.json) |
-| Online Signals | A filtered completed-turn monitor flagged a real failure. [Observed feedback](results/coverage-pilot-v1/live-signal-review.json) |
-| `weave.Evaluation` and LLM judge | Thirteen regression questions plus six capability cases; results and failure analysis appear below. |
-| Runnable public submission | [Public source](https://github.com/devsodhirao/coreweaving), local setup, architecture and recorded UI/evaluation checks. Email submission is a separate owner action. |
+| Requirement | Why it matters | Implementation and observed evidence |
+| --- | --- | --- |
+| Multi-step tool-calling agent | A complex question can require another search, several pages or a repaired draft. | [`Agent.run` / `execute`](src/coreweaving/agent.py) choose search, read, offline Python or submit repeatedly. [All-turn trace readback](results/brief-e2e-v1/backend-final.json) |
+| Multi-turn context | A follow-up must retain the user’s setup and prior answer. | [`Session`](src/coreweaving/agent.py) retains six exchanges and source evidence. Regression cases 10/11 and the [uninterrupted UI follow-up](results/brief-e2e-v1/ui-final/manual-review.json) exercise it. |
+| Self-verification | Source identities and claim support need a check before release. | Shared citation validation → [`Agent.verify`](src/coreweaving/agent.py) → repair or release. [Seven targeted checks](results/brief-verifier-final-v1/summary.json); independent answer review remains necessary. |
+| New Weave agent tracing | A developer needs to see where time, cost and a failure came from. | Conversation → turn → model/tool/subagent spans in [`agent.py`](src/coreweaving/agent.py) and [`llm.py`](src/coreweaving/llm.py). [Backend reconciliation](results/brief-e2e-v1/backend-final.json) |
+| Online Signals | Completed production turns need review outside the live response path. | [`signals.setup`](src/coreweaving/signals.py) installs a filtered monitor. [Calibration](results/brief-e2e-v1/signal-calibration/summary.json) and [live feedback](results/brief-e2e-v1/backend-ui-final.json) check its actual behavior. |
+| Evaluation + LLM judge | A source-check pass alone cannot establish useful task completion. | [`run_evaluation` / `QualityJudge.score`](src/coreweaving/evaluate.py), 13 regression questions and six capability cases. [Latest run](results/brief-final-regression-v1/summary.json) |
+| Runnable public submission | Reviewers must reproduce, inspect and demo the work. | [Public source](https://github.com/devsodhirao/coreweaving), [fresh offline setup](results/brief-e2e-v1/fresh-setup-final.json), real browser checks and instructions below. Email submission remains an owner action. |
 
-[Requirement audit](results/submission-repair-v1/brief-check.json) maps each requirement to evidence and qualifications. [Agent reading route](AGENTS.md) points to the implementation and recorded results.
+[Evaluation design](docs/EVALUATION_DESIGN.md) explains why each of the 13 tests belongs. [Agent reading route](AGENTS.md) directs repository reviewers to the relevant files and evidence.
 
 ## Run locally
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/). You need Anthropic and W&B/Forge API keys, a Weave project, and access to Sonnet 5.5 and Opus 5.5. Docker enables the optional Python tool and its evaluation case.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/). You need Anthropic and W&B/Forge keys, a Weave project, and access to Sonnet 5.5 and Opus 5.5. Docker enables the optional Python tool and its execution test.
 
 ```bash
 git clone https://github.com/devsodhirao/coreweaving.git
@@ -32,141 +32,126 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-Set `ANTHROPIC_API_KEY`, `WANDB_API_KEY`, and `WEAVE_PROJECT=your-team/your-project` in `.env`; keep keys out of Git and chat.
+Set `ANTHROPIC_API_KEY`, `WANDB_API_KEY` and `WEAVE_PROJECT=your-team/your-project` in `.env`.
 
 ```bash
 uv run python scripts/fetch_docs.py --locked --weave-only
-# Restores 351 bundled Weave pages offline from data/docs/weave-snapshot-4db7c17b2869.zip.
-# Optional execution tool: start Docker, then pull the pinned image.
+# Restores all 351 bundled pages offline and checks their hashes.
 docker pull python:3.12-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
 uv run streamlit run app.py --server.address 127.0.0.1
 ```
 
-The locked restore uses the included, licensed documentation archive offline; all 351 page hashes are checked. Updating the corpus is a [manual maintenance workflow](docs/VERSIONING.md#updating-the-corpus): downloading new pages alone does not rebuild the bundled archive.
+Open **http://localhost:8501**. Terminal alternative: `uv run python -m coreweaving`. Docker is optional for questions that need no execution. The [fresh-clone check](results/brief-e2e-v1/fresh-setup-final.json) restored the corpus with zero cached pages and network access blocked, then imported the runtime.
 
-Open **http://localhost:8501**. Terminal interface: `uv run python -m coreweaving`. [Fresh offline setup](results/submission-repair-v1/fresh-setup.json)
+Questions, answers, evidence and executed snippets are traced. **This demo’s project is public; use public examples.** The app displays this before input. Credential masking is a limited safeguard, not general PII detection.
 
-Questions, answers, evidence and executed snippets are traced to your project. **This demo's project is public; use public examples.** The app displays this before input.
-
-## Why this approach?
-
-This project makes an agent's behavior inspectable: explicit tool permissions, original source passages, repeatable evaluations and monitoring of completed turns. Weave connects those records so a developer can diagnose a failure and compare a change.
-
-The design serves three needs: **useful answers** with evidence nearby, **bounded behavior** whose permissions are explicit, and **measurable improvement** through recorded failures. The [design rationale](docs/CODE_MAP.md#design-rationale-and-open-questions) maps each choice to its purpose, tradeoff and evidence. Sonnet, BM25 and the research limits are practical starting choices; their alternatives have not been benchmarked here.
-
-## Architecture
+## Architecture and decisions
 
 ```mermaid
 flowchart LR
-    Q[Web UI or CLI + recent conversation] --> A[Agent.run tool loop]
+    Q[Question + recent conversation] --> A[Agent.run]
     A --> T[Search / read / offline Python]
     T --> A
-    A --> D[Submit draft]
-    D --> V[Source verifier]
+    A --> D[Draft]
+    D --> V[Citation and source checks]
     V -->|repair feedback| A
-    V -->|accepted| U[Answer + sources + usage + trace]
-    E[Weave Evaluation: cases + separate reference-based judge] --> A
+    V -->|accepted| U[Answer + sources + analysis]
+    E[Weave Evaluation + reference-based judge] --> A
     A -. conversations, turns, model and tool spans .-> W[Weave Agents]
     W --> S[Signal scores completed turns]
 ```
 
-**Sonnet 5.5 for planning and ordinary verification:** native tool calls fit the direct Python loop. At the same token count, our [recorded price table](src/coreweaving/metrics.py) makes these repeated calls cheaper than Opus.
+**Direct loop:** one place owns tool selection, evidence and release. A framework would add another layer to explain. The fixed tools and Docker restrictions enforce permissions; prompt instructions guide behavior.
 
-**Opus 5.5 for offline judging and the single final recovery check:** the judge critiques against references withheld from the agent. The recovery check audits only the available source evidence after ordinary repair is exhausted. A targeted replay accepted supported recovery facts and rejected two fabricated claims; this supports the bounded fallback, not general model superiority. The offline judge and recovery checker share a model, and ordinary verification shares its family.
+**Sonnet for planning and ordinary verification:** native tool calls suit the loop, and our [recorded price table](src/coreweaving/metrics.py) makes repeated calls cheaper than Opus at the same token count. **Opus for evaluation and final recovery:** reserve the larger model for reference-based judging and the final bounded check. No model comparison was run; these are engineering choices, with shared-family blind spots.
 
-Local BM25 search avoids an embedding service and makes API-name matches inspectable, with weaker paraphrase matching as a tradeoff.
+**BM25 over a local snapshot:** exact API names are easy to inspect, and retrieval needs no service. Paraphrases and multi-concept queries can miss relevant passages. Dense embeddings, hybrid rank fusion, contextual indexing and link expansion were [considered, but not benchmarked](docs/CODE_MAP.md#retrieval-alternatives-considered). The proportionate next test is fixed-corpus BM25 versus hybrid retrieval; adding a graph has no demonstrated benefit here.
 
-| File | Start with | Responsibility and choice |
+**Separate grounded verification:** challenge material claims against read passages before release. Deterministic checks enforce citation identity; the model assesses support. The pilot below supports the citation safeguards, while live review exposed both over-rejection and a wrongly accepted code example. Verification adds latency and cannot replace independent evaluation.
+
+| File | Entry point | Role |
 | --- | --- | --- |
-| [app.py](app.py) | `run_question`, `show_result`, `show_analysis` | Background execution and persistence before rendering; answers first, diagnostics in a separate window. |
-| [agent.py](src/coreweaving/agent.py) | `Agent.run` → `execute` / `verify`; `Session` | One explicit loop and source ledger; inspectable control flow without an orchestration framework. |
-| [corpus.py](src/coreweaving/corpus.py) | `Corpus.search`, `read`, `outline` | BM25 over hashed sections; navigation hints become evidence only after a read. |
-| [llm.py](src/coreweaving/llm.py) | `LanguageModel.call` | One Anthropic boundary with explicit Weave messages, usage and verifier parenting. |
-| [evaluate.py](src/coreweaving/evaluate.py) | `dataset_rows`, `DocumentationModel.predict`, `QualityJudge.score`, `run_evaluation` | Same agent, separately supplied judge references, frozen assertions and durable results. |
-| [signals.py](src/coreweaving/signals.py) | `setup`, `SIGNAL_DEFINITION` | Explicit monitor setup; completed-turn review runs asynchronously in Weave. |
-| [config.py](src/coreweaving/config.py) | `Settings`, `redact_sensitive`, `init_weave` | Immutable limits, credential masking and one-time trace initialization. |
-| [sandbox.py](src/coreweaving/sandbox.py) | `run_python` | Offline Docker execution with application-owned resource limits. |
-| [metrics.py](src/coreweaving/metrics.py) / [library.py](src/coreweaving/library.py) | `MeteredModel`, `summarize` / `save_answer`, `review_answer` | Account for failed/repaired work; preserve original answers separately from human reviews. |
+| [app.py](app.py) | `run_question`, `show_result`, `show_analysis` | Run once in the background; answer first, optional sources and diagnostics. |
+| [agent.py](src/coreweaving/agent.py) | `Session`, `Agent.run`, `execute`, `verify` | Conversation memory, four tools, source ledger, checks and repair. |
+| [corpus.py](src/coreweaving/corpus.py) | `Corpus.search`, `read`, `outline` | Hashed passages, BM25 search and scoped navigation metadata. |
+| [llm.py](src/coreweaving/llm.py) | `LanguageModel.call` | Anthropic transport, caching, explicit Weave messages and usage. |
+| [evaluate.py](src/coreweaving/evaluate.py) | `DocumentationModel.predict`, `QualityJudge.score`, `run_evaluation` | Same agent, withheld judge references, assertions and durable evidence. |
+| [signals.py](src/coreweaving/signals.py) | `setup`, `SIGNAL_DEFINITION` | Asynchronous completed-turn review policy. |
+| [config.py](src/coreweaving/config.py) | `Settings`, `redact_sensitive`, `init_weave` | Limits, credential masking and tracing setup. |
+| [sandbox.py](src/coreweaving/sandbox.py) | `run_python` | Standard-library Python in an offline, non-root Docker container. |
+| [metrics.py](src/coreweaving/metrics.py) / [library.py](src/coreweaving/library.py) | `summarize` / `save_answer`, `review_answer` | Include repaired work in cost; keep original answers separate from human reviews. |
 
-**Reading route:** follow `app.run_question` → `Agent.run` → `LanguageModel.call` → `Agent.execute` / `Agent.verify` → `save_answer` → `show_result`. Then read the evaluation and Signal paths. The [detailed code map](docs/CODE_MAP.md) connects functions, data, Weave operations, tests and evidence, including CLI/setup/experiment files.
+Read `app.run_question` → `Agent.run` → `LanguageModel.call` → `execute` / `verify` → `save_answer` → `show_result`, then evaluation and Signals. The [detailed map](docs/CODE_MAP.md) covers supporting setup and experiment files.
 
-Scripts support setup and recorded experiments; they do not add runtime agent tools. The agent has 10 planning calls, 18 tool calls and two repair opportunities. In default support mode, an exhausted attempt can make one final strict check of up to four supported documentation facts. A passing recovery is labeled **partial**, never a completed task; a failed recheck withholds the text. Coverage mode does not use this recovery. Python runs in a non-root, offline container without host mounts or credentials. There is no general shell or account-administration tool. [Behavior contract](docs/BEHAVIOR_CONTRACT.md)
+The agent allows 10 planning calls, 18 tool calls and two repairs. Exhausted support-mode attempts can make one final strict check of up to four supported facts, labeled **partial**. Failed checks withhold the text. Coverage mode is experimental; the web app refuses verification-off mode. Python has no network, host mounts or credentials; it cannot validate Weave SDK examples. [Behavior contract](docs/BEHAVIOR_CONTRACT.md)
 
-A cited draft returned as ordinary text enters the same verification path directly, avoiding another model call just to repeat it as tool arguments. Its trace records the application origin. [Latency investigation](results/submission-repair-v1/latency-review.md)
+**Documentation source and versions:** a committed, [license-noted snapshot](docs/THIRD_PARTY_NOTICES.md) contains 351 pages fetched October 24, 2026 (Pacific). Answers use stored passages, without live freshness checks. The analysis window preserves exact evidence even if official URLs change. Reference pages identify SDK 0.53.1; runtime is pinned to 0.54.0. The sidebar reports this mismatch. There is one active snapshot, no release selector and no API compatibility check. [Refresh procedure and limits](docs/VERSIONING.md#documentation-freshness-and-version-support)
 
-**Documentation source:** answers use a committed, [license-noted snapshot](docs/THIRD_PARTY_NOTICES.md) of 351 Weave pages fetched **October 24, 2026 (Pacific)**, identified as `4db7c17b2869`. This keeps source evidence and evaluation inputs reproducible. The agent searches those saved passages; it does not browse or check for newer docs during a turn. Official citation links may now show different content, while the analysis window preserves the passage used. Model calls and tracing still need the network.
-
-**Version support:** answers and traces identify their source snapshot and implementation. The app uses one snapshot at a time; it cannot select a Weave release or guarantee that an example works with your installed SDK. [Capabilities and limits](docs/VERSIONING.md#documentation-freshness-and-version-support)
-
-The workflow follows simple tool loops and focused evidence handling ([agent patterns](https://www.anthropic.com/research/building-effective-agents), [context engineering](https://www.anthropic.com/research/effective-context-engineering-for-ai-agents)). Our browser tests exposed citation parsing, evidence handoff and inconsistent verification; the [behavior contract](docs/BEHAVIOR_CONTRACT.md) maps those findings to fixes and tests.
-
-Completed answers are saved before UI rendering. The local SQLite library retains answers, context and separate human reviews; entries start unreviewed and never become factual retrieval input automatically. New conversation clears working context, not saved answers or traces.
+Completed answers are saved before display. Human reviews stay separate; they do not automatically become retrieval facts. New conversation clears working context, not saved answers or public traces.
 
 ## Weave and CoreWeave
 
-The [agent tracing model](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents) records conversations, turns, model calls, tools and a verifier subagent. Each answer links to its trace; evaluations retain datasets, scores and failure explanations.
+Weave connects the [agent span hierarchy](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents), evaluation rows, dataset/model/scorer versions and feedback. Source, prompt, configuration and corpus identities make failures attributable. Backend reads reconcile actual model calls and usage; the separate analysis window links users to that evidence.
 
-The **`coreweaving-review-signal`** uses CoreWeave Serverless Inference after completed turns, filtered to this agent. It tagged a real failed TypeScript follow-up `needs-review`, confirmed through readback. [Observed feedback](results/coverage-pilot-v1/live-signal-review.json) · [Signals guide](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals)
+The **`coreweaving-review-signal`** uses CoreWeave Serverless Inference, filtered to completed turns from this agent. It reviews exactly three conditions: an assistant-reported operational failure, explicit limit exhaustion, or factual Weave instructions with no source marker. It runs after completion and cannot block an answer.
 
-**How Weave informed the build:** traces exposed citation/evidence failures; the evaluation compared three verifier policies; coverage-mode refusals informed the decision to keep support mode as default; Signals surfaced a failed live turn. Dataset/model/scorer records and source/prompt/configuration hashes connect each measurement to its inputs. [Implementation-to-evidence map](docs/CODE_MAP.md#weave-use-and-evidence)
-
-Human reviews currently remain in SQLite, and prompts are source-controlled strings with hashes. Weave feedback integration, `StringPrompt` versions and a Leaderboard are future work. The configured Signal detects visible review needs; it is not a general factual-accuracy scorer.
-
-The assistant and offline judge use Anthropic. CoreWeave supplies Weave and Signal inference; this project does not use its GPU training or application hosting. With inference credits available, configure the Signal and a labeled synthetic fixture:
+A later audit found **14 false-positive tags among 15 selected baseline turns**. We tightened the policy: six targeted fixtures matched their labels, and all four final UI turns correctly received no tag. The [diagnosis and calibration](results/brief-e2e-v1/review.md#online-monitoring) retain the original failures. To configure a monitor and run a labeled fixture with inference credits:
 
 ```bash
 uv run python -m coreweaving.signals --fixture
 ```
 
-**Observed UI limitation:** Compare shows six case rows per repeat, but some summaries display N/A. Latest backend reads match local records; duplicate physical Call versions are not extra trials. We preserved original IDs and documented the issue. [UI check](results/coverage-pilot-v1/compare-ui-review.json) · [Backend check](results/coverage-pilot-v1/backend-final-readback.json)
+This is the demonstrated value: inspect behavior, find a failure, change a policy and measure again. Anthropic supplies the assistant and judge; CoreWeave supplies Weave and Signal inference. No comparison establishes better answers than Claude or ChatGPT. GPU training and application hosting are outside this project.
+
+Human feedback still lives in SQLite; prompts use Git and hashes. Weave feedback, `StringPrompt` versions and a Leaderboard are future work. Compare displayed N/A for some pilot summaries despite populated case rows; [backend readback](results/coverage-pilot-v1/backend-final-readback.json) preserves verified scores. Fixing the vendor UI is outside the assignment.
 
 ## Evaluation and verification
 
-The original 13 questions include multi-page, ambiguous, false-premise, follow-up and execution cases. Six later capability questions have 22 assertions frozen before outputs. Passing requires every assertion, correctness/completeness/grounding/uncertainty each at least 3/4, and citation/execution integrity. Judge errors fail. [Dataset review](results/dataset-review.json)
+The regression covers initialization, multi-page synthesis, setup, ambiguity, fabricated APIs, follow-ups, execution and a quoted malicious instruction. Passing requires all case assertions, each of four judge dimensions ≥3/4, and citation/execution integrity. References are withheld from the agent. Judge errors fail the run’s operational checks.
 
 <!-- MEASURED_RESULTS_START -->
-**Regression on submitted runtime `755036e`: 10/13 cases, 45/48 assertions, $2.56** estimated agent+judge cost. [Failures and repair evidence](results/submission-repair-v1/review.md) · [Exact version](results/README.md#which-version-was-evaluated) · [Weave run](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving/weave/calls/01a17bda-f588-7036-abb0-c8139ce36d06)
+**Current runtime `3a49a50`: 13/13 cases, 48/48 assertions, $2.85 agent + judge estimate.** [Run](results/brief-final-regression-v1/summary.json) · [Weave evaluation](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving/weave/calls/01a17c25-c315-79e1-b28d-85b0dc6a3ca4) · [Answer review](results/brief-e2e-v1/final-answer-review.json)
 
-The earlier pilot compared six questions × three modes × two repeats:
+The fresh baseline scored **10/13, 44/48**. Rubric 2.3 corrected two unsolicited requirements in case 03; all questions, references and the other 46 assertions stayed fixed. On those common assertions the baseline scored **43/46**, versus **46/46** now. General planner/verifier changes and rubric corrections are documented separately in the [end-to-end review](results/brief-e2e-v1/review.md). The immutable submission tag retains its original 10/13, 45/48 result.
 
-| Verification | Passed | Assertions | Agent estimate | Judge estimate | Mean agent time |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Off, experimental control | 7/12 | 39/44 | $1.02 | $1.42 | 20.0 s |
-| **Source support, default** | **10/12** | **39/44** | **$1.93** | **$1.41** | **42.1 s** |
-| Support + coverage, experimental | 8/12 | 32/44 | $2.52 | $1.36 | 54.9 s |
+Manual review found a generous hierarchy grade in case 02 and an incomplete, explicitly illustrative code sketch. The recorded pass stays visible alongside that critique; 13/13 is the judge’s result on these development tasks.
 
-All 36 case-runs cost an estimated **$9.65**. Support and off passed the same 39/44 factual assertions; support’s three extra case passes came from citation integrity (off cited unread sources). Coverage refused two answerable tasks, so support stays the default. Historical `submission-v1` scored 12/13 under a different rubric. Original answers and scores remain unchanged. [Pilot records](results/coverage-pilot-v1/summary.json) · [Review](results/coverage-pilot-v1/review.md)
+The historical pilot compared six questions × two trials per mode:
+
+| Verification | Cases | Assertions | Mean agent time |
+| --- | ---: | ---: | ---: |
+| Off, experimental control | 7/12 | 39/44 | 20.0 s |
+| **Source support, default** | **10/12** | **39/44** | **42.1 s** |
+| Support + coverage | 8/12 | 32/44 | 54.9 s |
+
+Support and off tied on factual assertions. Support’s extra passes came from citation integrity; coverage refused two answerable tasks. The pilot informed the default, with no broad accuracy claim. All 36 runs cost **$9.65**. [Original records and reviews](results/coverage-pilot-v1/summary.json)
 <!-- MEASURED_RESULTS_END -->
 
-Dollar amounts are rounded; totals use raw receipts. Estimates include returned planning, verification, repair and judge usage; they exclude Signals, hosting, taxes and unreturned charges. Time excludes judging. Budgets bound these estimates, not account bills.
+**Local checks: 245 tests pass; Ruff is clean.** The final browser replay passed **4/4 questions and 12/12 task checks**, including an uninterrupted follow-up and message-history validation. It cost **$0.58**, took **22.7–44.5 seconds** per answer, and produced 340–383 words each. Those are useful but still slow, long answers. [Browser evidence](results/brief-e2e-v1/ui-final/manual-review.json)
 
-**Local checks: 243 tests pass; Ruff is clean.** A clean checkout restores all 351 documentation pages offline and imports the runtime. The final live browser replay covered all three presets plus a contextual follow-up, for **$0.43**. All four questions returned source-checked answers; 10/12 manual checks passed. The overview omitted Signal timing and the evaluation answer omitted judge fallibility; the tracing scaffold still leaves setup to the reader. [Browser and code checks](results/submission-repair-v1/review.md)
+Seven selected verifier fixtures matched expectations, including rejection of the captured invalid code sketch. The corrected six-fixture old/new comparison was tied at 6/6. These are development probes, not a verifier accuracy estimate. [Fixture review](results/brief-e2e-v1/verifier-fixture-review.json) · [Final scope](results/brief-verifier-final-v1/scope-correction.json)
 
-The app keeps the submitted question visible while it works, shows the current stage and elapsed time, and opens cited sources beside the answer. The separate analysis window retains exact passages, checks, usage and the Weave link. Desktop/mobile and keyboard inspection make no model calls. [UI checks](results/submission-repair-v1/app-usability.json)
-
-An earlier security/navigation check also confirmed one saved answer per submission, matching trace cost and no synthetic credential in public trace payloads. [Receipt](results/ui-recovery-v1/backend.json)
+Costs use returned usage and include repair work; evaluation costs also include judging. Background Signals, hosting, taxes and unreturned charges are excluded. Dollar estimates are rounded; raw receipts remain in the [evidence index](results/README.md).
 
 ```bash
-# Paid model calls; use a new run name.
+# Paid run; always use a new name.
 uv run python -m coreweaving.evaluate --suite regression --verify-mode support --name my-regression --budget-usd 5
 uv run pytest -q
-uv run ruff check src app.py tests scripts
+uv run ruff check .
 ```
 
 ## Known limits
 
-1. **Evaluation scope:** six selected pilot tasks and a same-family judge limit generalization. Signal accuracy and advantages over general assistants remain unmeasured. Answers can pass verification while omitting important details; [failure reviews](results/README.md) also identify rubric errors.
-2. **Answer quality:** source-supported answers can still omit necessary steps. The regression failures and preset omissions are preserved in the [repair review](results/submission-repair-v1/review.md); this development dataset is not a held-out benchmark.
-3. **Freshness and compatibility:** no automatic updates or release selector. The Python reference identifies 0.53.1; runtime is pinned to 0.54.0. The sidebar shows this mismatch, but it neither dates every guide nor validates example compatibility.
-4. **Privacy:** configured secrets and common credential formats are masked before model requests, traces, history, SQLite and exports. This is not general PII detection; encoded or unfamiliar secrets may escape it.
-5. **Process lifetime:** background jobs and working conversation memory are in process. A restart can lose unfinished work; completed library records persist. The session source ledger is not yet size-limited.
+1. **Evidence:** this is a reused development suite, a six-task pilot and a same-family judge. Results are not a general reliability estimate; false positives and false negatives remain possible in verification and monitoring.
+2. **Usefulness and speed:** support checking can miss omissions or invalid code. Examples are illustrative unless explicitly executed; the sandbox lacks Weave. The latest UI answers took 23–45 seconds and remained verbose.
+3. **Corpus:** no automatic refresh, release selection or compatibility validation. Long sections can split inside code fences; lexical search can miss paraphrases. [Corpus structure](docs/CODE_MAP.md#how-the-agent-reads-documentation)
+4. **Privacy:** masking covers configured keys and recognized credential formats, not general PII or every encoded secret. Use public examples with the public project.
+5. **Persistence:** process restart can lose unfinished jobs and working memory. Completed library entries persist; the session source ledger is not size-capped.
 
 ## Walkthrough and next steps
 
-Ask a question, change an assumption, inspect sources/cost, then open its trace and an evaluation failure. [Field guide](walkthrough.html) · [Reviewer handoff](docs/REVIEWER_HANDOFF.md) · [Product plan](plan.html)
+[Field guide](walkthrough.html) · [Reviewer handoff](docs/REVIEWER_HANDOFF.md) · [Product plan](plan.html)
 
-Work expanded beyond the brief's approximately three hours; the [build log](docs/AI_BUILD_LOG.md) records dated milestones. The cost/memory features, library and artifacts add maintenance and explanation work beyond the core brief. Voice, adaptive layouts, routing and graphs are [future ideas](research.html).
+Work exceeded the approximately three-hour brief. The core agent, tracing, Signals and first evaluation landed in the first session; later sessions added comparison, browser checks and repairs. The [build log](docs/AI_BUILD_LOG.md) records the expanded scope and what AI-generated work needed correction.
 
-Further work, if separately chosen: reduce unnecessary model calls while preserving answer quality, check API existence against the pinned SDK, improve retrieval where failures justify it, connect deliberate reviews to Weave feedback, and test a different judge family and larger trials. Voice, specialist routing and graph retrieval remain future work.
-
-[Decision models such as Jev/OpenJev were considered and deferred](docs/DECISION_MODELS.md): current failures do not establish a need for another model.
+Next: fewer serial calls with measured quality retention; fixed-corpus hybrid retrieval; API-existence checks; Weave feedback; a different judge family and held-out tasks. Voice, adaptive layouts, specialist routing and graphs remain [future ideas](research.html). [Jev/OpenJev](docs/DECISION_MODELS.md) were considered and deferred: no measured need justifies another decision model yet.

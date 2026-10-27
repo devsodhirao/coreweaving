@@ -3,11 +3,13 @@
 The repository and recorded evidence should explain the work without the chat transcript. Start with `git status --short` and `git log -5 --oneline`.
 
 <!-- HANDOFF_STATUS_START -->
-**Repaired and verified for owner review:** code commit `755036e`, source `b269258e77866ae31f32f52d72e25d39f4561498b3ee6a8500b1fe15a63b61c1`; 243 tests and Ruff pass. Fresh setup restores 351 pages offline. The final regression completed all 13 cases: 10/13 passed, 45/48 assertions, $2.56 model estimate. [Repair review](../results/submission-repair-v1/review.md) · [Code map](CODE_MAP.md)
+**Current runtime `3a49a50`, source `b746d92df4ed`: 13/13 cases, 48/48 assertions, $2.85.** Rubric 2.3 changes two case 03 fairness rules; all questions/references and 46 assertions remain fixed (43/46 baseline → 46/46 final). Manual review flags a generous case 02 hierarchy grade and incomplete illustrative code; the recorded judge pass is preserved. [End-to-end review](../results/brief-e2e-v1/review.md) · [Code map](CODE_MAP.md)
 
-All four questions returned source-checked answers; 10/12 manual checks passed. The overview omitted Signal timing and the evaluation answer omitted judge fallibility; the tracing scaffold still leaves setup to the reader. The final replay and original failures are retained separately. A targeted positive and two negative probes support using Opus for the single final recovery check; this is not a broad model comparison. Historical pilot scores stay unchanged.
+245 tests and Ruff pass. Fresh setup restores 351 pages offline. The final browser replay passed 4/4 tasks and 12/12 checks, with real follow-up context and once-only delivery; median 41.1 seconds and 340–383words remain usability limits. The intermediate replay's invalid generated tool history and all earlier failures remain visible.
 
-Compare this checkout with [public main](https://github.com/devsodhirao/coreweaving/commits/main/) for publication. Email submission and interview rehearsal remain owner actions. No new experiments are needed merely to inspect these records.
+The verifier enforces citation integrity but has no demonstrated factual-accuracy advantage in the pilot. Corrected old/new calibration tied 6/6; seven final selected fixtures matched expectations. The old Signal produced 14 false positives among 15 selected turns; the revised policy passed six fixtures and correctly left four final UI answers untagged. These are scoped observations, not reliability estimates.
+
+Compare this checkout with [public main](https://github.com/devsodhirao/coreweaving/commits/main/) for publication. The original submission tag is unchanged. Email submission and rehearsal remain owner actions; inspection requires no new paid runs.
 <!-- HANDOFF_STATUS_END -->
 
 ## Objective and constraints
@@ -51,9 +53,9 @@ The owner also asked for a useful product and teaching experience, bounded permi
 - The known Weave call/end502 requires replaying the original completed parent record. Pending storage merges can expose both unfinished and completed physical versions in list queries. Direct latest-only reads and the evaluation-results API verify actual scores. Do not rerun paid answers or delete evidence to tidy the UI.
 - Topic redirection is model guidance. Tool dispatch, rejected arguments and container controls enforce capabilities. Fake-model tests prove those boundaries, not universal semantic prompt-injection resistance.
 - Credential masking precedes model requests, conversation names, spans and persistence. Synthetic canary absent in the real backend payload; this is not general PII detection. Public examples remain the right input for this public project.
-- Weave 0.54's adapter passed net input into an inclusive OTel field, creating negative native cost estimates. The final provider boundary normalizes trace usage while preserving raw receipts; all 13 live-check model spans now reconcile to nonnegative native costs.
+- Weave 0.54's adapter passed net input into an inclusive OTel field, creating negative native cost estimates. The final provider boundary normalizes trace usage while preserving raw receipts; the earlier 13 live-check model spans reconciled to nonnegative native costs.
 - Actual preset testing exposed a false abstention despite relevant reads. A later calibration change regressed the overview and passed a code example missing assistant history, so that prompt change was reverted. The earlier final targeted check retained assistant history, but its overview still omitted monitoring timing; the latest repair review supersedes its readiness status. Preserve these [case reviews](../results/preset-check-summary.json); a source-check pass does not mean the task was answered completely.
-- Partial recovery releases a newly checked, explicitly narrowed answer, not selected fragments from an unchecked draft. Independent review caught an empty-claims waiver and reproduced its rejection after the fix. The [real recovery check](../results/recovery-check-v1/receipt.json) validates one narrowed answer; none of the four final UI questions needed that recovery path.
+- Partial recovery releases a newly checked, explicitly narrowed answer, not selected fragments from an unchecked draft. Independent review caught an empty-claims waiver and reproduced its rejection after the fix. The [real recovery check](../results/recovery-check-v1/receipt.json) validates one narrowed answer; none of the four submission UI questions needed that recovery path.
 
 ## Inspect these paths
 
@@ -73,7 +75,7 @@ uv run ruff format --check src app.py tests
 git diff --check
 ```
 
-Tests use fake model responses except real Docker probes. Paid pilot, regression and preset checks are complete; do not start more runs merely to inspect the repository. [Fresh offline setup](../results/submission-repair-v1/fresh-setup.json) restores all 351 documents and imports the final code without credentials or model calls. No billing settings were changed. Review and interview rehearsal are next.
+Tests use fake model responses except real Docker probes. Paid pilot, regression and preset checks are complete; do not start more runs merely to inspect the repository. [Fresh offline setup](../results/brief-e2e-v1/fresh-setup-final.json) restores all 351 documents and imports the final code without credentials or model calls. No billing settings were changed. Review and interview rehearsal are next.
 
 [GitHub](https://github.com/devsodhirao/coreweaving) and the [Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving) are public. Start the local app using the README; its default address is `http://127.0.0.1:8501`. Local SQLite, expanded documentation and `.env` stay outside Git. A licensed, hash-pinned archive of the 351 Weave pages is included for offline restoration. Review requires no credential display, billing change or recruiter email.
 

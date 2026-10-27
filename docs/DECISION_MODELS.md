@@ -21,7 +21,7 @@ There are independent implementations with this name. They should not be treated
 
 ## Why we are not adding it
 
-Our final failures concern omitted details and incomplete answers. A source-support classifier alone cannot establish that the whole question was answered. The latency investigation also found duplicated drafting and serial calls; removing unnecessary work is a simpler first response than introducing another inference service. A classifier would add latency, calibration data requirements, deployment and explanation costs to an already expanded take-home.
+The submitted run and later replay exposed omitted details, incomplete answers, excessive rejection and an accepted invalid code sketch. A source-support classifier alone cannot establish that the whole question was answered. The latency investigation also found duplicated drafting and serial calls; removing unnecessary work is a simpler first response than introducing another inference service. A classifier would add latency, calibration data requirements, deployment and explanation costs to an already expanded take-home.
 
 We would reconsider only if profiling identifies a repeated, narrow decision that dominates time or cost, simpler improvements are insufficient, and enough labeled examples exist to evaluate a replacement. Faster typed output by itself meets none of those conditions.
 

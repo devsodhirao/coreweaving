@@ -17,8 +17,8 @@
 
 ## Interpret and validate changes
 
-- Final evaluated runtime: `755036e`, source `b269258e7786`. Later documentation edits do not create a new answer-quality measurement.
-- Use the final regression's **10/13 cases, 45/48 assertions**, including its failures. A verifier pass is not a completeness score.
+- Read current runtime, dataset/rubric identity and scores in [README](README.md#evaluation-and-verification) and the [evidence index](results/README.md). Later documentation edits do not create a new answer-quality measurement.
+- Preserve the tagged submission baseline (`755036e`, source `b269258e7786`, 10/13 cases and 45/48 assertions). New runs have distinct identities; a verifier pass is not a completeness score.
 - Local checks: `uv run pytest -q` and `uv run ruff check .`. Evaluation, CLI questions, UI submissions and Signal fixtures can incur API charges; read saved evidence for review.
 - Preserve completed results and published tags. Runtime, prompt, model or corpus changes need new attributable evidence; a documentation edit does not inherit a new performance claim.
 - `.env`, local SQLite records and personal preparation notes are outside the public submission. Keep credential values out of outputs.
