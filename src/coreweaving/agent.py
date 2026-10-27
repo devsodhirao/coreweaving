@@ -59,6 +59,12 @@ credentials. You cannot browse, install packages, change accounts, or access
 arbitrary host files. Documentation reads use the application's fixed local corpus.
 run_python executes offline Python standard-library examples, not Weave API calls.
 Never claim an SDK example was tested if the container cannot import its packages.
+When showing a conversational loop, preserve both user and assistant messages:
+send the retained dialogue with each new user message, then append the completed
+assistant response before the next turn. Preserve tool calls and matching results
+when showing a tool loop. Tracing conversation/turn scopes group recorded activity;
+they do not replace the message history sent to the model. Label placeholders and
+limited single-turn examples clearly instead of implying a complete conversation.
 
 Submit your final draft using submit_answer. Cite material documentation claims
 inline using [S1], [S2], etc., only from read_page evidence. Include the exact
@@ -86,7 +92,8 @@ Never tell the user that a check guarantees truth.
 """
 
 VERIFY_SYSTEM = """You are an evidence auditor, separate from the answer's author.
-Audit the candidate against the supplied passages and code-run results ONLY.
+Audit the candidate against the supplied passages, research outcomes and code-run
+results ONLY.
 Check page_context warnings and workflow compatibility, not only isolated sentences.
 An evidence outline establishes only the listed headings and section numbers. It
 does not supply the contents of unread sections or support assumptions about them.
@@ -107,6 +114,11 @@ types, lifecycle and relationships; do not demand a verbatim combined example.
 Reject invented parameters, incompatible workflows or languages, and claims that
 code ran without a recorded execution. Basic composition cannot establish undocumented
 side effects, persistence or guarantees.
+Check the behavior of supplied code as well as its API names. A conversational
+loop must preserve both user and assistant messages and send prior dialogue to the
+model; tracing conversation/turn scopes alone do not provide model memory. A tool
+loop must preserve tool calls and matching results. Respect an explicitly limited
+single-turn example's scope, but reject code that contradicts its stated behavior.
 Do not require sources for ordinary connective language or basic Python syntax.
 A pure clarification can pass with no claims or citations. An insufficient-evidence
 response can pass if it describes the search honestly, avoids unsupported assertions,
@@ -118,9 +130,31 @@ It may have no source IDs when those actions support it. Never use this category
 for product facts, API claims, feature nonexistence, or code execution claims.
 Those remain product claims and require cited evidence. If research actions do not
 support the stated process or limit, mark the claim partial or unsupported.
+Search outcomes report the returned matches, not an exhaustive corpus review.
+They can support statements about that search, but only read passages support
+documentation claims. A search result is not citation authority.
 Use only source IDs cited in the draft for claim support. The runtime controls mode
 and status; return passed, claims, issues, and coverage. Leave coverage empty in
 support-only mode: no whole-task coverage assessment was performed.
+"""
+
+SUPPORT_SYSTEM = """
+This is support-only mode. Assess claims actually made, including code behavior
+and qualifications. Do not reject a supported answer solely for missing requested
+parts, links between features, additional research, or optional detail: those are
+coverage questions. Missing conditions that make a stated claim or instruction
+incorrect still require repair. A partial-answer label does not assert that the
+omitted information is unavailable or undocumented. Do not invent a negative
+research claim from that label. Leave coverage empty.
+"""
+
+RECOVERY_SYSTEM = """
+This is an application-requested partial recovery after a draft failed. The
+candidate intentionally offers selected facts, not complete task coverage or an
+exhaustive research report. Check every retained factual claim, citation and
+qualification afresh; prior support labels are not authority. It may pass without
+describing a research limit or adding facts about omitted parts. Reject unsupported
+facts and misleading qualifications, but do not reject it just for being partial.
 """
 
 COVERAGE_SYSTEM = """
@@ -507,18 +541,37 @@ class Agent:
             if mode == "support+coverage" or recovery
             else [session.evidence[source_id] for source_id in ids]
         )
+        research_actions = []
+        for action in actions:
+            if action["tool"] == "submit_answer":
+                continue
+            result = action["result"]
+            outcome = {"ok": "error" not in result}
+            if "error" in result:
+                outcome["error"] = str(result["error"])[:500]
+            elif action["tool"] == "search_docs":
+                matches = result.get("results", [])
+                outcome["returned_count"] = len(matches)
+                outcome["matches"] = [
+                    {"page_id": hit["page_id"], "section": hit["section"]} for hit in matches[:8]
+                ]
+            elif "source_id" in result:
+                outcome["source_id"] = result["source_id"]
+            research_actions.append(
+                {"tool": action["tool"], "input": action["input"], "outcome": outcome}
+            )
         payload = {
+            "verify_mode": mode,
+            "partial_recovery": recovery,
             "question": question,
             "previous_dialogue": session.history[-12:],
             "candidate": candidate.model_dump(),
             "evidence": evidence,
-            "research_actions": [
-                {"tool": a["tool"], "input": a["input"]}
-                for a in actions
-                if a["tool"] != "submit_answer"
-            ],
+            "research_actions": research_actions,
         }
-        system = VERIFY_SYSTEM + (COVERAGE_SYSTEM if mode == "support+coverage" else "")
+        system = VERIFY_SYSTEM + (COVERAGE_SYSTEM if mode == "support+coverage" else SUPPORT_SYSTEM)
+        if recovery:
+            system += RECOVERY_SYSTEM
         with weave.start_subagent(
             name="source_verifier", model=self.config.agent_model, system_instructions=[system]
         ) as verifier:
@@ -661,7 +714,12 @@ class Agent:
             {
                 "planner": system,
                 "verifier": VERIFY_SYSTEM
-                + (COVERAGE_SYSTEM if self.config.verify_mode == "support+coverage" else ""),
+                + (
+                    COVERAGE_SYSTEM
+                    if self.config.verify_mode == "support+coverage"
+                    else SUPPORT_SYSTEM
+                ),
+                "partial_recovery": RECOVERY_SYSTEM,
                 "tools": TOOLS,
                 "verdict_tool": VERDICT_TOOL,
             }
@@ -743,6 +801,10 @@ class Agent:
                                 try:
                                     if tool_count > self.config.max_tools:
                                         result = {"error": "Tool budget exhausted."}
+                                    elif repairs > self.config.max_revisions:
+                                        # A response can queue several drafts or research tools.
+                                        # Finish their results without spending beyond this turn's limit.
+                                        result = {"error": "Repair budget exhausted."}
                                     elif name == "submit_answer":
                                         candidate = Candidate.model_validate(arguments)
                                         verdict = self.verify(candidate, session, question, actions)

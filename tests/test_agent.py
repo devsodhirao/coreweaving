@@ -174,6 +174,26 @@ def test_research_budget_stops_an_unproductive_loop(corpus):
     assert "research limit" in result["answer"]
 
 
+@pytest.mark.parametrize("max_revisions", [0, 2])
+def test_batched_drafts_cannot_spend_past_the_repair_budget(corpus, monkeypatch, max_revisions):
+    monkeypatch.setattr(corpus, "search", lambda **kwargs: pytest.fail("Research budget ended."))
+    fake = FakeModel(
+        [
+            response(READ, *[ANSWER] * 5, ("search_docs", {"query": "must not execute"})),
+            *[verdict(False)] * (max_revisions + 1),
+        ]
+    )
+    result = Agent(corpus, Settings(project="test/test", max_revisions=max_revisions), fake).run(
+        "Initialize Weave."
+    )
+    assert len(result["verification_attempts"]) == max_revisions + 1
+    assert len(fake.requests) == max_revisions + 2  # Initial planner, then bounded audits.
+    assert not result["recovery_attempted"]
+    skipped = result["actions"][max_revisions + 2 :]
+    assert len(skipped) == 5 - max_revisions
+    assert all(action["result"] == {"error": "Repair budget exhausted."} for action in skipped)
+
+
 @pytest.mark.parametrize("recheck_passes", [True, False, "empty_claims"])
 def test_partial_recovery_requires_its_own_full_check(corpus, recheck_passes):
     rejected = response(
@@ -216,6 +236,131 @@ def test_partial_recovery_requires_its_own_full_check(corpus, recheck_passes):
     payload = json.loads(fake.requests[-1]["messages"][0]["content"])
     assert "guarantees perfect answers" not in payload["candidate"]["answer"]
     assert payload["candidate"]["source_ids"] == ["S1"]
+    assert payload["partial_recovery"] is True
+    assert payload["verify_mode"] == "support"
+
+
+@pytest.mark.parametrize("recovery_passes", [True, False])
+def test_overview_recovery_checks_selected_facts_with_an_explicit_partial_scope(
+    corpus, recovery_passes
+):
+    """The captured overview lost supported facts after inventing a no-link assertion.
+
+    A later audit must receive the recovery scope, but its rejection still wins.
+    The scripted audit verifies control flow, not real-model judgment quality.
+    """
+    supported = [
+        {
+            "text": "Signals score agent turns and highlight traces needing attention.",
+            "source_ids": ["S1"],
+            "status": "supported",
+        },
+        {
+            "text": "Evaluations measure behavior against repeatable test cases.",
+            "source_ids": ["S2"],
+            "status": "supported",
+        },
+    ]
+    unsupported = {
+        "text": "Nothing read connects Signals with traces.",
+        "source_ids": ["S1"],
+        "status": "unsupported",
+    }
+    draft = " ".join(claim["text"] + f" [{claim['source_ids'][0]}]" for claim in supported)
+    draft += " " + unsupported["text"] + " [S1]"
+    fake = FakeModel(
+        [
+            response(
+                ("read_page", {"page_id": "guides/tracking/view-agent-signals", "section": 0}),
+                ("read_page", {"page_id": "guides/core-types/evaluations", "section": 0}),
+                ("submit_answer", {"answer": draft}),
+            ),
+            audit(claims=[*supported, unsupported]),  # Unsupported overrides passed=True.
+            audit(claims=supported, passed=recovery_passes),
+        ]
+    )
+    result = Agent(corpus, Settings(project="test/test", max_revisions=0), fake).run(
+        "How do tracing, evaluations, and Signals fit together?"
+    )
+    assert result["verification_attempts"][0]["passed"] is False
+    assert result["recovered_partial"] is recovery_passes
+    assert result["verification"]["passed"] is recovery_passes
+    assert result["kind"] == "insufficient"
+    assert unsupported["text"] not in result["answer"]
+    original, recovery = fake.requests[1:]
+    assert json.loads(original["messages"][0]["content"])["partial_recovery"] is False
+    payload = json.loads(recovery["messages"][0]["content"])
+    assert payload["partial_recovery"] is True
+    assert payload["candidate"]["source_ids"] == ["S1", "S2"]
+    assert all(claim["text"] in payload["candidate"]["answer"] for claim in supported)
+    assert "This is support-only mode" in original["system"]
+    assert "application-requested partial recovery" not in original["system"]
+    assert "application-requested partial recovery" in recovery["system"]
+    assert "prior support labels are not authority" in recovery["system"]
+
+
+def test_conversational_code_repair_preserves_both_sides_of_history(corpus):
+    buggy_code = (
+        "def run_turn(history, message):\n"
+        "    history.append({'role': 'user', 'content': message})\n"
+        "    reply = call_llm(history)\n"
+        "    return reply\n"
+    )
+    fixed_code = buggy_code.replace(
+        "    return reply",
+        "    history.append({'role': 'assistant', 'content': reply})\n    return reply",
+    )
+
+    def candidate(code):
+        return (
+            "submit_answer",
+            {"answer": f"Retain both sides of the conversation. [S1]\n```python\n{code}```"},
+        )
+
+    fake = FakeModel(
+        [
+            response(READ, candidate(buggy_code)),
+            audit(
+                claims=[
+                    {
+                        "text": "The loop retains both sides of the conversation.",
+                        "source_ids": ["S1"],
+                        "status": "unsupported",
+                    }
+                ]
+            ),
+            response(candidate(fixed_code)),
+            audit(
+                claims=[
+                    {
+                        "text": "The loop retains both sides of the conversation.",
+                        "source_ids": ["S1"],
+                        "status": "supported",
+                    }
+                ]
+            ),
+        ]
+    )
+    result = Agent(corpus, Settings(project="test/test"), fake).run(
+        "Show a conversational loop that remembers the dialogue."
+    )
+    assert "preserve both user and assistant messages" in fake.requests[0]["system"]
+    assert "send prior dialogue to the" in fake.requests[1]["system"]
+    assert [check["passed"] for check in result["verification_attempts"]] == [False, True]
+    assert fixed_code in result["answer"]
+    requests = []
+
+    def call_llm(history):
+        requests.append([dict(message) for message in history])
+        return f"Reply {len(requests)}"
+
+    namespace = {"call_llm": call_llm}
+    exec(fixed_code, namespace)
+    history = []
+    namespace["run_turn"](history, "First question")
+    namespace["run_turn"](history, "Follow-up")
+    assert [message["role"] for message in requests[1]] == ["user", "assistant", "user"]
+    assert requests[1][1]["content"] == "Reply 1"
 
 
 def test_partial_recovery_excludes_bad_sources_code_and_known_coverage_gaps(corpus):
@@ -893,6 +1038,85 @@ def test_search_limit_claim_requires_supported_recorded_process(
         candidate, Session(), "Question", actions
     )
     assert check.passed is expected
+
+
+@pytest.mark.parametrize("query,expected", [("tracing", False), ("zzxqvnonexistentterm", True)])
+def test_search_process_audit_can_distinguish_hits_from_no_matches(corpus, query, expected):
+    candidate = Candidate(
+        answer="My search returned no matches.", kind="insufficient", source_ids=[]
+    )
+    search = corpus.search(query)
+
+    class OutcomeAuditor:
+        def call(self, **kwargs):
+            payload = json.loads(kwargs["messages"][0]["content"])
+            outcome = payload["research_actions"][0]["outcome"]
+            assert outcome["ok"] is True
+            assert payload["evidence"] == []  # Search hits are not documentation authority.
+            return audit(
+                claims=[
+                    {
+                        "text": candidate.answer,
+                        "kind": "research_process",
+                        "source_ids": [],
+                        "status": "supported" if outcome["returned_count"] == 0 else "unsupported",
+                    }
+                ]
+            )
+
+    check = Agent(corpus, Settings(project="test/test"), OutcomeAuditor()).verify(
+        candidate,
+        Session(),
+        "What did the search return?",
+        [{"tool": "search_docs", "input": {"query": query}, "result": search}],
+    )
+    assert check.passed is expected
+
+
+def test_search_outcome_metadata_is_bounded_and_does_not_promote_unread_text(corpus):
+    fake = FakeModel(
+        [
+            audit(
+                claims=[
+                    {
+                        "text": "One search returned results, and a later search failed.",
+                        "kind": "research_process",
+                        "source_ids": [],
+                        "status": "supported",
+                    }
+                ]
+            )
+        ]
+    )
+    actions = [
+        {
+            "tool": "search_docs",
+            "input": {"query": "tracing"},
+            "result": {
+                "results": [
+                    {"page_id": f"page-{i}", "section": i, "snippet": "Unread source body"}
+                    for i in range(12)
+                ]
+            },
+        },
+        {"tool": "search_docs", "input": {"query": "other"}, "result": {"error": "x" * 1000}},
+    ]
+    candidate = Candidate(
+        answer="One search returned results, and a later search failed.",
+        kind="insufficient",
+        source_ids=[],
+    )
+    Agent(corpus, Settings(project="test/test"), fake).verify(
+        candidate, Session(), "Search", actions
+    )
+    payload = json.loads(fake.requests[0]["messages"][0]["content"])
+    found, failed = [item["outcome"] for item in payload["research_actions"]]
+    assert found["returned_count"] == 12
+    assert len(found["matches"]) == 8
+    assert found["matches"][0] == {"page_id": "page-0", "section": 0}
+    assert failed == {"ok": False, "error": "x" * 500}
+    assert payload["evidence"] == []
+    assert "Unread source body" not in json.dumps(payload)
 
 
 @pytest.mark.parametrize(
