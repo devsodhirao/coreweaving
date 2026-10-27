@@ -1,6 +1,6 @@
 """Download official docs with source URLs, timestamps, hashes, and resumable caching.
 
-Run with Python alone: python3 scripts/fetch_docs.py
+Restore the agent corpus: uv run python scripts/fetch_docs.py --locked --weave-only
 Only the Weave collection is searched by the application. Supporting docs help
 developers understand the implementation without widening the agent's scope.
 """
@@ -239,7 +239,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--refresh", action="store_true", help="Fetch a new snapshot of all pages.")
     parser.add_argument(
-        "--locked", action="store_true", help="Restore bundled Weave pages offline; reject changes."
+        "--locked",
+        action="store_true",
+        help="Restore pinned pages; combine with --weave-only for a fully offline restore.",
     )
     parser.add_argument(
         "--weave-only", action="store_true", help="Only fetch the agent's Weave corpus."
