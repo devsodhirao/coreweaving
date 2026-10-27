@@ -783,22 +783,49 @@ class Agent:
                             break
                         messages.append({"role": "assistant", "content": response["content"]})
                         calls = [b for b in response["content"] if b["type"] == "tool_use"]
+                        normalized_draft = False
                         if not calls:
-                            messages.append(
-                                {
-                                    "role": "user",
-                                    "content": "Use submit_answer to submit your complete draft.",
-                                }
+                            draft = "\n".join(
+                                block["text"]
+                                for block in response["content"]
+                                if block["type"] == "text"
                             )
-                            continue
+                            if not citation_markers(draft):
+                                messages.append(
+                                    {
+                                        "role": "user",
+                                        "content": "Use submit_answer to submit your complete draft.",
+                                    }
+                                )
+                                continue
+                            # Normalize an already-written draft without asking the model
+                            # to rewrite it as a tool call. All release checks still apply.
+                            normalized_draft = True
+                            calls = [
+                                {
+                                    "name": "submit_answer",
+                                    "input": {
+                                        "answer": draft,
+                                        "source_ids": cited_ids(draft),
+                                        "kind": "answer",
+                                    },
+                                }
+                            ]
+                        origin = (
+                            "application_normalization"
+                            if normalized_draft
+                            else "provider_tool_call"
+                        )
                         results, accepted = [], None
                         for call in calls:
                             name, arguments = call["name"], call["input"]
                             tool_count += 1
                             notify({"stage": name, "detail": arguments})
-                            with weave.start_tool(
-                                name=name, arguments=json.dumps(arguments), tool_call_id=call["id"]
-                            ) as span:
+                            span_arguments = {"name": name, "arguments": json.dumps(arguments)}
+                            if not normalized_draft:
+                                span_arguments["tool_call_id"] = call["id"]
+                            with weave.start_tool(**span_arguments) as span:
+                                span.set_attributes({"coreweaving.tool_origin": origin})
                                 try:
                                     if tool_count > self.config.max_tools:
                                         result = {"error": "Tool budget exhausted."}
@@ -829,20 +856,36 @@ class Agent:
                                     result = {"error": redact_sensitive(str(exc))[:500]}
                                 result = redact_sensitive(result)
                                 span.result = json.dumps(result)
-                            actions.append({"tool": name, "input": arguments, "result": result})
-                            results.append(
+                            actions.append(
                                 {
-                                    "type": "tool_result",
-                                    "tool_use_id": call["id"],
-                                    "content": json.dumps(result),
-                                    "is_error": "error" in result,
+                                    "tool": name,
+                                    "input": arguments,
+                                    "result": result,
+                                    "origin": origin,
                                 }
                             )
+                            if not normalized_draft:
+                                results.append(
+                                    {
+                                        "type": "tool_result",
+                                        "tool_use_id": call["id"],
+                                        "content": json.dumps(result),
+                                        "is_error": "error" in result,
+                                    }
+                                )
                             if accepted:
                                 # A released draft and its verdict stay paired;
                                 # later queued tools cannot replace that verdict.
                                 break
-                        messages.append({"role": "user", "content": results})
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": "Source verification feedback for your draft:\n"
+                                + json.dumps(result)
+                                if normalized_draft
+                                else results,
+                            }
+                        )
                         if accepted:
                             answer, kind = accepted.answer, accepted.kind
                             released_source_ids = accepted.source_ids

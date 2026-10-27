@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from dataclasses import replace
 
 import pytest
@@ -30,6 +31,14 @@ def response(*calls):
             for i, (name, args) in enumerate(calls)
         ],
         "stop_reason": "tool_use",
+        "usage": {},
+    }
+
+
+def prose_response(*texts, stop_reason="end_turn"):
+    return {
+        "content": [{"type": "text", "text": text} for text in texts],
+        "stop_reason": stop_reason,
         "usage": {},
     }
 
@@ -84,6 +93,173 @@ def no_network_config(monkeypatch):
     monkeypatch.setattr(
         "coreweaving.agent.conversation_url", lambda cid: "https://example.test/" + cid
     )
+
+
+@pytest.mark.parametrize("mode", ["support", "support+coverage"])
+def test_cited_prose_is_verified_without_a_rewrite_or_fake_tool_call(corpus, monkeypatch, mode):
+    import weave
+    from weave.conversation.conversation import Tool
+
+    tool_arguments, attributes = [], []
+    original_start, original_attributes = weave.start_tool, Tool.set_attributes
+
+    def capture_start(**kwargs):
+        tool_arguments.append(kwargs)
+        return original_start(**kwargs)
+
+    def capture_attributes(self, values):
+        attributes.append(values)
+        return original_attributes(self, values)
+
+    monkeypatch.setattr("coreweaving.agent.weave.start_tool", capture_start)
+    monkeypatch.setattr(Tool, "set_attributes", capture_attributes)
+    draft = prose_response("  Initialize Weave.", "Use your team/project. [S1]\n")
+    fake = FakeModel([response(READ), draft, audit(coverage=[obligation(source_ids=["S1"])])])
+    result = Agent(corpus, Settings(project="test/test", verify_mode=mode), fake).run("Initialize.")
+    assert result["answer"] == "  Initialize Weave.\nUse your team/project. [S1]\n"
+    assert result["verification"]["passed"]
+    assert [request["purpose"] for request in fake.requests] == [
+        "planner",
+        "planner",
+        "verification",
+    ]
+    assert result["metrics"]["model_calls"] == 3
+    assert result["metrics"]["research"]["drafts_submitted"] == 1
+    assert result["actions"][-1]["origin"] == "application_normalization"
+    assert tool_arguments[0]["tool_call_id"] == "call-0"
+    assert tool_arguments[1]["name"] == "submit_answer"
+    assert "tool_call_id" not in tool_arguments[1]
+    assert attributes == [
+        {"coreweaving.tool_origin": "provider_tool_call"},
+        {"coreweaving.tool_origin": "application_normalization"},
+    ]
+
+
+@pytest.mark.parametrize("mode", ["support", "support+coverage"])
+def test_rejected_prose_gets_plain_feedback_then_a_real_tool_repair(corpus, mode):
+    rejected = (
+        verdict(False) if mode == "support" else audit(coverage=[obligation("missing", ["S1"])])
+    )
+    draft = prose_response("A draft needing repair. [S1]")
+    fake = FakeModel(
+        [
+            response(READ),
+            draft,
+            rejected,
+            response(ANSWER),
+            audit(coverage=[obligation(source_ids=["S1"])]),
+        ]
+    )
+    snapshots = []
+    original_call = fake.call
+
+    def capture(**kwargs):
+        if kwargs["purpose"] == "planner":
+            snapshots.append(deepcopy(kwargs["messages"]))
+        return original_call(**kwargs)
+
+    fake.call = capture
+    result = Agent(corpus, Settings(project="test/test", verify_mode=mode), fake).run("Initialize.")
+    assert result["answer"] == ANSWER[1]["answer"]
+    assert [check["passed"] for check in result["verification_attempts"]] == [False, True]
+    assert snapshots[-1][-2] == {"role": "assistant", "content": draft["content"]}
+    feedback = snapshots[-1][-1]
+    assert feedback["role"] == "user" and isinstance(feedback["content"], str)
+    assert "Source verification feedback" in feedback["content"]
+    assert '"passed": false' in feedback["content"]
+    assert [action["origin"] for action in result["actions"]] == [
+        "provider_tool_call",
+        "application_normalization",
+        "provider_tool_call",
+    ]
+    # Each tool_result sent to the provider must answer an actual preceding tool_use.
+    for transcript in snapshots:
+        for previous, message in zip(transcript, transcript[1:]):
+            if isinstance(message["content"], list):
+                results = [item for item in message["content"] if item["type"] == "tool_result"]
+                if results:
+                    assert previous["role"] == "assistant"
+                    actual_ids = {
+                        item["id"] for item in previous["content"] if item["type"] == "tool_use"
+                    }
+                    assert {item["tool_use_id"] for item in results} == actual_ids
+
+
+@pytest.mark.parametrize("mode", ["support", "support+coverage"])
+@pytest.mark.parametrize("marker", ["[S999]", "[C1]", "[S1-UI details]"])
+def test_normalized_prose_cannot_bypass_citation_guards(corpus, mode, marker):
+    draft = "Initialize Weave. " + marker
+    fake = FakeModel(
+        [
+            response(READ),
+            prose_response(draft),
+            response(ANSWER),
+            audit(coverage=[obligation(source_ids=["S1"])]),
+        ]
+    )
+    result = Agent(corpus, Settings(project="test/test", verify_mode=mode), fake).run("Initialize.")
+    first = result["verification_attempts"][0]
+    assert first["candidate"]["answer"] == draft
+    assert first["passed"] is False
+    assert any("citations" in issue for issue in first["issues"])
+    assert result["answer"] == ANSWER[1]["answer"]
+    assert [request["purpose"] for request in fake.requests] == [
+        "planner",
+        "planner",
+        "planner",
+        "verification",
+    ]
+
+
+@pytest.mark.parametrize("texts", [(), ("",), ("An uncited answer.",), ("Literal `[S1]`.",)])
+def test_uncited_or_empty_prose_keeps_the_existing_bounded_retry(corpus, texts):
+    fake = FakeModel([prose_response(*texts)] * 2)
+    result = Agent(corpus, Settings(project="test/test", max_steps=2), fake).run("Initialize.")
+    assert result["kind"] == "insufficient"
+    assert len(fake.requests) == 2
+    assert result["actions"] == result["verification_attempts"] == []
+    assert all(request["purpose"] == "planner" for request in fake.requests)
+
+
+def test_truncated_cited_prose_never_reaches_normalization(corpus):
+    fake = FakeModel(
+        [response(READ), prose_response(ANSWER[1]["answer"], stop_reason="max_tokens")]
+    )
+    result = Agent(corpus, Settings(project="test/test"), fake).run("Initialize.")
+    assert result["kind"] == "insufficient"
+    assert len(fake.requests) == 2
+    assert [action["tool"] for action in result["actions"]] == ["read_page"]
+    assert result["verification_attempts"] == []
+
+
+@pytest.mark.parametrize("max_tools,max_revisions", [(2, 10), (10, 0)])
+def test_normalized_drafts_consume_existing_tool_and_repair_limits(
+    corpus, max_tools, max_revisions
+):
+    fake = FakeModel([response(READ), prose_response("Unknown evidence. [C1]")])
+    result = Agent(
+        corpus,
+        Settings(project="test/test", max_tools=max_tools, max_revisions=max_revisions),
+        fake,
+    ).run("Initialize.")
+    assert result["kind"] == "insufficient"
+    assert len(fake.requests) == 2
+    assert len(result["verification_attempts"]) == 1
+    assert not result["verification_attempts"][0]["passed"]
+    assert result["metrics"]["research"]["drafts_submitted"] == 1
+    assert not result["recovery_attempted"]
+
+
+def test_normalized_prose_preserves_explicit_off_mode_semantics(corpus):
+    draft = "Unverified experiment. [S999]"
+    fake = FakeModel([prose_response(draft)])
+    result = Agent(corpus, Settings(project="test/test", verify_mode="off"), fake).run(
+        "Initialize."
+    )
+    assert result["answer"] == draft
+    assert result["verification"]["status"] == "not_run"
+    assert result["verification_attempts"] == []
+    assert [request["purpose"] for request in fake.requests] == ["planner"]
 
 
 def test_invented_citation_is_rejected_and_repaired(corpus):
