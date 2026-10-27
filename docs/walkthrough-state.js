@@ -1,5 +1,5 @@
 window.COREWEAVING_STATUS = {
-  updated: "October 26, 2026 · 196 local tests pass. Presets and follow-ups tested in the browser; the final overview still omits monitoring timing. Sources and analysis open separately. Public source and recorded evidence are linked below.",
+  updated: "October 26, 2026 · 243 local tests pass. All three presets and a contextual follow-up returned answers in the final browser replay (21–36 seconds); manual review found 10 of 12 checks met. Sources and analysis open separately. Public records preserve the remaining omissions.",
   checks: [
     {label: "Both API keys accepted", done: true},
     {label: "Public Weave project created", done: true},

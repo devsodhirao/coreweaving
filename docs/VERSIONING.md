@@ -30,7 +30,7 @@ The manifest records `reference_sdk_version=0.53.1` from the Python reference pa
 
 ## Releases and rollback
 
-Use focused ordinary Git commits, followed by an annotated tag for a tested runnable milestone. The package currently declares `0.1.0`; no release tag has been created. `v0.1.0` is the proposed first release tag, subject to owner acceptance. Patch increments are compatible fixes; minor increments introduce capabilities or deliberate behavior changes. A future stable interface can justify `1.0.0`. This is our release convention, not a reliability score.
+Use focused ordinary Git commits, followed by an annotated tag for a tested runnable milestone. The package declares `0.1.0`. The dated submission tag `submission-2026-10-26` identifies the submitted checkout and its recorded evidence; it is separate from a claim of production stability. Patch increments are compatible fixes; minor increments introduce capabilities or deliberate behavior changes. A future stable interface can justify `1.0.0`. This is our release convention, not a reliability score.
 
 A release records its code commit, source and dependency identities, documentation snapshot, runtime settings, evaluation directories, known limitations and check results. The release tag points to the final commit containing that evidence. Do not move a published tag to disguise a fix; create a new version. Keep experiments in separately named result directories and never overwrite a finished run.
 
