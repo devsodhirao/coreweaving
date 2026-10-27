@@ -40,7 +40,7 @@ docker pull python:3.12-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a
 uv run streamlit run app.py --server.address 127.0.0.1
 ```
 
-The locked restore uses the included, licensed documentation archive offline; all 351 page hashes are checked. `--refresh` deliberately downloads a new snapshot and requires reevaluation.
+The locked restore uses the included, licensed documentation archive offline; all 351 page hashes are checked. Updating the corpus is a [manual maintenance workflow](docs/VERSIONING.md#updating-the-corpus): downloading new pages alone does not rebuild the bundled archive.
 
 Open **http://localhost:8501**. Terminal interface: `uv run python -m coreweaving`. [Fresh offline setup](results/submission-repair-v1/fresh-setup.json)
 
@@ -92,7 +92,9 @@ Scripts support setup and recorded experiments; they do not add runtime agent to
 
 A cited draft returned as ordinary text enters the same verification path directly, avoiding another model call just to repeat it as tool arguments. Its trace records the application origin. [Latency investigation](results/submission-repair-v1/latency-review.md)
 
-**Corpus versus live site:** retrieval uses a committed, [license-noted snapshot](docs/THIRD_PARTY_NOTICES.md) of 351 pages with structured passages and content hashes, keeping comparisons reproducible. It does not browse live during a turn. Official citation links let readers check current guidance. Locked restoration rejects changed content; `--refresh` accepts a new snapshot for reevaluation. Model calls and tracing still need the network.
+**Documentation source:** answers use a committed, [license-noted snapshot](docs/THIRD_PARTY_NOTICES.md) of 351 Weave pages fetched **October 24, 2026 (Pacific)**, identified as `4db7c17b2869`. This keeps source evidence and evaluation inputs reproducible. The agent searches those saved passages; it does not browse or check for newer docs during a turn. Official citation links may now show different content, while the analysis window preserves the passage used. Model calls and tracing still need the network.
+
+**Version support:** answers and traces identify their source snapshot and implementation. The app uses one snapshot at a time; it cannot select a Weave release or guarantee that an example works with your installed SDK. [Capabilities and limits](docs/VERSIONING.md#documentation-freshness-and-version-support)
 
 The workflow follows simple tool loops and focused evidence handling ([agent patterns](https://www.anthropic.com/research/building-effective-agents), [context engineering](https://www.anthropic.com/research/effective-context-engineering-for-ai-agents)). Our browser tests exposed citation parsing, evidence handoff and inconsistent verification; the [behavior contract](docs/BEHAVIOR_CONTRACT.md) maps those findings to fixes and tests.
 
@@ -153,7 +155,7 @@ uv run ruff check src app.py tests scripts
 
 1. **Evaluation scope:** six selected pilot tasks and a same-family judge limit generalization. Signal accuracy and advantages over general assistants remain unmeasured. Answers can pass verification while omitting important details; [failure reviews](results/README.md) also identify rubric errors.
 2. **Answer quality:** source-supported answers can still omit necessary steps. The regression failures and preset omissions are preserved in the [repair review](results/submission-repair-v1/review.md); this development dataset is not a held-out benchmark.
-3. **Freshness:** the downloaded Python SDK reference identifies 0.53.1; runtime is pinned to 0.54.0. The sidebar exposes this mismatch. That reference version does not date every guide, and API compatibility is not automatically validated.
+3. **Freshness and compatibility:** no automatic updates or release selector. The Python reference identifies 0.53.1; runtime is pinned to 0.54.0. The sidebar shows this mismatch, but it neither dates every guide nor validates example compatibility.
 4. **Privacy:** configured secrets and common credential formats are masked before model requests, traces, history, SQLite and exports. This is not general PII detection; encoded or unfamiliar secrets may escape it.
 5. **Process lifetime:** background jobs and working conversation memory are in process. A restart can lose unfinished work; completed library records persist. The session source ledger is not yet size-limited.
 
