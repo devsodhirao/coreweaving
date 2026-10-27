@@ -1,0 +1,188 @@
+{
+  "id": "cal-07-captured-tool-history",
+  "expected_passed": false,
+  "verification": {
+    "passed": false,
+    "claims": [
+      {
+        "text": "Call weave.init(), then nest start_conversation / start_turn / start_llm / start_tool for the session, each exchange, and the LLM and tool calls inside a turn.",
+        "kind": "product",
+        "source_ids": [
+          "S1",
+          "S7"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "Install weave, call weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\") before any start_* call; agent tracing functions silently no-op if init is missing or tracing is disabled.",
+        "kind": "product",
+        "source_ids": [
+          "S8"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "The quickstart needs a CoreWeave Forge account and API key, an OpenAI API key, Python 3.10+, and installs `weave openai requests`.",
+        "kind": "product",
+        "source_ids": [
+          "S3",
+          "S4"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "Data model: conversation groups turns, a turn is a user-agent exchange containing LLM calls and the tool executions they trigger; each emits an OTel span tagged with gen_ai.agent.name and gen_ai.conversation.id.",
+        "kind": "product",
+        "source_ids": [
+          "S1"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "The condensed code sketch shows the quickstart pattern for tracing a multi-turn agent with history, an LLM call, and a tool call.",
+        "kind": "product",
+        "source_ids": [
+          "S7"
+        ],
+        "status": "partial",
+        "supported": false
+      },
+      {
+        "text": "The quickstart's full version per turn: first start_llm span, start_tool span for each requested tool call, then a second start_llm span for the final answer; history of user, assistant and tool messages is sent each turn.",
+        "kind": "product",
+        "source_ids": [
+          "S7"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "Each tracing function returns an object that works as a context manager or can be closed with .end().",
+        "kind": "product",
+        "source_ids": [
+          "S9"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "Traces appear in the Agents tab as a multi-turn timeline with nested tool calls, token usage, and feedback; use @weave.op for individual functions.",
+        "kind": "product",
+        "source_ids": [
+          "S1"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "For supported agent SDKs and harnesses such as the Claude Agent SDK or Codex, Weave can autopatch, so manual instrumentation isn't needed.",
+        "kind": "product",
+        "source_ids": [
+          "S2"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "I haven't run this against the Weave SDK; I didn't read the start_subagent, manual start/end, or semantic conventions sections in detail.",
+        "kind": "research_process",
+        "source_ids": [],
+        "status": "supported",
+        "supported": true
+      }
+    ],
+    "issues": [
+      "The code sketch breaks the tool-loop conversation. It appends the assistant message as plain content with no tool_calls. It then appends a role=\"tool\" message with a tool_call_id that has no preceding assistant tool call. This is invalid chat history, and it differs from S7, which appends the full assistant message (model_dump, including tool_calls) before the tool results.",
+      "The sketch never sends the tool result back to the model. The second start_llm() is only a comment, and the function returns the first resp.text. The sketch is labeled as condensed. Even so, the code does not do what the surrounding text says: that the quickstart pattern keeps the tool result in history for a second model call.",
+      "The tool block runs unconditionally. The comment says \"if the model requested a tool\", but there is no conditional, and args, args_json and call_id are never defined from the response. S7 gates the tool block on msg.tool_calls and loops over each tool call.",
+      "Fix: append the assistant message with its tool_calls, gate the tool block on those tool_calls, and add the second start_llm() call that sends the tool results back to the model. Alternatively, make the sketch a text-only turn and point to S7 for the tool loop.",
+      "Revise partial or unsupported material claims."
+    ],
+    "coverage": [],
+    "mode": "support",
+    "status": "failed"
+  },
+  "matched": true,
+  "metrics": {
+    "calls": [
+      {
+        "purpose": "verification",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgSJdJ3rVGf7q8nfivvX9",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 15954
+          },
+          "cache_creation_input_tokens": 15954,
+          "cache_read_input_tokens": 2438,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 2172,
+          "output_tokens_details": {
+            "thinking_tokens": 896
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 15.134,
+        "estimated_usd": 0.0618568
+      }
+    ],
+    "model_calls": 1,
+    "tokens": {
+      "input_tokens": 4,
+      "output_tokens": 2172,
+      "cache_creation_input_tokens": 15954,
+      "cache_read_input_tokens": 2438
+    },
+    "total_input_tokens": 18396,
+    "estimated_usd": 0.0618568,
+    "known_estimated_usd": 0.0618568,
+    "unpriced_calls": 0,
+    "by_purpose": {
+      "verification": {
+        "calls": 1,
+        "known_estimated_usd": 0.0618568
+      }
+    },
+    "research": {
+      "searches": 0,
+      "passage_reads": 0,
+      "distinct_pages_read": 0,
+      "repeated_tool_requests": 0,
+      "drafts_submitted": 0,
+      "code_runs": 0
+    },
+    "pricing": {
+      "checked_at": "2026-10-25",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": {
+        "claude-sonnet-5-5": {
+          "input": 2,
+          "output": 10,
+          "write_5m": 2.5,
+          "write_1h": 4,
+          "read": 0.1
+        },
+        "claude-opus-5-5": {
+          "input": 4,
+          "output": 20,
+          "write_5m": 5,
+          "write_1h": 8,
+          "read": 0.2
+        }
+      }
+    },
+    "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+  },
+  "trace_id": "f83d4446b8fb1e317fe3b86cb22a2cbb",
+  "conversation_id": "ab3f4bb7-2be6-4645-af54-0b559bc7c8c9"
+}

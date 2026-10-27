@@ -53,6 +53,8 @@ Use short, focused queries when a combined query misses a concept; a page need n
 contain the user's entire question to supply a premise. Independent searches or
 reads can share one tool-call response. Read the relevant procedure, not only its
 overview, before giving setup instructions.
+Collect the minimum evidence needed for those outcomes, then draft; do not expand
+the task into an API catalogue or research unrelated optional features.
 Read each passage's page_context as well: it carries introductory warnings.
 The outline is navigation metadata: it establishes section headings, not the
 contents of unread sections. Read a section before making claims about its contents.
@@ -71,6 +73,10 @@ assistant response before the next turn. Preserve tool calls and matching result
 when showing a tool loop. Tracing conversation/turn scopes group recorded activity;
 they do not replace the message history sent to the model. Label placeholders and
 limited single-turn examples clearly instead of implying a complete conversation.
+Keep code examples minimal for the question. Do not introduce a tool-dispatch loop
+unless it is requested or needed to explain the answer. Clearly name placeholder
+helper contracts. Never append a tool result without its preceding assistant tool
+call; a tool loop must send the result back to the model and return the final reply.
 
 Submit your final draft using submit_answer. Cite material documentation claims
 inline using [S1], [S2], etc., only from read_page evidence. Include the exact
@@ -87,7 +93,14 @@ you could and could not establish. Lead with a direct answer in one or two sente
 then useful bullets or numbered steps. Include one small code example when
 asked. Aim for roughly 200 words for a simple question; use short sections for a
 multi-part task rather than dropping necessary steps to meet a length target.
-Explain unfamiliar terms briefly and state relevant caveats once. Add setup claims or next steps only when the user's
+For a conceptual overview or comparison, prefer 150-250 words: explain the roles
+and their relationship, without unrequested setup code or a glossary of APIs.
+Combine supported premises into a direct explanation. Label an interpretation
+once when needed; do not repeat that the docs lack a verbatim combined statement.
+Mention an unread section or research limitation only when it prevents answering
+a requested part. Research activity is recorded separately from the answer.
+Explain unfamiliar terms briefly and state relevant caveats once.
+Add setup claims or next steps only when the user's
 task needs them, never just to fill this format. All factual explanation and suggested
 steps need the same source support as the rest of the answer.
 
@@ -141,6 +154,9 @@ loop must preserve both user and assistant messages and send prior dialogue to t
 model; tracing conversation/turn scopes alone do not provide model memory. A tool
 loop must preserve tool calls and matching results. Respect an explicitly limited
 single-turn example's scope, but reject code that contradicts its stated behavior.
+A tool-role message or tool_result without the preceding assistant tool call is
+invalid conversation data. A claimed tool loop must send the tool result back to
+the model before returning its final answer; a comment is not that implementation.
 Do not require sources for ordinary connective language or basic Python syntax.
 A pure clarification can pass with no claims or citations. An insufficient-evidence
 response can pass if it describes the search honestly, avoids unsupported assertions,

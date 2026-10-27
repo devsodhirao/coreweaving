@@ -1,0 +1,2127 @@
+{
+  "answer_id": "542c7ca1-ce34-4615-8ccb-132c7d33cbad",
+  "question": "So does a Signal block an unsafe answer before the user receives it, or is that something my agent must do separately?",
+  "source_ids": [
+    "S1",
+    "S11",
+    "S12",
+    "S13"
+  ],
+  "citation_contract_version": 2,
+  "conversation_context": [
+    {
+      "role": "user",
+      "content": "How do tracing, evaluations, and Signals fit together?"
+    },
+    {
+      "role": "assistant",
+      "content": "**Short answer:** Tracing records what your application did. Evaluations measure it against test cases you define. Signals score or tag agent turns that have been traced. The pages I read describe each piece, but none lays out all three as one pipeline. The connections below are my reading of how the pages relate.\n\n**1. Tracing records the data.**\n- Weave's tracing is built on Ops, Calls, Traces, and Threads [S2]. A Trace is a full tree of Calls that share an execution context [S7].\n- For multi-turn agents, the Weave SDK for Agents models agent \u2192 conversation \u2192 turn \u2192 LLM call \u2192 tool call. Traces appear in the **Agents** tab [S4][S9].\n- Every turn, LLM call, and tool call emits an OpenTelemetry span [S4].\n\n**2. Evaluations measure behavior on curated examples.**\n- An `Evaluation` object defines a dataset of test examples and one or more scoring functions. You run it against a `Model` or a function, and each `.evaluate()` call is an evaluation run [S3].\n- The stated purpose is to measure behavior on consistent, curated examples, compare changes over time, and identify regressions [S3].\n- Scorers are the scoring component. They take an AI output and return a dictionary of metrics [S8]. The scorers page also covers applying scorers to individual calls [S8]. I read only its introduction and outline, so I didn't read the details.\n\n**3. Signals score and tag agent activity.**\n- In the Agents view, the **Signals** tab shows tags and ratings for agent conversations. They flag quality and safety issues such as frustrated users or NSFW content [S1].\n- A *rating* is a 0.0\u20131.0 score on a matching span. A *tag* is a label on a matching span [S6].\n- Signals are described as a way to surface issues in production [S1].\n\n**How they fit together (my inference)**\n- Tracing produces the data. Signals live in the Agents view, where traced agent conversations appear [S1][S5]. That suggests you instrument your agent first, though the docs I read don't state that as a requirement.\n- Evaluations and Signals both score outputs. Evaluations score a dataset you define, and Signals score agent turns in your project [S3][S1]. The docs I read don't present them as formally connected.\n- One reasonable workflow is to trace your agent, evaluate changes on curated examples while you develop, and use Signals to watch real conversations. That is a suggestion, not a documented prescription.\n\n**Caveats**\n- Weave also has an older Monitors approach. The docs say new implementations should use Signals under Weave for Agents [S11]. I haven't mixed the two workflows here.\n- I read only the overview sections of most pages. Details such as how to configure Signals or how evaluation runs appear in the UI aren't covered."
+    }
+  ],
+  "answer": "**Short answer:** In the pages I read, Signals don't block anything. They score and tag agent turns that have already been recorded. If you need to stop an unsafe answer before the user sees it, your agent has to do that itself. I found no Signals documentation that describes a blocking or intercepting mode.\n\n**What Signals do**\n- The Signals tab shows tags and ratings on your agent's conversations. They surface quality and safety issues so you can flag problems, find patterns, and find the traces that need attention [S1].\n- The page I read on scoring agent turns with a remote scorer describes the scoring sequence. A turn is scored after it ends. When a root span ends, Weave emits a `weave.genai.turn_ended` event. A scoring worker then applies matching signals and writes the result as feedback on the turn [S12]. That page is about remote scorers, so I'm assuming other Signals follow the same after-the-turn pattern. Treat that as an inference.\n\n**What blocks responses**\n- Weave guardrails are a separate feature. They use inline Weave Scorers to assess a user's input or an LLM's output and adjust the response in real time [S13].\n- The guardrails page says they require code changes because they affect your application's control flow. It contrasts them with monitors, which passively score traffic without changing control flow [S13].\n- The page intro says guardrails run before outputs reach users and can block or modify responses when scores exceed thresholds [S13].\n\n**Practical takeaway**\n- If you must prevent an unsafe response from being delivered, put a guardrail-style check in your own code path [S13].\n- Use Signals to monitor agent turns after the fact [S1][S12].\n\n**Limits of what I read**\n- The guardrails page doesn't mention Signals or agent turns. I didn't establish how to wire guardrails into an agent-turn setup, so I haven't described that.\n- A separate page says the older Monitors approach is a previous one, and that new implementations should use Signals under Weave for Agents [S11]. I haven't established whether the guardrails guide has been updated for that workflow.\n- I read the Signals introduction and the remote scorer scoring sequence, not every Signals section.",
+  "kind": "answer",
+  "verification": {
+    "passed": true,
+    "claims": [
+      {
+        "text": "In the pages read, Signals score and tag agent turns and don't block anything; blocking must be done by the agent's own code.",
+        "kind": "product",
+        "source_ids": [
+          "S1",
+          "S12",
+          "S13"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "The Signals tab shows tags and ratings for agent conversations, surfacing quality and safety issues.",
+        "kind": "product",
+        "source_ids": [
+          "S1"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "A turn is scored after it ends: a root span ending emits weave.genai.turn_ended, a scoring worker applies matching signals and writes the result as feedback on the turn (remote scorer page; extension to other Signals labeled as inference).",
+        "kind": "product",
+        "source_ids": [
+          "S12"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "Weave guardrails are a separate feature using inline Weave Scorers to assess input/output and adjust responses in real time; they require code changes, unlike monitors; they run before outputs reach users and can block or modify responses when scores exceed thresholds.",
+        "kind": "product",
+        "source_ids": [
+          "S13"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "Recommendation: put a guardrail-style check in your own code path to prevent unsafe responses; use Signals for after-the-fact monitoring.",
+        "kind": "product",
+        "source_ids": [
+          "S13",
+          "S1",
+          "S12"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "The older Monitors approach is a previous one and new implementations should use Signals under Weave for Agents.",
+        "kind": "product",
+        "source_ids": [
+          "S11"
+        ],
+        "status": "supported",
+        "supported": true
+      },
+      {
+        "text": "I found no Signals documentation describing a blocking mode; I read only the Signals intro and the remote scorer scoring sequence.",
+        "kind": "research_process",
+        "source_ids": [],
+        "status": "supported",
+        "supported": true
+      }
+    ],
+    "issues": [],
+    "coverage": [],
+    "mode": "support",
+    "status": "passed"
+  },
+  "verification_attempts": [
+    {
+      "candidate": {
+        "source_ids": [
+          "S1",
+          "S12",
+          "S13"
+        ],
+        "answer": "**Short answer:** In the pages I read, Signals don't block anything. They score and tag agent turns that have already been recorded. If you need to stop an unsafe answer before the user sees it, your agent has to do that itself. I didn't find any Signals documentation that describes a blocking or intercepting mode.\n\n**What Signals do**\n- The Signals tab shows tags and ratings on your agent's conversations. They surface quality and safety issues so you can flag problems, find patterns, and find the traces that need attention [S1].\n- A turn is scored only after it ends. When a root span ends, Weave treats it as a completed turn and emits a `weave.genai.turn_ended` event. A scoring worker then applies the matching signals and writes the result as feedback on the turn [S12]. So the user-facing response has already been produced by the time a Signal scores it.\n\n**What blocks responses**\n- Weave guardrails are a separate feature. They use inline Weave Scorers to assess a user's input or an LLM's output and adjust the response in real time [S13].\n- The guardrails page says they require code changes because they affect your application's control flow. It contrasts them with monitors, which passively score traffic without changing control flow [S13].\n- The page intro also says guardrails run before outputs reach users and can block or modify responses when scores exceed thresholds [S13].\n\n**Practical takeaway**\n- Use a guardrail check in your own code path if you must prevent an unsafe response from being delivered [S13].\n- Use Signals to monitor agent turns after the fact [S1][S12].\n\n**Limits of what I read**\n- The guardrails page belongs to the Scorers and Monitors side of Weave, not the new Agents/Signals workflow. I didn't establish how to wire it into an agent-turn setup, so I haven't combined the two.\n- I read the introduction of the Signals page and the scoring sequence for remote scorers. I didn't read every Signals section, such as custom signals or troubleshooting.",
+        "kind": "answer"
+      },
+      "passed": false,
+      "claims": [
+        {
+          "text": "In the pages read, Signals don't block anything; they score and tag agent turns after the turn has been recorded, and blocking must be done by the agent.",
+          "kind": "product",
+          "source_ids": [
+            "S1",
+            "S12"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "The Signals tab shows tags and ratings on agent conversations, surfacing quality and safety issues.",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "A turn is scored only after it ends: a root span ending emits weave.genai.turn_ended, a scoring worker applies matching signals, and the result is written as feedback on the turn.",
+          "kind": "product",
+          "source_ids": [
+            "S12"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Weave guardrails are a separate feature using inline Weave Scorers to assess input or output and adjust responses in real time; they run before outputs reach users and can block or modify responses when scores exceed thresholds.",
+          "kind": "product",
+          "source_ids": [
+            "S13"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Guardrails require code changes because they affect control flow, unlike monitors, which passively score traffic.",
+          "kind": "product",
+          "source_ids": [
+            "S13"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Recommendation: use a guardrail check in your own code path to prevent unsafe responses, and use Signals to monitor turns after the fact.",
+          "kind": "product",
+          "source_ids": [
+            "S13",
+            "S1",
+            "S12"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "The guardrails page belongs to the Scorers/Monitors side of Weave rather than the new Agents/Signals workflow; the answer says it did not establish how to wire guardrails into an agent-turn setup.",
+          "kind": "product",
+          "source_ids": [
+            "S13"
+          ],
+          "status": "partial",
+          "supported": false
+        },
+        {
+          "text": "I didn't find any Signals documentation describing a blocking mode; I read the Signals introduction and the remote scorer scoring sequence, not every section.",
+          "kind": "research_process",
+          "source_ids": [],
+          "status": "supported",
+          "supported": true
+        }
+      ],
+      "issues": [
+        "Minor: the 'Scorers and Monitors side, not the new Agents/Signals workflow' framing is an interpretation. S13 contrasts guardrails with monitors and does not mention Signals. The 'new workflow' idea comes from S11, which this answer doesn't cite. The answer hedges it, so it doesn't change the main conclusion.",
+        "Minor: the S12 scoring sequence is written for RemoteScorer signals. The answer applies it to Signals in general, though it does say it read the remote-scorer sequence.",
+        "Revise partial or unsupported material claims."
+      ],
+      "coverage": [],
+      "mode": "support",
+      "status": "failed"
+    },
+    {
+      "candidate": {
+        "source_ids": [
+          "S1",
+          "S11",
+          "S12",
+          "S13"
+        ],
+        "answer": "**Short answer:** In the pages I read, Signals don't block anything. They score and tag agent turns that have already been recorded. If you need to stop an unsafe answer before the user sees it, your agent has to do that itself. I found no Signals documentation that describes a blocking or intercepting mode.\n\n**What Signals do**\n- The Signals tab shows tags and ratings on your agent's conversations. They surface quality and safety issues so you can flag problems, find patterns, and find the traces that need attention [S1].\n- The page I read on scoring agent turns with a remote scorer describes the scoring sequence. A turn is scored after it ends. When a root span ends, Weave emits a `weave.genai.turn_ended` event. A scoring worker then applies matching signals and writes the result as feedback on the turn [S12]. That page is about remote scorers, so I'm assuming other Signals follow the same after-the-turn pattern. Treat that as an inference.\n\n**What blocks responses**\n- Weave guardrails are a separate feature. They use inline Weave Scorers to assess a user's input or an LLM's output and adjust the response in real time [S13].\n- The guardrails page says they require code changes because they affect your application's control flow. It contrasts them with monitors, which passively score traffic without changing control flow [S13].\n- The page intro says guardrails run before outputs reach users and can block or modify responses when scores exceed thresholds [S13].\n\n**Practical takeaway**\n- If you must prevent an unsafe response from being delivered, put a guardrail-style check in your own code path [S13].\n- Use Signals to monitor agent turns after the fact [S1][S12].\n\n**Limits of what I read**\n- The guardrails page doesn't mention Signals or agent turns. I didn't establish how to wire guardrails into an agent-turn setup, so I haven't described that.\n- A separate page says the older Monitors approach is a previous one, and that new implementations should use Signals under Weave for Agents [S11]. I haven't established whether the guardrails guide has been updated for that workflow.\n- I read the Signals introduction and the remote scorer scoring sequence, not every Signals section.",
+        "kind": "answer"
+      },
+      "passed": true,
+      "claims": [
+        {
+          "text": "In the pages read, Signals score and tag agent turns and don't block anything; blocking must be done by the agent's own code.",
+          "kind": "product",
+          "source_ids": [
+            "S1",
+            "S12",
+            "S13"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "The Signals tab shows tags and ratings for agent conversations, surfacing quality and safety issues.",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "A turn is scored after it ends: a root span ending emits weave.genai.turn_ended, a scoring worker applies matching signals and writes the result as feedback on the turn (remote scorer page; extension to other Signals labeled as inference).",
+          "kind": "product",
+          "source_ids": [
+            "S12"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Weave guardrails are a separate feature using inline Weave Scorers to assess input/output and adjust responses in real time; they require code changes, unlike monitors; they run before outputs reach users and can block or modify responses when scores exceed thresholds.",
+          "kind": "product",
+          "source_ids": [
+            "S13"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "Recommendation: put a guardrail-style check in your own code path to prevent unsafe responses; use Signals for after-the-fact monitoring.",
+          "kind": "product",
+          "source_ids": [
+            "S13",
+            "S1",
+            "S12"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "The older Monitors approach is a previous one and new implementations should use Signals under Weave for Agents.",
+          "kind": "product",
+          "source_ids": [
+            "S11"
+          ],
+          "status": "supported",
+          "supported": true
+        },
+        {
+          "text": "I found no Signals documentation describing a blocking mode; I read only the Signals intro and the remote scorer scoring sequence.",
+          "kind": "research_process",
+          "source_ids": [],
+          "status": "supported",
+          "supported": true
+        }
+      ],
+      "issues": [],
+      "coverage": [],
+      "mode": "support",
+      "status": "passed"
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "S1",
+      "page_id": "guides/tracking/view-agent-signals",
+      "section": 0,
+      "title": "Monitor your agents with signals",
+      "heading": "Monitor your agents with signals",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+      "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+      "text": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n",
+      "page_context": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Monitor your agents with signals"
+        },
+        {
+          "section": 1,
+          "heading": "Get started"
+        },
+        {
+          "section": 2,
+          "heading": "Key terms"
+        },
+        {
+          "section": 3,
+          "heading": "Signals table"
+        },
+        {
+          "section": 4,
+          "heading": "How Weave normalizes scores"
+        },
+        {
+          "section": 5,
+          "heading": "Create a new signal"
+        },
+        {
+          "section": 6,
+          "heading": "Preset signals"
+        },
+        {
+          "section": 7,
+          "heading": "Tags presets"
+        },
+        {
+          "section": 8,
+          "heading": "Ratings presets"
+        },
+        {
+          "section": 9,
+          "heading": "Custom signals"
+        },
+        {
+          "section": 10,
+          "heading": "Manage and edit signals"
+        },
+        {
+          "section": 11,
+          "heading": "Troubleshoot signals"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S12",
+      "page_id": "guides/tracking/remote-scorer-signals",
+      "section": 1,
+      "title": "Score agent turns with a remote scorer",
+      "heading": "How agent turn scoring works",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+      "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+      "text": "## How agent turn scoring works\n\nAn agent turn is scored in the following sequence:\n\n1. A turn ends. When a root span (a span with no parent) ends, Weave treats it as a completed turn and emits a `weave.genai.turn_ended` event.\n2. The agent scoring worker loads the project's active signals that target `weave.genai.turn_ended`, then applies each signal's filters and sample rate.\n3. For each `RemoteScorer` on a matching signal, the worker builds a `schema_version: 2` request from the turn's span, including its messages, resolves the scorer's credentials, checks the endpoint URL against the allowed hosts, and sends the `POST`.\n4. The worker validates the response and writes the result as feedback on the turn. Tags and ratings appear on the **Signals** tab.\n\nWeave scores only completed turns. Individual LLM and tool spans, and whole conversations, aren't remote scoring targets. A remote scorer signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`, whether you create it in the UI or with the SDK.\n\nThe worker retries a failed attempt with the same `Idempotency-Key`, up to three attempts within 30 seconds of the first attempt. A `5xx`, `408`, or `429` response is retried. A timeout uses the whole 30 seconds, so a timed-out request isn't retried. Any other `4xx` response isn't retried. If your endpoint can't score a turn in time, return `503` quickly rather than letting the request time out, so that Weave retries it. Agent turn scoring requires the structured result format, because Weave stores the tags and ratings as typed feedback columns.\n\n",
+      "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Score agent turns with a remote scorer"
+        },
+        {
+          "section": 1,
+          "heading": "How agent turn scoring works"
+        },
+        {
+          "section": 2,
+          "heading": "Enable remote scoring"
+        },
+        {
+          "section": 3,
+          "heading": "Build the scorer endpoint"
+        },
+        {
+          "section": 4,
+          "heading": "Request"
+        },
+        {
+          "section": 5,
+          "heading": "Response"
+        },
+        {
+          "section": 6,
+          "heading": "Authenticate requests from Weave"
+        },
+        {
+          "section": 7,
+          "heading": "Create a remote scorer signal"
+        },
+        {
+          "section": 8,
+          "heading": "Weave UI"
+        },
+        {
+          "section": 9,
+          "heading": "Python SDK"
+        },
+        {
+          "section": 10,
+          "heading": "Sample code"
+        },
+        {
+          "section": 11,
+          "heading": "Test the signal"
+        },
+        {
+          "section": 12,
+          "heading": "Troubleshooting"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S13",
+      "page_id": "guides/evaluation/guardrails",
+      "section": 1,
+      "title": "Set up guardrails",
+      "heading": "How Weave guardrails work",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/guardrails",
+      "page_sha256": "a7b1d37d813fd0f371c94309b0c0f857f0f53f0c22a5ed380a7f690718bfa784",
+      "text": "## How Weave guardrails work\n\nWeave guardrails use inline [Weave Scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md) to assess the input from a user or the output from an LLM and adjust the LLM's responses in real time. You can configure custom scorers or use [built-in scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers.md) to assess content for a variety of purposes. This guide demonstrates how to use both types of scorers as guardrails.\n\nIf you want to passively score production traffic without modifying your application's control flow, use [monitors](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors.md) instead.\n\nUnlike monitors, guardrails require code changes because they affect your application's control flow. However, every scorer result from guardrails is automatically stored in Weave's database, so your guardrails also function as monitors without any extra configuration. You can analyze historical scorer results regardless of how they were originally used.\n\n> [!NOTE]\n>\n> The Weave TypeScript SDK doesn't support the tools required to set up guardrails.\n\n",
+      "page_context": "# Set up guardrails\n\n> Ensure LLM safety and measure output quality in production applications\n\nGuardrails intervene in your LLM application's behavior based on scores from LLM judges. They run in real time before outputs reach users and can block or modify responses when scores exceed thresholds. You can use guardrails to block toxic content, filter responses for personally identifiable information (PII), or block abusive input from users.\n\nThis guide explains how Weave guardrails work, how to tune their performance, and walks through examples that use built-in scorers, custom scorers, and AWS Bedrock Guardrails to protect production LLM applications.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Set up guardrails"
+        },
+        {
+          "section": 1,
+          "heading": "How Weave guardrails work"
+        },
+        {
+          "section": 2,
+          "heading": "Optimize your Weave guardrail performance"
+        },
+        {
+          "section": 3,
+          "heading": "Example: Create a guardrail using a built-in moderation scorer"
+        },
+        {
+          "section": 4,
+          "heading": "Example: Create a guardrail using a custom scorer"
+        },
+        {
+          "section": 5,
+          "heading": "Integrate Weave with AWS Bedrock Guardrails"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S11",
+      "page_id": "guides/evaluation/monitors",
+      "section": 0,
+      "title": "Monitor using built-in signals",
+      "heading": "Monitor using built-in signals",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors",
+      "page_sha256": "39df601193b42d548cb78cf4da21d805c08425727c4a1b0e11c7914210a5fdb7",
+      "text": "# Monitor using built-in signals\n\n> Weights & Biases provides built-in scoring solutions for agents in production\n\n> [!NOTE]\n>\n> This page covers a previous approach to monitoring production traffic. For new implementations, use **Signals** under Weave for Agents. See [View agent signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nStandard system metrics like latency, token count, and cost don't fully capture agent behavior. Inspecting individual traces provides deep insight but doesn't scale to the millions of traces generated in a live environment.\n\nSignals provide a high-level monitoring solution to this problem by offering automated, behavioral scoring for agents in production:\n\n* Automated scoring: Every incoming production trace is automatically processed and scored on common quality issues and errors.\n* Infrastructure: Processing is powered by CoreWeave compute and CoreWeave GPUs for scalability across millions of traces.\n\nBy using signals within production, you can:\n\n* Gain behavioral insight. Move beyond system metrics to understand if your agent is hallucinating, failing to follow conversation patterns, or losing grounding in its evidence.\n* Accelerate the research loop. Use the scores and failure analyses generated by signals to identify weaknesses, which you can use to research model improvement, data annotation, or reinforcement learning.\n\n",
+      "page_context": "# Monitor using built-in signals\n\n> Weights & Biases provides built-in scoring solutions for agents in production\n\n> [!NOTE]\n>\n> This page covers a previous approach to monitoring production traffic. For new implementations, use **Signals** under Weave for Agents. See [View agent signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nStandard system metrics like latency, token count, and cost don't fully capture agent behavior. Inspecting individual traces provides deep insight but doesn't scale to the millions of traces generated in a live environment.\n\nSignals provide a high-level monitoring solution to this problem by offering automated, behavioral scoring for agents in production:\n\n* Automated scoring: Every incoming production trace is automatically processed and scored on common quality issues and errors.\n* Infrastructure: Processing is powered by CoreWeave compute and CoreWeave GPUs for scalability across millions of traces.\n\nBy using signals within production, you can:\n\n* Gain behavioral insight. Move beyond system metrics to understand if your agent is hallucinating, failing to follow conversation patterns, or losing grounding in its evidence.\n* Accelerate the research loop. Use the scores and failure analyses generated by signals to identify weaknesses, which you can use to research model improvement, data annotation, or reinforcement learning.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Monitor using built-in signals"
+        },
+        {
+          "section": 1,
+          "heading": "Available signals"
+        },
+        {
+          "section": 2,
+          "heading": "Quality signals"
+        },
+        {
+          "section": 3,
+          "heading": "Error signals"
+        },
+        {
+          "section": 4,
+          "heading": "How signals work"
+        },
+        {
+          "section": 5,
+          "heading": "Add a signal from the Monitors page"
+        },
+        {
+          "section": 6,
+          "heading": "Manage active signals"
+        },
+        {
+          "section": 7,
+          "heading": "Use built-in signals"
+        },
+        {
+          "section": 8,
+          "heading": "See tagged Call traces on the Traces page"
+        },
+        {
+          "section": 9,
+          "heading": "See signals in the project dashboard"
+        },
+        {
+          "section": 10,
+          "heading": "Alert on signals"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    }
+  ],
+  "all_read_evidence": [
+    {
+      "source_id": "S1",
+      "page_id": "guides/tracking/view-agent-signals",
+      "section": 0,
+      "title": "Monitor your agents with signals",
+      "heading": "Monitor your agents with signals",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+      "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+      "text": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n",
+      "page_context": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Monitor your agents with signals"
+        },
+        {
+          "section": 1,
+          "heading": "Get started"
+        },
+        {
+          "section": 2,
+          "heading": "Key terms"
+        },
+        {
+          "section": 3,
+          "heading": "Signals table"
+        },
+        {
+          "section": 4,
+          "heading": "How Weave normalizes scores"
+        },
+        {
+          "section": 5,
+          "heading": "Create a new signal"
+        },
+        {
+          "section": 6,
+          "heading": "Preset signals"
+        },
+        {
+          "section": 7,
+          "heading": "Tags presets"
+        },
+        {
+          "section": 8,
+          "heading": "Ratings presets"
+        },
+        {
+          "section": 9,
+          "heading": "Custom signals"
+        },
+        {
+          "section": 10,
+          "heading": "Manage and edit signals"
+        },
+        {
+          "section": 11,
+          "heading": "Troubleshoot signals"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S12",
+      "page_id": "guides/tracking/remote-scorer-signals",
+      "section": 1,
+      "title": "Score agent turns with a remote scorer",
+      "heading": "How agent turn scoring works",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+      "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+      "text": "## How agent turn scoring works\n\nAn agent turn is scored in the following sequence:\n\n1. A turn ends. When a root span (a span with no parent) ends, Weave treats it as a completed turn and emits a `weave.genai.turn_ended` event.\n2. The agent scoring worker loads the project's active signals that target `weave.genai.turn_ended`, then applies each signal's filters and sample rate.\n3. For each `RemoteScorer` on a matching signal, the worker builds a `schema_version: 2` request from the turn's span, including its messages, resolves the scorer's credentials, checks the endpoint URL against the allowed hosts, and sends the `POST`.\n4. The worker validates the response and writes the result as feedback on the turn. Tags and ratings appear on the **Signals** tab.\n\nWeave scores only completed turns. Individual LLM and tool spans, and whole conversations, aren't remote scoring targets. A remote scorer signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`, whether you create it in the UI or with the SDK.\n\nThe worker retries a failed attempt with the same `Idempotency-Key`, up to three attempts within 30 seconds of the first attempt. A `5xx`, `408`, or `429` response is retried. A timeout uses the whole 30 seconds, so a timed-out request isn't retried. Any other `4xx` response isn't retried. If your endpoint can't score a turn in time, return `503` quickly rather than letting the request time out, so that Weave retries it. Agent turn scoring requires the structured result format, because Weave stores the tags and ratings as typed feedback columns.\n\n",
+      "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Score agent turns with a remote scorer"
+        },
+        {
+          "section": 1,
+          "heading": "How agent turn scoring works"
+        },
+        {
+          "section": 2,
+          "heading": "Enable remote scoring"
+        },
+        {
+          "section": 3,
+          "heading": "Build the scorer endpoint"
+        },
+        {
+          "section": 4,
+          "heading": "Request"
+        },
+        {
+          "section": 5,
+          "heading": "Response"
+        },
+        {
+          "section": 6,
+          "heading": "Authenticate requests from Weave"
+        },
+        {
+          "section": 7,
+          "heading": "Create a remote scorer signal"
+        },
+        {
+          "section": 8,
+          "heading": "Weave UI"
+        },
+        {
+          "section": 9,
+          "heading": "Python SDK"
+        },
+        {
+          "section": 10,
+          "heading": "Sample code"
+        },
+        {
+          "section": 11,
+          "heading": "Test the signal"
+        },
+        {
+          "section": 12,
+          "heading": "Troubleshooting"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S13",
+      "page_id": "guides/evaluation/guardrails",
+      "section": 1,
+      "title": "Set up guardrails",
+      "heading": "How Weave guardrails work",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/guardrails",
+      "page_sha256": "a7b1d37d813fd0f371c94309b0c0f857f0f53f0c22a5ed380a7f690718bfa784",
+      "text": "## How Weave guardrails work\n\nWeave guardrails use inline [Weave Scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md) to assess the input from a user or the output from an LLM and adjust the LLM's responses in real time. You can configure custom scorers or use [built-in scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers.md) to assess content for a variety of purposes. This guide demonstrates how to use both types of scorers as guardrails.\n\nIf you want to passively score production traffic without modifying your application's control flow, use [monitors](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors.md) instead.\n\nUnlike monitors, guardrails require code changes because they affect your application's control flow. However, every scorer result from guardrails is automatically stored in Weave's database, so your guardrails also function as monitors without any extra configuration. You can analyze historical scorer results regardless of how they were originally used.\n\n> [!NOTE]\n>\n> The Weave TypeScript SDK doesn't support the tools required to set up guardrails.\n\n",
+      "page_context": "# Set up guardrails\n\n> Ensure LLM safety and measure output quality in production applications\n\nGuardrails intervene in your LLM application's behavior based on scores from LLM judges. They run in real time before outputs reach users and can block or modify responses when scores exceed thresholds. You can use guardrails to block toxic content, filter responses for personally identifiable information (PII), or block abusive input from users.\n\nThis guide explains how Weave guardrails work, how to tune their performance, and walks through examples that use built-in scorers, custom scorers, and AWS Bedrock Guardrails to protect production LLM applications.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Set up guardrails"
+        },
+        {
+          "section": 1,
+          "heading": "How Weave guardrails work"
+        },
+        {
+          "section": 2,
+          "heading": "Optimize your Weave guardrail performance"
+        },
+        {
+          "section": 3,
+          "heading": "Example: Create a guardrail using a built-in moderation scorer"
+        },
+        {
+          "section": 4,
+          "heading": "Example: Create a guardrail using a custom scorer"
+        },
+        {
+          "section": 5,
+          "heading": "Integrate Weave with AWS Bedrock Guardrails"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S11",
+      "page_id": "guides/evaluation/monitors",
+      "section": 0,
+      "title": "Monitor using built-in signals",
+      "heading": "Monitor using built-in signals",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors",
+      "page_sha256": "39df601193b42d548cb78cf4da21d805c08425727c4a1b0e11c7914210a5fdb7",
+      "text": "# Monitor using built-in signals\n\n> Weights & Biases provides built-in scoring solutions for agents in production\n\n> [!NOTE]\n>\n> This page covers a previous approach to monitoring production traffic. For new implementations, use **Signals** under Weave for Agents. See [View agent signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nStandard system metrics like latency, token count, and cost don't fully capture agent behavior. Inspecting individual traces provides deep insight but doesn't scale to the millions of traces generated in a live environment.\n\nSignals provide a high-level monitoring solution to this problem by offering automated, behavioral scoring for agents in production:\n\n* Automated scoring: Every incoming production trace is automatically processed and scored on common quality issues and errors.\n* Infrastructure: Processing is powered by CoreWeave compute and CoreWeave GPUs for scalability across millions of traces.\n\nBy using signals within production, you can:\n\n* Gain behavioral insight. Move beyond system metrics to understand if your agent is hallucinating, failing to follow conversation patterns, or losing grounding in its evidence.\n* Accelerate the research loop. Use the scores and failure analyses generated by signals to identify weaknesses, which you can use to research model improvement, data annotation, or reinforcement learning.\n\n",
+      "page_context": "# Monitor using built-in signals\n\n> Weights & Biases provides built-in scoring solutions for agents in production\n\n> [!NOTE]\n>\n> This page covers a previous approach to monitoring production traffic. For new implementations, use **Signals** under Weave for Agents. See [View agent signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nStandard system metrics like latency, token count, and cost don't fully capture agent behavior. Inspecting individual traces provides deep insight but doesn't scale to the millions of traces generated in a live environment.\n\nSignals provide a high-level monitoring solution to this problem by offering automated, behavioral scoring for agents in production:\n\n* Automated scoring: Every incoming production trace is automatically processed and scored on common quality issues and errors.\n* Infrastructure: Processing is powered by CoreWeave compute and CoreWeave GPUs for scalability across millions of traces.\n\nBy using signals within production, you can:\n\n* Gain behavioral insight. Move beyond system metrics to understand if your agent is hallucinating, failing to follow conversation patterns, or losing grounding in its evidence.\n* Accelerate the research loop. Use the scores and failure analyses generated by signals to identify weaknesses, which you can use to research model improvement, data annotation, or reinforcement learning.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Monitor using built-in signals"
+        },
+        {
+          "section": 1,
+          "heading": "Available signals"
+        },
+        {
+          "section": 2,
+          "heading": "Quality signals"
+        },
+        {
+          "section": 3,
+          "heading": "Error signals"
+        },
+        {
+          "section": 4,
+          "heading": "How signals work"
+        },
+        {
+          "section": 5,
+          "heading": "Add a signal from the Monitors page"
+        },
+        {
+          "section": 6,
+          "heading": "Manage active signals"
+        },
+        {
+          "section": 7,
+          "heading": "Use built-in signals"
+        },
+        {
+          "section": 8,
+          "heading": "See tagged Call traces on the Traces page"
+        },
+        {
+          "section": 9,
+          "heading": "See signals in the project dashboard"
+        },
+        {
+          "section": 10,
+          "heading": "Alert on signals"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/tracking/tracing",
+      "section": 0,
+      "title": "Understand Ops, Calls, and Traces",
+      "heading": "Understand Ops, Calls, and Traces",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing",
+      "page_sha256": "74224bc518eed7433d2437c1c51784cd0acee55b617863f312c9ff4c319da49f",
+      "text": "# Understand Ops, Calls, and Traces\n\n> Learn how Ops, Calls, and Traces create the foundation of Weave's tracing system.\n\nWeave's tracing system is built on four related concepts: Ops, Calls, Traces, and Threads. This page defines each concept and explains how they relate to one another, so you can interpret what Weave captures when you instrument and run your application.\n\n",
+      "page_context": "# Understand Ops, Calls, and Traces\n\n> Learn how Ops, Calls, and Traces create the foundation of Weave's tracing system.\n\nWeave's tracing system is built on four related concepts: Ops, Calls, Traces, and Threads. This page defines each concept and explains how they relate to one another, so you can interpret what Weave captures when you instrument and run your application.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Understand Ops, Calls, and Traces"
+        },
+        {
+          "section": 1,
+          "heading": "Ops"
+        },
+        {
+          "section": 2,
+          "heading": "Calls"
+        },
+        {
+          "section": 3,
+          "heading": "Traces"
+        },
+        {
+          "section": 4,
+          "heading": "Threads"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S7",
+      "page_id": "guides/tracking/tracing",
+      "section": 3,
+      "title": "Understand Ops, Calls, and Traces",
+      "heading": "Traces",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing",
+      "page_sha256": "74224bc518eed7433d2437c1c51784cd0acee55b617863f312c9ff4c319da49f",
+      "text": "## Traces\n\nTraces are full trees of Calls that share the same execution context. Each Trace contains an ID (`trace_id`) you can use to retrieve the entire tree of Calls. If you retrieve Call information using the Call's ID, Weave returns data about the specified Call only, and none of its child Calls.\n\n",
+      "page_context": "# Understand Ops, Calls, and Traces\n\n> Learn how Ops, Calls, and Traces create the foundation of Weave's tracing system.\n\nWeave's tracing system is built on four related concepts: Ops, Calls, Traces, and Threads. This page defines each concept and explains how they relate to one another, so you can interpret what Weave captures when you instrument and run your application.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Understand Ops, Calls, and Traces"
+        },
+        {
+          "section": 1,
+          "heading": "Ops"
+        },
+        {
+          "section": 2,
+          "heading": "Calls"
+        },
+        {
+          "section": 3,
+          "heading": "Traces"
+        },
+        {
+          "section": 4,
+          "heading": "Threads"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S4",
+      "page_id": "guides/tracking/trace-agents",
+      "section": 0,
+      "title": "Trace your agents",
+      "heading": "Trace your agents",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+      "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+      "text": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+      "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Trace your agents"
+        },
+        {
+          "section": 1,
+          "heading": "Before you begin"
+        },
+        {
+          "section": 2,
+          "heading": "The agent data model"
+        },
+        {
+          "section": 3,
+          "heading": "Agent tracing APIs"
+        },
+        {
+          "section": 4,
+          "heading": "Start a conversation"
+        },
+        {
+          "section": 5,
+          "heading": "Start a turn"
+        },
+        {
+          "section": 6,
+          "heading": "Start an LLM call"
+        },
+        {
+          "section": 7,
+          "heading": "Start a tool call"
+        },
+        {
+          "section": 8,
+          "heading": "Usage patterns for agent tracing"
+        },
+        {
+          "section": 9,
+          "heading": "Context manager or try-finally pattern"
+        },
+        {
+          "section": 10,
+          "heading": "Manual start and end pattern"
+        },
+        {
+          "section": 11,
+          "heading": "Semantic conventions"
+        },
+        {
+          "section": 12,
+          "heading": "How data appears in the Weights & Biases UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S9",
+      "page_id": "guides/tracking/trace-agents",
+      "section": 2,
+      "title": "Trace your agents",
+      "heading": "The agent data model",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents",
+      "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+      "text": "## The agent data model\n\nWeave models agent behavior as a hierarchy of one-to-many relationships. Each agent can have many conversations, each conversation can have many turns, each turn can have many LLM calls, and each LLM call can trigger many tool calls.\n\n| Concept | Weave SDK class | OTel span type | Description | Reference page |\n| - | - | - | - | - |\n| Agent | *(no class)* | *(no span, grouped by the `agent_name` attribute)* | An agentic application in the Agents tab that contains one or more conversations. | |\n| Conversation | `Conversation` | *(no span, turns are grouped by the `conversation_id` attribute)* | A conversation or run that contains one or more turns. | [Python](https://docs.coreweave.com/products/wandb/weave/reference/python-sdk.md#class-conversation)  [TypeScript](https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/conversation.md) |\n| Turn | `Turn` | `invoke_agent` | One user message and the agent's complete response. | [Python](https://docs.coreweave.com/products/wandb/weave/reference/python-sdk.md#class-turn)  [TypeScript](https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/turn.md) |\n| LLM call | `LLM` | `chat` | One call to a language model API. | [Python](https://docs.coreweave.com/products/wandb/weave/reference/python-sdk.md#class-llm)  [TypeScript](https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/llm.md) |\n| Tool call | `Tool` | `execute_tool` | One tool call triggered by an LLM response. | [Python](https://docs.coreweave.com/products/wandb/weave/reference/python-sdk.md#class-tool)  [TypeScript](https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/tool.md) |\n| Sub-agent call | `SubAgent` | `invoke_agent` | A nested agent invocation, typically when one agent delegates to another. | [Python](https://docs.coreweave.com/products/wandb/weave/reference/python-sdk.md#class-subagent)  [TypeScript](https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/subagent.md) |\n\nThe following diagram shows how one agent spans many conversations, one conversation spans many turns, and so on.\n\n```mermaid theme={\"system\"}\nflowchart TB\n    Agent[\"Agent<br/>agent_name\"]\n\n    Agent --> S1 & S2\n\n    S1[\"Conversation 1<br/>conversation_id<br/>(no OTel span)\"]\n    S2[\"Conversation 2<br/>conversation_id<br/>(no OTel span)\"]\n\n    S1 --> T1 & T2\n    S2 --> T3\n\n    T1[\"Turn 1<br/>invoke_agent<br/>(root span, own trace)\"]\n    T2[\"Turn 2<br/>invoke_agent<br/>(root span, own trace)\"]\n    T3[\"Turn 1<br/>invoke_agent<br/>(root span, own trace)\"]\n\n    T1 --> L1 & L2\n    L1[\"LLM call<br/>chat\"]\n    L2[\"LLM call<br/>chat\"]\n\n    L1 --> Tool1[\"Tool call<br/>execute_tool\"]\n\n    classDef agent fill:#DE72FF33,stroke:#454B52,stroke-width:2px\n    classDef conversation fill:#FFD95C33,stroke:#454B52,stroke-width:2px\n    classDef turn fill:#00CDDB33,stroke:#454B52,stroke-width:2px\n    classDef llm fill:#FFCBAD33,stroke:#454B52,stroke-width:2px\n    classDef tool fill:#f4f4f5,stroke:#454B52,stroke-width:2px\n\n    class Agent agent\n    class S1,S2 conversation\n    class T1,T2,T3 turn\n    class L1,L2 llm\n    class Tool1 tool\n```\n\nA conversation groups turns by a shared `conversation_id` attribute rather than a parent span, so each turn starts its own OTel trace. This design supports distributed tracing and parallel execution. The client sends spans directly to the OTel collector without any server-side aggregation.\n\n> [!TIP]\n>\n> To integrate Weave with SDKs or harnesses such as the Claude Agent SDK or Codex, see [Choose an agent integration](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md). Weave autopatches into several agent-building SDKs and agent harnesses for quick integration. Those integrations set `conversation_id` from the SDK or harness session, so you don't need `start_conversation()` to group their turns. The APIs on this page are for agents you instrument yourself.\n\n",
+      "page_context": "# Trace your agents\n\n> Use the Weave SDK to instrument multi-turn agentic applications and view them in the Agents tab.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/instrument.md).\n\nLearn how to instrument a multi-turn agentic application using the W\\&B Weave SDK so that you can view, debug, and evaluate your agent's behavior. This guide is intended for developers who build or integrate agents and want structured visibility into conversations, turns, LLM calls, and tool executions.\n\nThe Weave SDK for Agents models the full lifecycle of a multi-turn agent conversation: the agent that owns many conversations, the conversation that groups turns together, each user-agent exchange (turn), the LLM calls within a turn, and the tool executions that an LLM triggers. Traces appear in the **Agents** tab of your Weave project. Each conversation shows a multi-turn timeline with nested tool calls, token usage, and feedback.\n\nWeave is built on [OpenTelemetry (OTel)](https://opentelemetry.io/docs/concepts/), the open standard for distributed tracing. Every turn, LLM call, and tool call emits an OTel *span* (a structured record of one operation). Each span is tagged with [GenAI semantic-convention](https://opentelemetry.io/docs/specs/semconv/gen-ai/) attributes like `gen_ai.agent.name` and `gen_ai.conversation.id`.\n\nIf you're tracing individual functions as Ops with the `@weave.op` decorator, see [Trace LLM applications](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md) instead.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Trace your agents"
+        },
+        {
+          "section": 1,
+          "heading": "Before you begin"
+        },
+        {
+          "section": 2,
+          "heading": "The agent data model"
+        },
+        {
+          "section": 3,
+          "heading": "Agent tracing APIs"
+        },
+        {
+          "section": 4,
+          "heading": "Start a conversation"
+        },
+        {
+          "section": 5,
+          "heading": "Start a turn"
+        },
+        {
+          "section": 6,
+          "heading": "Start an LLM call"
+        },
+        {
+          "section": 7,
+          "heading": "Start a tool call"
+        },
+        {
+          "section": 8,
+          "heading": "Usage patterns for agent tracing"
+        },
+        {
+          "section": 9,
+          "heading": "Context manager or try-finally pattern"
+        },
+        {
+          "section": 10,
+          "heading": "Manual start and end pattern"
+        },
+        {
+          "section": 11,
+          "heading": "Semantic conventions"
+        },
+        {
+          "section": 12,
+          "heading": "How data appears in the Weights & Biases UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "guides/core-types/evaluations",
+      "section": 0,
+      "title": "Evaluations overview",
+      "heading": "Evaluations overview",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+      "page_sha256": "d8b701427b175b5c29906e40d24de0c1aa1bdb8c7ce862f8adfd68602e986b15",
+      "text": "# Evaluations overview\n\n> Evaluation-driven LLM application development to systematically improve applications\n\n*Evaluation-driven LLM application development* helps you systematically improve LLM applications by measuring their behavior using consistent, curated examples.\n\nThis guide shows you how to set up and run evaluations in Weave so you can measure your LLM application's performance against repeatable test cases, compare changes over time, and identify regressions. It's intended for developers building LLM applications who want to move beyond ad hoc testing into a structured, measurable workflow.\n\n**Python**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or list of dictionaries for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n* Optional configuration like [input preprocessing](#format-dataset-rows-before-evaluating).\n\nOnce you've defined the `Evaluation`, you can run it against a [`Model`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/models) object or any custom function containing LLM application logic. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and each run as a measurement of how your application performs under that setup.\n\n**TypeScript**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or array of objects for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n\nOnce you've defined the `Evaluation`, you can run it against any function wrapped with `weave.op`. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and each run as a measurement of how your application performs under that setup.\n\n> [!NOTE]\n>\n> The TypeScript SDK uses function-based models and scorers. Class-based `Model` and `Scorer` types are not yet available in TypeScript.\n\nTo get started with evaluations, complete the following steps:\n\n1. [Create an `Evaluation` object](#create-an-evaluation-object)\n2. [Define a dataset of examples](#define-a-dataset-of-test-examples)\n3. [Define scoring functions](#define-scoring-functions)\n4. [Define a model or function to evaluate](#define-a-model-or-function-to-evaluate)\n5. [Run the evaluation](#run-the-evaluation)\n\nAfter completing these steps, you'll have a reusable evaluation configuration and an evaluation run whose results you can inspect in the Weights & Biases UI. For a complete evaluation code sample, see the [full evaluation code example](#full-evaluation-code-example). You can also learn more about [advanced evaluation features](#advanced-evaluation-usage) like [Saved views](#saved-views) and [Imperative evaluations](#imperative-evaluations-evaluationlogger).\n\n",
+      "page_context": "# Evaluations overview\n\n> Evaluation-driven LLM application development to systematically improve applications\n\n*Evaluation-driven LLM application development* helps you systematically improve LLM applications by measuring their behavior using consistent, curated examples.\n\nThis guide shows you how to set up and run evaluations in Weave so you can measure your LLM application's performance against repeatable test cases, compare changes over time, and identify regressions. It's intended for developers building LLM applications who want to move beyond ad hoc testing into a structured, measurable workflow.\n\n**Python**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or list of dictionaries for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n* Optional configuration like [input preprocessing](#format-dataset-rows-before-evaluating).\n\nOnce you've defined the `Evaluation`, you can run it against a [`Model`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/models) object or any custom function containing LLM application logic. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and each run as a measurement of how your application performs under that setup.\n\n**TypeScript**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or array of objects for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n\nOnce you've defined the `Evaluation`, you can run it against any function wrapped with `weave.op`. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and eac",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Evaluations overview"
+        },
+        {
+          "section": 1,
+          "heading": "Create an `Evaluation` object"
+        },
+        {
+          "section": 2,
+          "heading": "Optional: Custom naming"
+        },
+        {
+          "section": 3,
+          "heading": "Name the `Evaluation` object"
+        },
+        {
+          "section": 4,
+          "heading": "Name individual evaluation runs"
+        },
+        {
+          "section": 5,
+          "heading": "Define a dataset of test examples"
+        },
+        {
+          "section": 6,
+          "heading": "Define scoring functions"
+        },
+        {
+          "section": 7,
+          "heading": "Optional: Define a custom `Scorer` class"
+        },
+        {
+          "section": 8,
+          "heading": "Define a model or function to evaluate"
+        },
+        {
+          "section": 9,
+          "heading": "Optional: Define a function to evaluate"
+        },
+        {
+          "section": 10,
+          "heading": "Run the evaluation"
+        },
+        {
+          "section": 11,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 12,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 13,
+          "heading": "Full evaluation code example"
+        },
+        {
+          "section": 14,
+          "heading": "Advanced evaluation usage"
+        },
+        {
+          "section": 15,
+          "heading": "Format dataset rows before evaluating"
+        },
+        {
+          "section": 16,
+          "heading": "Use HuggingFace datasets with evaluations"
+        },
+        {
+          "section": 17,
+          "heading": "Saved views"
+        },
+        {
+          "section": 18,
+          "heading": "Imperative evaluations (`EvaluationLogger`)"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S8",
+      "page_id": "guides/evaluation/scorers",
+      "section": 0,
+      "title": "Scoring overview",
+      "heading": "Scoring overview",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers",
+      "page_sha256": "37fb7e1c9814dcd294e69b6c17feff901a1ee0621b90b8609e91687480698f13",
+      "text": "# Scoring overview\n\n> Evaluate AI outputs and return evaluation metrics with Weave Scorers\n\nIn Weave, Scorers evaluate AI outputs and return evaluation metrics. They take the AI's output, analyze it, and return a dictionary of results. Scorers can use your input data as reference if needed and can also output extra information, such as explanations or reasoning from the evaluation.\n\nThis guide is for developers who want to measure the quality of their AI system's outputs. It explains how Scorers fit into Weave evaluations, how to build your own Scorers, how to apply Scorers to individual calls, and how to analyze the resulting scores.\n\n**Python**\n\nPass Scorers to a `weave.Evaluation` object during evaluation. Weave supports two types of Scorers:\n\n1. **Function-based Scorers:** Python functions decorated with `@weave.op`.\n2. **Class-based Scorers:** Python classes that inherit from `weave.Scorer` for more complex evaluations.\n\nScorers must return a dictionary and can return multiple metrics, nested metrics, and non-numeric values such as text returned from an LLM-evaluator about its reasoning.\n\n**TypeScript**\n\nScorers are special ops that you pass to a `weave.Evaluation` object during evaluation.\n\n",
+      "page_context": "# Scoring overview\n\n> Evaluate AI outputs and return evaluation metrics with Weave Scorers\n\nIn Weave, Scorers evaluate AI outputs and return evaluation metrics. They take the AI's output, analyze it, and return a dictionary of results. Scorers can use your input data as reference if needed and can also output extra information, such as explanations or reasoning from the evaluation.\n\nThis guide is for developers who want to measure the quality of their AI system's outputs. It explains how Scorers fit into Weave evaluations, how to build your own Scorers, how to apply Scorers to individual calls, and how to analyze the resulting scores.\n\n**Python**\n\nPass Scorers to a `weave.Evaluation` object during evaluation. Weave supports two types of Scorers:\n\n1. **Function-based Scorers:** Python functions decorated with `@weave.op`.\n2. **Class-based Scorers:** Python classes that inherit from `weave.Scorer` for more complex evaluations.\n\nScorers must return a dictionary and can return multiple metrics, nested metrics, and non-numeric values such as text returned from an LLM-evaluator about its reasoning.\n\n**TypeScript**\n\nScorers are special ops that you pass to a `weave.Evaluation` object during evaluation.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Scoring overview"
+        },
+        {
+          "section": 1,
+          "heading": "Create your own scorers"
+        },
+        {
+          "section": 2,
+          "heading": "Function-based scorers"
+        },
+        {
+          "section": 3,
+          "heading": "Class-based scorers"
+        },
+        {
+          "section": 4,
+          "heading": "How scorers work"
+        },
+        {
+          "section": 5,
+          "heading": "Scorer keyword arguments"
+        },
+        {
+          "section": 6,
+          "heading": "Mapping column names with `column_map`"
+        },
+        {
+          "section": 7,
+          "heading": "Mapping column names with `columnMapping`"
+        },
+        {
+          "section": 8,
+          "heading": "Access variables from your ops in scoring prompts"
+        },
+        {
+          "section": 9,
+          "heading": "Final summarization of the scorer"
+        },
+        {
+          "section": 10,
+          "heading": "Apply scorers to a call"
+        },
+        {
+          "section": 11,
+          "heading": "Use `preprocess_model_input`"
+        },
+        {
+          "section": 12,
+          "heading": "Score analysis"
+        },
+        {
+          "section": 13,
+          "heading": "Analyze a single call's scores"
+        },
+        {
+          "section": 14,
+          "heading": "Single call API"
+        },
+        {
+          "section": 15,
+          "heading": "Single call UI"
+        },
+        {
+          "section": 16,
+          "heading": "Analyze multiple calls' scores"
+        },
+        {
+          "section": 17,
+          "heading": "Multiple calls API"
+        },
+        {
+          "section": 18,
+          "heading": "Multiple calls UI"
+        },
+        {
+          "section": 19,
+          "heading": "Analyze all calls scored by a specific scorer"
+        },
+        {
+          "section": 20,
+          "heading": "All calls by scorer API"
+        },
+        {
+          "section": 21,
+          "heading": "All calls by scorer UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S6",
+      "page_id": "guides/tracking/view-agent-signals",
+      "section": 2,
+      "title": "Monitor your agents with signals",
+      "heading": "Key terms",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+      "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+      "text": "## Key terms\n\n* **Turn**: One back-and-forth exchange between the user and the agent.\n* **Rating**: A numeric score between 0.0 and 1.0 assigned to a matching span.\n* **Tags**: Labels assigned to matching spans, such as \"user-frustration\" or \"nsfw\".\n\n",
+      "page_context": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Monitor your agents with signals"
+        },
+        {
+          "section": 1,
+          "heading": "Get started"
+        },
+        {
+          "section": 2,
+          "heading": "Key terms"
+        },
+        {
+          "section": 3,
+          "heading": "Signals table"
+        },
+        {
+          "section": 4,
+          "heading": "How Weave normalizes scores"
+        },
+        {
+          "section": 5,
+          "heading": "Create a new signal"
+        },
+        {
+          "section": 6,
+          "heading": "Preset signals"
+        },
+        {
+          "section": 7,
+          "heading": "Tags presets"
+        },
+        {
+          "section": 8,
+          "heading": "Ratings presets"
+        },
+        {
+          "section": 9,
+          "heading": "Custom signals"
+        },
+        {
+          "section": 10,
+          "heading": "Manage and edit signals"
+        },
+        {
+          "section": 11,
+          "heading": "Troubleshoot signals"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    },
+    {
+      "source_id": "S5",
+      "page_id": "guides/tracking/view-agent-signals",
+      "section": 1,
+      "title": "Monitor your agents with signals",
+      "heading": "Get started",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+      "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+      "text": "## Get started\n\nTo view signals for your project:\n\n1. Navigate to [Forge](https://forge.coreweave.com/wandb) and select your project.\n2. In the sidebar menu, select **Agents** to view all agent conversations saved for your project.\n3. In the tab bar, select **Signals**.\n\n![The Signals tab showing a list of scored turns for the agent.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/agent-view-signals.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=8c6cbeb0985f1892769e14cbf70fb16c)\n\n",
+      "page_context": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Monitor your agents with signals"
+        },
+        {
+          "section": 1,
+          "heading": "Get started"
+        },
+        {
+          "section": 2,
+          "heading": "Key terms"
+        },
+        {
+          "section": 3,
+          "heading": "Signals table"
+        },
+        {
+          "section": 4,
+          "heading": "How Weave normalizes scores"
+        },
+        {
+          "section": 5,
+          "heading": "Create a new signal"
+        },
+        {
+          "section": 6,
+          "heading": "Preset signals"
+        },
+        {
+          "section": 7,
+          "heading": "Tags presets"
+        },
+        {
+          "section": 8,
+          "heading": "Ratings presets"
+        },
+        {
+          "section": 9,
+          "heading": "Custom signals"
+        },
+        {
+          "section": 10,
+          "heading": "Manage and edit signals"
+        },
+        {
+          "section": 11,
+          "heading": "Troubleshoot signals"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+    }
+  ],
+  "actions": [
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "Signals block unsafe response before user"
+      },
+      "result": {
+        "query": "Signals block unsafe response before user",
+        "results": [
+          {
+            "page_id": "cookbooks/scorers_as_guardrails",
+            "section": 1,
+            "title": "Scorers as guardrails",
+            "heading": "Scorers as guardrails",
+            "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/scorers_as_guardrails",
+            "snippet": "# Scorers as guardrails\n\nWeave Scorers are classes with a `score` method that evaluates the performance of a call. They can range from basic rules to LLMs as judges.\n\nThis notebook is for Weave users who want to apply Scorers at runtime to block or filter unwanted model outputs. By following along, you build a content safety guardrail that intercepts an LLM response, evaluates it with a Scorer, and returns a fallback message when the Scorer flags the response as unsafe. Using Scorers this way lets you reuse the same evaluation logic that powers offline experiments to enforce safety policies in production.\n\nBy the end of this notebook, you have a working `ContentSafetyScorer` that wraps an LLM call and returns either the original response or a safe fallback, depending on the Scorer's verdict.\n\n```python lines theme={\"system\"}\n%pip install weave --quiet\npython\n\"\"\"\nExample demonstrating how to implement guardrails in Weave.\nThis example shows a simple content safety checker that prevents\npotentially harmful or negative responses.\n\"\"\"\n\nimport weave\n\n# Initialize Weave with a descriptive "
+          },
+          {
+            "page_id": "guides/tracking/view-agent-signals",
+            "section": 8,
+            "title": "Monitor your agents with signals",
+            "heading": "Ratings presets",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+            "snippet": "#### Ratings presets\n\n| Template | What it evaluates |\n| - | - |\n| **User Satisfaction** | Whether the user is satisfied (positive feedback, follow-up engagement, task completion) or dissatisfied (complaints, repeated rephrasing, abandonment). |\n| **User Good Intent** | Whether the user's intent is benign and legitimate, versus jailbreak attempts, harmful requests, or prompt injection. |\n| **Safe-for-Work** | Whether the conversation is appropriate for any professional setting, versus explicit, violent, or otherwise inappropriate workplace content. |\n| **Response Quality** | Whether the agent's response is accurate, complete, and directly addresses the user's request. |\n\n"
+          },
+          {
+            "page_id": "guides/tracking/view-agent-activity",
+            "section": 17,
+            "title": "View agent activity",
+            "heading": "Signals tab",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity",
+            "snippet": "## Signals tab\n\nThe **Signals** tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nFor setup and detailed usage, see [Monitor your agents with signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n"
+          },
+          {
+            "page_id": "cookbooks/pii",
+            "section": 14,
+            "title": "PII Data Handling",
+            "heading": "Regex method",
+            "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/pii",
+            "snippet": "### Regex method\n\nAs a starting point, you can use regex to identify and redact PII data from the original text.\n\n```python lines theme={\"system\"}\nimport json\nfrom typing import Any\n\nimport anthropic\n\nimport weave\n\n# Define an input postprocessing function that applies our regex redaction for the model prediction Weave Op\ndef postprocess_inputs_regex(inputs: dict[str, Any]) -> dict:\n    inputs[\"text_block\"] = redact_with_regex(inputs[\"text_block\"])\n    return inputs\n\n# Weave model / predict function\nclass SentimentAnalysisRegexPiiModel(weave.Model):\n    model_name: str\n    system_prompt: str\n    temperature: int\n\n    @weave.op(\n        postprocess_inputs=postprocess_inputs_regex,\n    )\n    async def predict(self, text_block: str) -> dict:\n        client = anthropic.AsyncAnthropic()\n        response = await client.messages.create(\n            max_tokens=1024,\n            model=self.model_name,\n            system=self.system_prompt,\n            messages=[\n                {\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": text_block}]}\n            ],\n        )\n        result = respon"
+          },
+          {
+            "page_id": "guides/evaluation/monitors",
+            "section": 2,
+            "title": "Monitor using built-in signals",
+            "heading": "Quality signals",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors",
+            "snippet": "### Quality signals\n\nQuality signals evaluate successful root-level traces for output quality and safety issues.\n\n| Signal | What it detects |\n| - | - |\n| **Hallucination** | Fabricated facts or claims that contradict the provided input context |\n| **Low quality** | Responses with poor format, insufficient effort, or incomplete content |\n| **User frustration** | Signs of user frustration such as repeated questions, negative sentiment, or complaints |\n| **Jailbreaking** | Prompt injection and jailbreak attempts that try to bypass safety guidelines |\n| **NSFW** | Explicit, violent, or otherwise inappropriate content in inputs or outputs |\n| **Lazy** | Low-effort responses such as excessive brevity, refusals to help, or deferred work |\n| **Forgetful** | Failure to use context from earlier in the conversation, ignoring previously stated facts or instructions |\n\n"
+          },
+          {
+            "page_id": "cookbooks/pii",
+            "section": 15,
+            "title": "PII Data Handling",
+            "heading": "Presidio redaction method",
+            "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/pii",
+            "snippet": "### Presidio redaction method\n\nNext, use Presidio to identify and redact PII data from the original text.\n\n![Presidio PII redaction process with identified PII entities and redacted text output](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/redact.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=5a89dedd05cca4fc7997b2412aee85a8)\n\n```python lines theme={\"system\"}\nfrom typing import Any\n\nimport weave\n\n# Define an input postprocessing function that applies our Presidio redaction for the model prediction Weave Op\ndef postprocess_inputs_presidio(inputs: dict[str, Any]) -> dict:\n    inputs[\"text_block\"] = redact_with_presidio(inputs[\"text_block\"])\n    return inputs\n\n# Weave model / predict function\nclass SentimentAnalysisPresidioPiiModel(weave.Model):\n    model_name: str\n    system_prompt: str\n    temperature: int\n\n    @weave.op(\n        postprocess_inputs=postprocess_inputs_presidio,\n    )\n    async def predict(self, text_block: str) -> dict:\n        client = anthropic.AsyncAnthropic()\n        response = await client.messages.create(\n            "
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "Signals how they work tags ratings spans"
+      },
+      "result": {
+        "query": "Signals how they work tags ratings spans",
+        "results": [
+          {
+            "page_id": "guides/tracking/view-agent-signals",
+            "section": 5,
+            "title": "Monitor your agents with signals",
+            "heading": "Create a new signal",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+            "snippet": "## Create a new signal\n\nTo start scoring your agent's turns, create one or more signals. Select **+ New signal** to open the **Create signals** drawer.\n\nThe drawer groups available signals into two categories:\n\n* **Tags**: Apply a label automatically to matching spans, such as `user-frustration` or `nsfw`. Use tags to categorize spans or flag unwanted behavior. The signals UI only displays rows for spans that matched at least one tag, so a tag signal might run successfully even if you don't see any output.\n* **Ratings**: Assign a score from 0 to 1 to matching spans. Use ratings to rate agent performance and measure improvements over time.\n\n"
+          },
+          {
+            "page_id": "guides/evaluation/monitors",
+            "section": 4,
+            "title": "Monitor using built-in signals",
+            "heading": "How signals work",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors",
+            "snippet": "### How signals work\n\nEach signal uses an LLM-as-a-judge approach to classify traces:\n\n* **Trace selection**: Quality signals evaluate successful root-level traces. Error signals evaluate failed traces. Weave doesn't score child spans and intermediate Calls.\n* **Prompt construction**: Weave constructs a prompt that includes the trace metadata, inputs, outputs, exception details (if any), and the operation's source code. Weave appends the signal's classifier prompt with instructions for the specific issue to detect.\n* **LLM scoring**: For each signal, a Serverless Inference model performs a binary classification (whether that issue is present on the trace). Detected issues are returned as comma-delimited string tags (for example, `\"Low-quality, User-frustration, Forgetful\"`).\n\nWhen multiple signals from the same group (Quality or Error) are active, Weave batches the signals into a single LLM call. The model evaluates all active classifiers in one pass and returns a result for each.\n\n"
+          },
+          {
+            "page_id": "guides/tracking/view-agent-signals",
+            "section": 4,
+            "title": "Monitor your agents with signals",
+            "heading": "How Weave normalizes scores",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+            "snippet": "## How Weave normalizes scores\n\nBefore Weave stores a signal result, it normalizes the tags, ratings, and reasons that the scorer returned:\n\n* Tags are lowercased. Characters other than `0-9`, `a-z`, `A-Z`, space, and `. , ; - & ! @ # $ % ?` are removed. Runs of whitespace, underscores, and dashes collapse into one dash.\n* At most 10 tags are kept per result. Duplicate tags are dropped.\n* Reasons have the same characters removed and are truncated to 256 characters.\n* A tag longer than 36 characters, or a result with more than one rating, is rejected as a whole, and Weave writes no feedback for it.\n\nThese rules apply to every signal, whether an LLM judge or a [remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md) produced the result.\n\n"
+          },
+          {
+            "page_id": "guides/tracking/view-agent-activity",
+            "section": 17,
+            "title": "View agent activity",
+            "heading": "Signals tab",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity",
+            "snippet": "## Signals tab\n\nThe **Signals** tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nFor setup and detailed usage, see [Monitor your agents with signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n"
+          },
+          {
+            "page_id": "guides/tracking/remote-scorer-signals",
+            "section": 1,
+            "title": "Score agent turns with a remote scorer",
+            "heading": "How agent turn scoring works",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+            "snippet": "## How agent turn scoring works\n\nAn agent turn is scored in the following sequence:\n\n1. A turn ends. When a root span (a span with no parent) ends, Weave treats it as a completed turn and emits a `weave.genai.turn_ended` event.\n2. The agent scoring worker loads the project's active signals that target `weave.genai.turn_ended`, then applies each signal's filters and sample rate.\n3. For each `RemoteScorer` on a matching signal, the worker builds a `schema_version: 2` request from the turn's span, including its messages, resolves the scorer's credentials, checks the endpoint URL against the allowed hosts, and sends the `POST`.\n4. The worker validates the response and writes the result as feedback on the turn. Tags and ratings appear on the **Signals** tab.\n\nWeave scores only completed turns. Individual LLM and tool spans, and whole conversations, aren't remote scoring targets. A remote scorer signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`, whether you create it in the UI or with the SDK.\n\nThe worker retries a failed attempt with the same `Idempotency-Key`, up to "
+          },
+          {
+            "page_id": "reference/service-api/agents/genai-conversation-spans",
+            "section": 1,
+            "title": "GenAI Conversation Spans",
+            "heading": "OpenAPI",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/service-api/agents/genai-conversation-spans",
+            "snippet": "## OpenAPI\n\n````yaml products/wandb/weave/reference/service-api/openapi.json POST /agents/conversations/spans\nopenapi: 3.1.0\ninfo:\n  title: FastAPI\n  version: 0.1.0\nservers: []\nsecurity: []\npaths:\n  /agents/conversations/spans:\n    post:\n      tags:\n        - Agents\n      summary: Genai Conversation Spans\n      operationId: genai_conversation_spans_agents_conversations_spans_post\n      requestBody:\n        content:\n          application/json:\n            schema:\n              $ref: '#/components/schemas/AgentConversationSpansReq'\n        required: true\n      responses:\n        '200':\n          description: Successful Response\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/AgentConversationSpansRes'\n        '422':\n          description: Validation Error\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/HTTPValidationError'\ncomponents:\n  schemas:\n    AgentConversationSpansReq:\n      properties:\n        project_id:\n          type: string\n          title: P"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "guardrails"
+      },
+      "result": {
+        "query": "guardrails",
+        "results": [
+          {
+            "page_id": "cookbooks/scorers_as_guardrails",
+            "section": 0,
+            "title": "Scorers as guardrails",
+            "heading": "Scorers as guardrails",
+            "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/scorers_as_guardrails",
+            "snippet": "# Scorers as guardrails\n\n> Learn how to use scorers as guardrails with W&B Weave\n\n> [!NOTE]\n>\n> This is an interactive notebook. You can run it locally or use the links below:\n>\n> * [Open in Google Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/scorers_as_guardrails.ipynb)\n> * [View source on GitHub](https://github.com/wandb/examples/blob/main/colabs/weave/scorers_as_guardrails.ipynb)\n\n"
+          },
+          {
+            "page_id": "guides/evaluation/guardrails",
+            "section": 0,
+            "title": "Set up guardrails",
+            "heading": "Set up guardrails",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/guardrails",
+            "snippet": "# Set up guardrails\n\n> Ensure LLM safety and measure output quality in production applications\n\nGuardrails intervene in your LLM application's behavior based on scores from LLM judges. They run in real time before outputs reach users and can block or modify responses when scores exceed thresholds. You can use guardrails to block toxic content, filter responses for personally identifiable information (PII), or block abusive input from users.\n\nThis guide explains how Weave guardrails work, how to tune their performance, and walks through examples that use built-in scorers, custom scorers, and AWS Bedrock Guardrails to protect production LLM applications.\n\n"
+          },
+          {
+            "page_id": "guides/evaluation/guardrails",
+            "section": 1,
+            "title": "Set up guardrails",
+            "heading": "How Weave guardrails work",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/guardrails",
+            "snippet": "## How Weave guardrails work\n\nWeave guardrails use inline [Weave Scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md) to assess the input from a user or the output from an LLM and adjust the LLM's responses in real time. You can configure custom scorers or use [built-in scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers.md) to assess content for a variety of purposes. This guide demonstrates how to use both types of scorers as guardrails.\n\nIf you want to passively score production traffic without modifying your application's control flow, use [monitors](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors.md) instead.\n\nUnlike monitors, guardrails require code changes because they affect your application's control flow. However, every scorer result from guardrails is automatically stored in Weave's database, so your guardrails also function as monitors without any extra configuration. You can analyze historical scorer results regardless of how they were originally used.\n\n> [!NOTE]\n>\n> The W"
+          },
+          {
+            "page_id": "concepts/what-is-weave",
+            "section": 10,
+            "title": "What is Weave?",
+            "heading": "Monitor production",
+            "url": "https://docs.coreweave.com/products/wandb/weave/concepts/what-is-weave",
+            "snippet": "### Monitor production\n\nScore production traffic with the same scorers you use in evaluation. Set up guardrails to catch issues before they reach users.\n\n[Set up guardrails and monitors](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors.md)\n\n"
+          },
+          {
+            "page_id": "cookbooks",
+            "section": 6,
+            "title": "Overview",
+            "heading": "Production and monitoring",
+            "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks",
+            "snippet": "### Production and monitoring\n\n* [Online Monitoring](https://docs.coreweave.com/products/wandb/weave/cookbooks/online_monitoring.md) - Monitor systems in real time.\n* [Production Feedback](https://docs.coreweave.com/products/wandb/weave/cookbooks/feedback_prod.md) - Collect and analyze user feedback.\n* [Scorers as Guardrails](https://docs.coreweave.com/products/wandb/weave/cookbooks/scorers_as_guardrails.md) - Implement safety measures.\n* [Custom Model Costs](https://docs.coreweave.com/products/wandb/weave/cookbooks/custom_model_cost.md) - Track and optimize costs.\n* [PII Protection](https://docs.coreweave.com/products/wandb/weave/cookbooks/pii.md) - Handle sensitive data safely.\n\n"
+          },
+          {
+            "page_id": "cookbooks/scorers_as_guardrails",
+            "section": 1,
+            "title": "Scorers as guardrails",
+            "heading": "Scorers as guardrails",
+            "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/scorers_as_guardrails",
+            "snippet": "# Scorers as guardrails\n\nWeave Scorers are classes with a `score` method that evaluates the performance of a call. They can range from basic rules to LLMs as judges.\n\nThis notebook is for Weave users who want to apply Scorers at runtime to block or filter unwanted model outputs. By following along, you build a content safety guardrail that intercepts an LLM response, evaluates it with a Scorer, and returns a fallback message when the Scorer flags the response as unsafe. Using Scorers this way lets you reuse the same evaluation logic that powers offline experiments to enforce safety policies in production.\n\nBy the end of this notebook, you have a working `ContentSafetyScorer` that wraps an LLM call and returns either the original response or a safe fallback, depending on the Scorer's verdict.\n\n```python lines theme={\"system\"}\n%pip install weave --quiet\npython\n\"\"\"\nExample demonstrating how to implement guardrails in Weave.\nThis example shows a simple content safety checker that prevents\npotentially harmful or negative responses.\n\"\"\"\n\nimport weave\n\n# Initialize Weave with a descriptive "
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/view-agent-signals",
+        "section": 0
+      },
+      "result": {
+        "source_id": "S1",
+        "page_id": "guides/tracking/view-agent-signals",
+        "section": 0,
+        "title": "Monitor your agents with signals",
+        "heading": "Monitor your agents with signals",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+        "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+        "text": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n",
+        "page_context": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instead of an LLM judge, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md).\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Monitor your agents with signals"
+          },
+          {
+            "section": 1,
+            "heading": "Get started"
+          },
+          {
+            "section": 2,
+            "heading": "Key terms"
+          },
+          {
+            "section": 3,
+            "heading": "Signals table"
+          },
+          {
+            "section": 4,
+            "heading": "How Weave normalizes scores"
+          },
+          {
+            "section": 5,
+            "heading": "Create a new signal"
+          },
+          {
+            "section": 6,
+            "heading": "Preset signals"
+          },
+          {
+            "section": 7,
+            "heading": "Tags presets"
+          },
+          {
+            "section": 8,
+            "heading": "Ratings presets"
+          },
+          {
+            "section": 9,
+            "heading": "Custom signals"
+          },
+          {
+            "section": 10,
+            "heading": "Manage and edit signals"
+          },
+          {
+            "section": 11,
+            "heading": "Troubleshoot signals"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 1
+      },
+      "result": {
+        "source_id": "S12",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 1,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "How agent turn scoring works",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "## How agent turn scoring works\n\nAn agent turn is scored in the following sequence:\n\n1. A turn ends. When a root span (a span with no parent) ends, Weave treats it as a completed turn and emits a `weave.genai.turn_ended` event.\n2. The agent scoring worker loads the project's active signals that target `weave.genai.turn_ended`, then applies each signal's filters and sample rate.\n3. For each `RemoteScorer` on a matching signal, the worker builds a `schema_version: 2` request from the turn's span, including its messages, resolves the scorer's credentials, checks the endpoint URL against the allowed hosts, and sends the `POST`.\n4. The worker validates the response and writes the result as feedback on the turn. Tags and ratings appear on the **Signals** tab.\n\nWeave scores only completed turns. Individual LLM and tool spans, and whole conversations, aren't remote scoring targets. A remote scorer signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`, whether you create it in the UI or with the SDK.\n\nThe worker retries a failed attempt with the same `Idempotency-Key`, up to three attempts within 30 seconds of the first attempt. A `5xx`, `408`, or `429` response is retried. A timeout uses the whole 30 seconds, so a timed-out request isn't retried. Any other `4xx` response isn't retried. If your endpoint can't score a turn in time, return `503` quickly rather than letting the request time out, so that Weave retries it. Agent turn scoring requires the structured result format, because Weave stores the tags and ratings as typed feedback columns.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Score agent turns with a remote scorer"
+          },
+          {
+            "section": 1,
+            "heading": "How agent turn scoring works"
+          },
+          {
+            "section": 2,
+            "heading": "Enable remote scoring"
+          },
+          {
+            "section": 3,
+            "heading": "Build the scorer endpoint"
+          },
+          {
+            "section": 4,
+            "heading": "Request"
+          },
+          {
+            "section": 5,
+            "heading": "Response"
+          },
+          {
+            "section": 6,
+            "heading": "Authenticate requests from Weave"
+          },
+          {
+            "section": 7,
+            "heading": "Create a remote scorer signal"
+          },
+          {
+            "section": 8,
+            "heading": "Weave UI"
+          },
+          {
+            "section": 9,
+            "heading": "Python SDK"
+          },
+          {
+            "section": 10,
+            "heading": "Sample code"
+          },
+          {
+            "section": 11,
+            "heading": "Test the signal"
+          },
+          {
+            "section": 12,
+            "heading": "Troubleshooting"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/evaluation/guardrails",
+        "section": 1
+      },
+      "result": {
+        "source_id": "S13",
+        "page_id": "guides/evaluation/guardrails",
+        "section": 1,
+        "title": "Set up guardrails",
+        "heading": "How Weave guardrails work",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/guardrails",
+        "page_sha256": "a7b1d37d813fd0f371c94309b0c0f857f0f53f0c22a5ed380a7f690718bfa784",
+        "text": "## How Weave guardrails work\n\nWeave guardrails use inline [Weave Scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md) to assess the input from a user or the output from an LLM and adjust the LLM's responses in real time. You can configure custom scorers or use [built-in scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers.md) to assess content for a variety of purposes. This guide demonstrates how to use both types of scorers as guardrails.\n\nIf you want to passively score production traffic without modifying your application's control flow, use [monitors](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors.md) instead.\n\nUnlike monitors, guardrails require code changes because they affect your application's control flow. However, every scorer result from guardrails is automatically stored in Weave's database, so your guardrails also function as monitors without any extra configuration. You can analyze historical scorer results regardless of how they were originally used.\n\n> [!NOTE]\n>\n> The Weave TypeScript SDK doesn't support the tools required to set up guardrails.\n\n",
+        "page_context": "# Set up guardrails\n\n> Ensure LLM safety and measure output quality in production applications\n\nGuardrails intervene in your LLM application's behavior based on scores from LLM judges. They run in real time before outputs reach users and can block or modify responses when scores exceed thresholds. You can use guardrails to block toxic content, filter responses for personally identifiable information (PII), or block abusive input from users.\n\nThis guide explains how Weave guardrails work, how to tune their performance, and walks through examples that use built-in scorers, custom scorers, and AWS Bedrock Guardrails to protect production LLM applications.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Set up guardrails"
+          },
+          {
+            "section": 1,
+            "heading": "How Weave guardrails work"
+          },
+          {
+            "section": 2,
+            "heading": "Optimize your Weave guardrail performance"
+          },
+          {
+            "section": 3,
+            "heading": "Example: Create a guardrail using a built-in moderation scorer"
+          },
+          {
+            "section": 4,
+            "heading": "Example: Create a guardrail using a custom scorer"
+          },
+          {
+            "section": 5,
+            "heading": "Integrate Weave with AWS Bedrock Guardrails"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "answer": "**Short answer:** In the pages I read, Signals don't block anything. They score and tag agent turns that have already been recorded. If you need to stop an unsafe answer before the user sees it, your agent has to do that itself. I didn't find any Signals documentation that describes a blocking or intercepting mode.\n\n**What Signals do**\n- The Signals tab shows tags and ratings on your agent's conversations. They surface quality and safety issues so you can flag problems, find patterns, and find the traces that need attention [S1].\n- A turn is scored only after it ends. When a root span ends, Weave treats it as a completed turn and emits a `weave.genai.turn_ended` event. A scoring worker then applies the matching signals and writes the result as feedback on the turn [S12]. So the user-facing response has already been produced by the time a Signal scores it.\n\n**What blocks responses**\n- Weave guardrails are a separate feature. They use inline Weave Scorers to assess a user's input or an LLM's output and adjust the response in real time [S13].\n- The guardrails page says they require code changes because they affect your application's control flow. It contrasts them with monitors, which passively score traffic without changing control flow [S13].\n- The page intro also says guardrails run before outputs reach users and can block or modify responses when scores exceed thresholds [S13].\n\n**Practical takeaway**\n- Use a guardrail check in your own code path if you must prevent an unsafe response from being delivered [S13].\n- Use Signals to monitor agent turns after the fact [S1][S12].\n\n**Limits of what I read**\n- The guardrails page belongs to the Scorers and Monitors side of Weave, not the new Agents/Signals workflow. I didn't establish how to wire it into an agent-turn setup, so I haven't combined the two.\n- I read the introduction of the Signals page and the scoring sequence for remote scorers. I didn't read every Signals section, such as custom signals or troubleshooting.",
+        "source_ids": [
+          "S1",
+          "S12",
+          "S13"
+        ],
+        "kind": "answer"
+      },
+      "result": {
+        "passed": false,
+        "claims": [
+          {
+            "text": "In the pages read, Signals don't block anything; they score and tag agent turns after the turn has been recorded, and blocking must be done by the agent.",
+            "kind": "product",
+            "source_ids": [
+              "S1",
+              "S12"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "The Signals tab shows tags and ratings on agent conversations, surfacing quality and safety issues.",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "A turn is scored only after it ends: a root span ending emits weave.genai.turn_ended, a scoring worker applies matching signals, and the result is written as feedback on the turn.",
+            "kind": "product",
+            "source_ids": [
+              "S12"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Weave guardrails are a separate feature using inline Weave Scorers to assess input or output and adjust responses in real time; they run before outputs reach users and can block or modify responses when scores exceed thresholds.",
+            "kind": "product",
+            "source_ids": [
+              "S13"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Guardrails require code changes because they affect control flow, unlike monitors, which passively score traffic.",
+            "kind": "product",
+            "source_ids": [
+              "S13"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Recommendation: use a guardrail check in your own code path to prevent unsafe responses, and use Signals to monitor turns after the fact.",
+            "kind": "product",
+            "source_ids": [
+              "S13",
+              "S1",
+              "S12"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "The guardrails page belongs to the Scorers/Monitors side of Weave rather than the new Agents/Signals workflow; the answer says it did not establish how to wire guardrails into an agent-turn setup.",
+            "kind": "product",
+            "source_ids": [
+              "S13"
+            ],
+            "status": "partial",
+            "supported": false
+          },
+          {
+            "text": "I didn't find any Signals documentation describing a blocking mode; I read the Signals introduction and the remote scorer scoring sequence, not every section.",
+            "kind": "research_process",
+            "source_ids": [],
+            "status": "supported",
+            "supported": true
+          }
+        ],
+        "issues": [
+          "Minor: the 'Scorers and Monitors side, not the new Agents/Signals workflow' framing is an interpretation. S13 contrasts guardrails with monitors and does not mention Signals. The 'new workflow' idea comes from S11, which this answer doesn't cite. The answer hedges it, so it doesn't change the main conclusion.",
+          "Minor: the S12 scoring sequence is written for RemoteScorer signals. The answer applies it to Signals in general, though it does say it read the remote-scorer sequence.",
+          "Revise partial or unsupported material claims."
+        ],
+        "coverage": [],
+        "mode": "support",
+        "status": "failed"
+      },
+      "origin": "application_normalization"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/evaluation/monitors",
+        "section": 0
+      },
+      "result": {
+        "source_id": "S11",
+        "page_id": "guides/evaluation/monitors",
+        "section": 0,
+        "title": "Monitor using built-in signals",
+        "heading": "Monitor using built-in signals",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/monitors",
+        "page_sha256": "39df601193b42d548cb78cf4da21d805c08425727c4a1b0e11c7914210a5fdb7",
+        "text": "# Monitor using built-in signals\n\n> Weights & Biases provides built-in scoring solutions for agents in production\n\n> [!NOTE]\n>\n> This page covers a previous approach to monitoring production traffic. For new implementations, use **Signals** under Weave for Agents. See [View agent signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nStandard system metrics like latency, token count, and cost don't fully capture agent behavior. Inspecting individual traces provides deep insight but doesn't scale to the millions of traces generated in a live environment.\n\nSignals provide a high-level monitoring solution to this problem by offering automated, behavioral scoring for agents in production:\n\n* Automated scoring: Every incoming production trace is automatically processed and scored on common quality issues and errors.\n* Infrastructure: Processing is powered by CoreWeave compute and CoreWeave GPUs for scalability across millions of traces.\n\nBy using signals within production, you can:\n\n* Gain behavioral insight. Move beyond system metrics to understand if your agent is hallucinating, failing to follow conversation patterns, or losing grounding in its evidence.\n* Accelerate the research loop. Use the scores and failure analyses generated by signals to identify weaknesses, which you can use to research model improvement, data annotation, or reinforcement learning.\n\n",
+        "page_context": "# Monitor using built-in signals\n\n> Weights & Biases provides built-in scoring solutions for agents in production\n\n> [!NOTE]\n>\n> This page covers a previous approach to monitoring production traffic. For new implementations, use **Signals** under Weave for Agents. See [View agent signals](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nStandard system metrics like latency, token count, and cost don't fully capture agent behavior. Inspecting individual traces provides deep insight but doesn't scale to the millions of traces generated in a live environment.\n\nSignals provide a high-level monitoring solution to this problem by offering automated, behavioral scoring for agents in production:\n\n* Automated scoring: Every incoming production trace is automatically processed and scored on common quality issues and errors.\n* Infrastructure: Processing is powered by CoreWeave compute and CoreWeave GPUs for scalability across millions of traces.\n\nBy using signals within production, you can:\n\n* Gain behavioral insight. Move beyond system metrics to understand if your agent is hallucinating, failing to follow conversation patterns, or losing grounding in its evidence.\n* Accelerate the research loop. Use the scores and failure analyses generated by signals to identify weaknesses, which you can use to research model improvement, data annotation, or reinforcement learning.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Monitor using built-in signals"
+          },
+          {
+            "section": 1,
+            "heading": "Available signals"
+          },
+          {
+            "section": 2,
+            "heading": "Quality signals"
+          },
+          {
+            "section": 3,
+            "heading": "Error signals"
+          },
+          {
+            "section": 4,
+            "heading": "How signals work"
+          },
+          {
+            "section": 5,
+            "heading": "Add a signal from the Monitors page"
+          },
+          {
+            "section": 6,
+            "heading": "Manage active signals"
+          },
+          {
+            "section": 7,
+            "heading": "Use built-in signals"
+          },
+          {
+            "section": 8,
+            "heading": "See tagged Call traces on the Traces page"
+          },
+          {
+            "section": 9,
+            "heading": "See signals in the project dashboard"
+          },
+          {
+            "section": 10,
+            "heading": "Alert on signals"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "answer": "**Short answer:** In the pages I read, Signals don't block anything. They score and tag agent turns that have already been recorded. If you need to stop an unsafe answer before the user sees it, your agent has to do that itself. I found no Signals documentation that describes a blocking or intercepting mode.\n\n**What Signals do**\n- The Signals tab shows tags and ratings on your agent's conversations. They surface quality and safety issues so you can flag problems, find patterns, and find the traces that need attention [S1].\n- The page I read on scoring agent turns with a remote scorer describes the scoring sequence. A turn is scored after it ends. When a root span ends, Weave emits a `weave.genai.turn_ended` event. A scoring worker then applies matching signals and writes the result as feedback on the turn [S12]. That page is about remote scorers, so I'm assuming other Signals follow the same after-the-turn pattern. Treat that as an inference.\n\n**What blocks responses**\n- Weave guardrails are a separate feature. They use inline Weave Scorers to assess a user's input or an LLM's output and adjust the response in real time [S13].\n- The guardrails page says they require code changes because they affect your application's control flow. It contrasts them with monitors, which passively score traffic without changing control flow [S13].\n- The page intro says guardrails run before outputs reach users and can block or modify responses when scores exceed thresholds [S13].\n\n**Practical takeaway**\n- If you must prevent an unsafe response from being delivered, put a guardrail-style check in your own code path [S13].\n- Use Signals to monitor agent turns after the fact [S1][S12].\n\n**Limits of what I read**\n- The guardrails page doesn't mention Signals or agent turns. I didn't establish how to wire guardrails into an agent-turn setup, so I haven't described that.\n- A separate page says the older Monitors approach is a previous one, and that new implementations should use Signals under Weave for Agents [S11]. I haven't established whether the guardrails guide has been updated for that workflow.\n- I read the Signals introduction and the remote scorer scoring sequence, not every Signals section.",
+        "source_ids": [
+          "S1",
+          "S11",
+          "S12",
+          "S13"
+        ]
+      },
+      "result": {
+        "passed": true,
+        "claims": [
+          {
+            "text": "In the pages read, Signals score and tag agent turns and don't block anything; blocking must be done by the agent's own code.",
+            "kind": "product",
+            "source_ids": [
+              "S1",
+              "S12",
+              "S13"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "The Signals tab shows tags and ratings for agent conversations, surfacing quality and safety issues.",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "A turn is scored after it ends: a root span ending emits weave.genai.turn_ended, a scoring worker applies matching signals and writes the result as feedback on the turn (remote scorer page; extension to other Signals labeled as inference).",
+            "kind": "product",
+            "source_ids": [
+              "S12"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Weave guardrails are a separate feature using inline Weave Scorers to assess input/output and adjust responses in real time; they require code changes, unlike monitors; they run before outputs reach users and can block or modify responses when scores exceed thresholds.",
+            "kind": "product",
+            "source_ids": [
+              "S13"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "Recommendation: put a guardrail-style check in your own code path to prevent unsafe responses; use Signals for after-the-fact monitoring.",
+            "kind": "product",
+            "source_ids": [
+              "S13",
+              "S1",
+              "S12"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "The older Monitors approach is a previous one and new implementations should use Signals under Weave for Agents.",
+            "kind": "product",
+            "source_ids": [
+              "S11"
+            ],
+            "status": "supported",
+            "supported": true
+          },
+          {
+            "text": "I found no Signals documentation describing a blocking mode; I read only the Signals intro and the remote scorer scoring sequence.",
+            "kind": "research_process",
+            "source_ids": [],
+            "status": "supported",
+            "supported": true
+          }
+        ],
+        "issues": [],
+        "coverage": [],
+        "mode": "support",
+        "status": "passed"
+      },
+      "origin": "provider_tool_call"
+    }
+  ],
+  "conversation_id": "4ffc454e-0b19-4fde-87d9-527ee0ab4ec9",
+  "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/4ffc454e-0b19-4fde-87d9-527ee0ab4ec9",
+  "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+  "source_sha256": "8a16ba4102168b02f87c7d86585ee4c7bd84dad3156caf734efef4dbf37fd46f",
+  "prompt_sha256": "0baa54aafc1ded14ced046eac5298b772b4e9a4da26163ac5d283257d0c0c337",
+  "config_sha256": "49cc7734a6df29a6067960601a6c8e4540ed2253038ea047df999a07cfc3400b",
+  "verify_mode": "support",
+  "cache_enabled": true,
+  "trace_id": "bed54f937f4b07a686ab41008f3d9840",
+  "model": "claude-sonnet-5-5",
+  "elapsed_seconds": 42.88,
+  "planner_usage": {
+    "input_tokens": 14,
+    "output_tokens": 2306
+  },
+  "metrics": {
+    "calls": [
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgSJBT6M2MoMKfFzzH4Jw",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 956
+          },
+          "cache_creation_input_tokens": 956,
+          "cache_read_input_tokens": 2472,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 206,
+          "output_tokens_details": {
+            "thinking_tokens": 42
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.1863,
+        "estimated_usd": 0.0047052
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgSJBc1cy32KhjfkznrQw",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 7858
+          },
+          "cache_creation_input_tokens": 7858,
+          "cache_read_input_tokens": 3428,
+          "inference_geo": "global",
+          "input_tokens": 2,
+          "output_tokens": 333,
+          "output_tokens_details": {
+            "thinking_tokens": 89
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.9175,
+        "estimated_usd": 0.0233218
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgSJBpZvR9HoGXoeaQij3",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 4237
+          },
+          "cache_creation_input_tokens": 4237,
+          "cache_read_input_tokens": 11286,
+          "inference_geo": "global",
+          "input_tokens": 2,
+          "output_tokens": 839,
+          "output_tokens_details": {
+            "thinking_tokens": 197
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 7.0947,
+        "estimated_usd": 0.0201151
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgSJCLy2B4KM9eKuPqCAZ",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 6577
+          },
+          "cache_creation_input_tokens": 6577,
+          "cache_read_input_tokens": 2368,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 1972,
+          "output_tokens_details": {
+            "thinking_tokens": 1100
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 14.2012,
+        "estimated_usd": 0.0364073
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgSJDPf26vFMu7PDhbaDU",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 1803
+          },
+          "cache_creation_input_tokens": 1803,
+          "cache_read_input_tokens": 15523,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 137,
+          "output_tokens_details": {
+            "thinking_tokens": 56
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 1.8734,
+        "estimated_usd": 0.0074378
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgSJDY8WptHCREy2TRUXR",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 1558
+          },
+          "cache_creation_input_tokens": 1558,
+          "cache_read_input_tokens": 17326,
+          "inference_geo": "global",
+          "input_tokens": 2,
+          "output_tokens": 791,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 5.6231,
+        "estimated_usd": 0.0135416
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgSJDweNYSGpb9dL9Aad9",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 8125
+          },
+          "cache_creation_input_tokens": 8125,
+          "cache_read_input_tokens": 2368,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 1282,
+          "output_tokens_details": {
+            "thinking_tokens": 616
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 8.9509,
+        "estimated_usd": 0.0333773
+      }
+    ],
+    "model_calls": 7,
+    "tokens": {
+      "input_tokens": 22,
+      "output_tokens": 5560,
+      "cache_creation_input_tokens": 31114,
+      "cache_read_input_tokens": 54771
+    },
+    "total_input_tokens": 85907,
+    "estimated_usd": 0.1389061,
+    "known_estimated_usd": 0.1389061,
+    "unpriced_calls": 0,
+    "by_purpose": {
+      "planner": {
+        "calls": 5,
+        "known_estimated_usd": 0.0691215
+      },
+      "verification": {
+        "calls": 2,
+        "known_estimated_usd": 0.0697846
+      }
+    },
+    "research": {
+      "searches": 3,
+      "passage_reads": 4,
+      "distinct_pages_read": 4,
+      "repeated_tool_requests": 0,
+      "drafts_submitted": 2,
+      "code_runs": 0
+    },
+    "pricing": {
+      "checked_at": "2026-10-25",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": {
+        "claude-sonnet-5-5": {
+          "input": 2,
+          "output": 10,
+          "write_5m": 2.5,
+          "write_1h": 4,
+          "read": 0.1
+        },
+        "claude-opus-5-5": {
+          "input": 4,
+          "output": 20,
+          "write_5m": 5,
+          "write_1h": 8,
+          "read": 0.2
+        }
+      }
+    },
+    "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+  },
+  "error_type": null,
+  "recovery_attempted": false,
+  "recovered_partial": false
+}
