@@ -9,17 +9,22 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import re
+import stat
 import time
+import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 DESTINATION = ROOT / "data" / "docs"
+SNAPSHOT_ARCHIVE = DESTINATION / "weave-snapshot-4db7c17b2869.zip"
+SNAPSHOT_ARCHIVE_SHA256 = "7318af47f0f6ea37a51084a6d2b7dd76c3131786fe1ae90c64d88e285fcbf0e1"
 INDEXES = [
     "https://docs.coreweave.com/_llms/en/forge/weights-and-biases.txt",
     "https://docs.coreweave.com/_llms/en/forge/weights-and-biases/reference.txt",
@@ -78,6 +83,55 @@ def reference_sdk_metadata(pages: list[dict], directory: Path = DESTINATION) -> 
     }
 
 
+def restore_locked_weave(pages: list[dict]) -> None:
+    """Restore exact bundled bytes, validating everything before writing any page.
+
+    The archive contains only regular files at manifest-approved paths. Reading
+    members explicitly avoids archive extraction, links and traversal semantics.
+    """
+    if not pages:
+        return
+    if DESTINATION.is_symlink():
+        raise ValueError("Snapshot destination must not be a symlink: data/docs")
+    archive_bytes = SNAPSHOT_ARCHIVE.read_bytes()
+    if hashlib.sha256(archive_bytes).hexdigest() != SNAPSHOT_ARCHIVE_SHA256:
+        raise ValueError("Bundled snapshot checksum mismatch; restore the committed archive.")
+    expected = {page["file"]: page for page in pages}
+    verified = []
+    with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+        members = archive.infolist()
+        if len(members) != len(expected) or {member.filename for member in members} != set(
+            expected
+        ):
+            raise ValueError("Bundled snapshot members do not match the committed manifest.")
+        for member in members:
+            name = member.filename
+            relative = PurePosixPath(name)
+            if (
+                len(relative.parts) != 2
+                or relative.parts[0] != "weave"
+                or relative.name in (".", "..")
+                or "\\" in name
+                or not stat.S_ISREG(member.external_attr >> 16)
+            ):
+                raise ValueError(f"Unsafe bundled snapshot member: {name}")
+            page = expected[name]
+            if member.file_size != page["bytes"]:
+                raise ValueError(f"Bundled snapshot size mismatch: {name}")
+            content = archive.read(member)
+            if hashlib.sha256(content).hexdigest() != page["sha256"]:
+                raise ValueError(f"Bundled snapshot page hash mismatch: {name}")
+            target = DESTINATION / name
+            if target.parent.is_symlink() or target.is_symlink():
+                raise ValueError(f"Snapshot destination must not be a symlink: {name}")
+            verified.append((target, content))
+    for target, content in verified:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists() or target.read_bytes() != content:
+            target.write_bytes(content)
+    print(f"Restored/checked {len(verified)} bundled Weave pages (offline).", flush=True)
+
+
 def snapshot(refresh: bool = False, locked: bool = False, weave_only: bool = False) -> dict:
     DESTINATION.mkdir(parents=True, exist_ok=True)
     manifest_path = DESTINATION / "manifest.json"
@@ -111,6 +165,10 @@ def snapshot(refresh: bool = False, locked: bool = False, weave_only: bool = Fal
         indexes = previous["indexes"]
     if weave_only:
         requested = {url: item for url, item in requested.items() if item["collection"] == "weave"}
+    if locked:
+        restore_locked_weave(
+            [existing[url] for url, item in requested.items() if item["collection"] == "weave"]
+        )
     pages, failures = [], []
 
     def download(item: dict) -> dict:
@@ -181,7 +239,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--refresh", action="store_true", help="Fetch a new snapshot of all pages.")
     parser.add_argument(
-        "--locked", action="store_true", help="Restore the committed snapshot; reject changes."
+        "--locked", action="store_true", help="Restore bundled Weave pages offline; reject changes."
     )
     parser.add_argument(
         "--weave-only", action="store_true", help="Only fetch the agent's Weave corpus."
