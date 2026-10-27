@@ -572,15 +572,16 @@ class Agent:
         system = VERIFY_SYSTEM + (COVERAGE_SYSTEM if mode == "support+coverage" else SUPPORT_SYSTEM)
         if recovery:
             system += RECOVERY_SYSTEM
+        verifier_model = self.config.judge_model if recovery else self.config.agent_model
         with weave.start_subagent(
-            name="source_verifier", model=self.config.agent_model, system_instructions=[system]
+            name="source_verifier", model=verifier_model, system_instructions=[system]
         ) as verifier:
             verifier.input_messages = [weave.Message(role="user", content=json.dumps(payload))]
             verifier.set_attributes(
                 {"coreweaving.verify_mode": mode, "coreweaving.partial_answer_recheck": recovery}
             )
             response = self.llm.call(
-                model=self.config.agent_model,
+                model=verifier_model,
                 system=system,
                 messages=[{"role": "user", "content": json.dumps(payload)}],
                 tools=[VERDICT_TOOL],

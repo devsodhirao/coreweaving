@@ -35,7 +35,7 @@ st.markdown(
 [data-testid=stChatMessage] p {line-height:1.65}
 [data-testid=stChatMessage] li {line-height:1.65;margin-bottom:.45rem}
 [data-testid=stChatMessage] h2,[data-testid=stChatMessage] h3 {margin-top:1.2rem}
-[data-testid=stCaptionContainer] {color:#52655c}
+[data-testid=stCaptionContainer] p {color:#52655c!important}
 button:focus-visible,a:focus-visible,textarea:focus-visible {
     outline:3px solid #236953!important;outline-offset:3px!important}
 [data-testid=stButton] button,[data-testid=stPopover] button {min-height:44px}

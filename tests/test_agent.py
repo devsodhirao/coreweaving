@@ -195,7 +195,17 @@ def test_batched_drafts_cannot_spend_past_the_repair_budget(corpus, monkeypatch,
 
 
 @pytest.mark.parametrize("recheck_passes", [True, False, "empty_claims"])
-def test_partial_recovery_requires_its_own_full_check(corpus, recheck_passes):
+def test_partial_recovery_requires_its_own_full_check(corpus, recheck_passes, monkeypatch):
+    import weave
+
+    subagent_models = []
+    original = weave.start_subagent
+
+    def capture(**kwargs):
+        subagent_models.append(kwargs["model"])
+        return original(**kwargs)
+
+    monkeypatch.setattr("coreweaving.agent.weave.start_subagent", capture)
     rejected = response(
         (
             "record_verdict",
@@ -224,7 +234,13 @@ def test_partial_recovery_requires_its_own_full_check(corpus, recheck_passes):
     )
     recheck_passes = recheck_passes is True
     fake = FakeModel([response(READ, ANSWER), rejected, recheck])
-    result = Agent(corpus, Settings(project="test/test", max_steps=1), fake).run("Explain setup.")
+    config = Settings(
+        project="test/test",
+        max_steps=1,
+        agent_model="planner-fixture",
+        judge_model="recovery-fixture",
+    )
+    result = Agent(corpus, config, fake).run("Explain setup.")
     assert result["recovery_attempted"]
     assert result["recovered_partial"] is recheck_passes
     assert result["kind"] == "insufficient"  # Never pretend the whole task was completed.
@@ -233,6 +249,12 @@ def test_partial_recovery_requires_its_own_full_check(corpus, recheck_passes):
     assert "guarantees perfect answers" not in result["answer"]
     assert ("Partial answer" in result["answer"]) is recheck_passes
     assert [r["purpose"] for r in fake.requests] == ["planner", "verification", "verification"]
+    assert [r["model"] for r in fake.requests] == [
+        config.agent_model,
+        config.agent_model,
+        config.judge_model,
+    ]
+    assert subagent_models == [config.agent_model, config.judge_model]
     payload = json.loads(fake.requests[-1]["messages"][0]["content"])
     assert "guarantees perfect answers" not in payload["candidate"]["answer"]
     assert payload["candidate"]["source_ids"] == ["S1"]
