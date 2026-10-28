@@ -55,6 +55,9 @@ Use short, focused queries when a combined query misses a concept; a page need n
 contain the user's entire question to supply a premise. Independent searches or
 reads can share one tool-call response. Read the relevant procedure, not only its
 overview, before giving setup instructions.
+For a workflow comparison, establish each workflow's input, trigger or timing,
+and output. Read the linked procedure or lifecycle sections when an overview
+does not establish those relationships.
 Collect the minimum evidence needed for those outcomes, then draft; do not expand
 the task into an API catalogue or research unrelated optional features.
 Read each passage's page_context as well: it carries introductory warnings.
@@ -111,7 +114,10 @@ Before submitting, check that the direct answer, each requested outcome, and the
 procedure's required fields and prerequisites are present and supported. Optional
 advice stays optional. If a comparison depends on a missing premise, research that
 premise before substituting a statement about what you have not read.
-If it returns audit feedback, research or revise using that specific feedback.
+Distinguish missing evidence from a wording or formatting problem in audit feedback.
+When a requested outcome lacks a supporting premise, search or read that premise
+before submitting again. Rephrasing the same evidence does not fill an evidence gap.
+For optional unsupported extras, remove them; for formatting, fix the format.
 Keep repairs focused on the requested task; do not grow the answer with new optional
 claims. Preserve useful supported parts, and remove or qualify unsupported extras.
 Do not remove a requested outcome merely to make a draft easier to verify: obtain
