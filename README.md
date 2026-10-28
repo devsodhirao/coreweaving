@@ -16,7 +16,7 @@ A conversational assistant for **complex Weave documentation questions**. It cho
 | New Weave agent tracing | Each turn starts a trace containing model, tool and verifier-subagent spans; conversations group turns. | [Agent-trace reconciliation](results/task-completion-repair-v1/backend-retry.json) |
 | Online Signals | [`signals.setup`](src/coreweaving/signals.py) monitors completed turns from this agent. | [Current filter controls](results/task-completion-repair-v1/signal-live-readback.json) and [live feedback](results/task-completion-repair-v1/backend-budget.json) |
 | Evaluation and LLM judge | [`DocumentationModel` / `QualityJudge`](src/coreweaving/evaluate.py), regression and capability datasets. | [Results below](#evaluation-and-verification) · [Why each test belongs](docs/EVALUATION_DESIGN.md) |
-| Public, runnable submission | Local web UI or terminal; bundled documentation restores offline. | [Fresh-clone check](results/task-completion-repair-v1/fresh-setup-retry.json) · [Earlier anonymous access check](results/brief-e2e-v1/publication.json) |
+| Public, runnable submission | Local web UI or terminal; bundled documentation restores offline. | [Fresh-clone check](results/task-completion-repair-v1/fresh-setup-retry.json) · [Anonymous access check](results/task-completion-repair-v1/publication.json) |
 
 ## Run locally
 
