@@ -1,8 +1,10 @@
 """UI reruns must never turn conversation history into another paid request."""
 
 from concurrent.futures import Future
+from copy import deepcopy
 from types import SimpleNamespace
 
+import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
@@ -453,7 +455,8 @@ def test_chat_and_library_images_become_text_without_losing_code_or_links(monkey
         st.cache_resource.clear()
 
 
-def test_partial_answer_keeps_unresolved_question_visible_without_new_calls(monkeypatch):
+@pytest.mark.parametrize("grouped", [False, True])
+def test_partial_answer_keeps_unresolved_question_visible_without_new_calls(monkeypatch, grouped):
     def unexpected_agent(*args, **kwargs):
         raise AssertionError("Inspecting task checks must not call the agent.")
 
@@ -470,22 +473,46 @@ def test_partial_answer_keeps_unresolved_question_visible_without_new_calls(monk
         "description": "Explain when the workflow runs.",
         "request_quote": "when",
     }
+    outcomes = [outcome]
+    if grouped:
+
+        def workflow(subject, facet):
+            return {
+                "id": f"{subject}.{facet}",
+                "description": f"Identify the {facet} for {subject}.",
+                "request_quote": subject,
+                "workflow_subject": subject,
+                "facet": facet,
+            }
+
+        outcomes = [
+            workflow("Signals", "output"),
+            outcome,
+            workflow("Signals", "execution_trigger"),
+            workflow("Evaluations", "input"),
+            workflow("Signals", "input"),
+            workflow("Evaluations", "output"),
+            {"id": "O2", "description": "Explain the setup prerequisites."},
+            workflow("Inference", "cost"),  # Unknown facets retain their description.
+        ]
+    original_outcomes = deepcopy(outcomes)
     result = {
         "answer_id": "task-partial",
         "answer": "The documented role is established, but timing remains unresolved.",
         "kind": "insufficient",
         "recovered_partial": True,
-        "task_plan": [outcome],
+        "task_plan": outcomes,
         "task_complete": False,
-        "missing_outcomes": [outcome],
+        "missing_outcomes": outcomes,
         "outcome_assessments": [
             {
-                "outcome_id": "O1",
+                "outcome_id": item["id"],
                 "status": "uncertain",
                 "answer_quote": "timing remains unresolved",
                 "reason": "The read passage does not establish timing.",
                 "source_ids": [],
             }
+            for item in outcomes
         ],
         "verification": {"passed": True, "issues": []},
         "verification_attempts": [],
@@ -504,10 +531,27 @@ def test_partial_answer_keeps_unresolved_question_visible_without_new_calls(monk
         assert any("Still unresolved:" in item.value for item in app.markdown)
         assert any("Explain when the workflow runs." in item.value for item in app.markdown)
         assert any("Checked facts · answer incomplete" in item.value for item in app.caption)
+        if grouped:
+            summary = next(item.value for item in app.markdown if "Still unresolved:" in item.value)
+            assert summary.splitlines() == [
+                "**Still unresolved:**",
+                "- Signals: what it uses, when it runs, what it produces",
+                "- Explain when the workflow runs.",
+                "- Evaluations: what it uses, what it produces",
+            ]
+            assert any("2 more unresolved parts" in item.value for item in app.caption)
+            assert not any("Identify the" in item.value for item in app.markdown)
+            assert not any("setup prerequisites" in item.value for item in app.markdown)
         app.button(key="analysis_task-partial").click().run()
         assert not app.exception
         assert any(item.label == "Did it answer your question?" for item in app.expander)
         assert any("Needs evidence:" in item.value for item in app.markdown)
         assert any("does not establish timing" in item.value for item in app.markdown)
+        assert all(
+            any(item["description"] in rendered.value for rendered in app.markdown)
+            for item in original_outcomes
+        )
+        assert result["missing_outcomes"] == original_outcomes
+        assert result["task_plan"] == original_outcomes
     finally:
         st.cache_resource.clear()

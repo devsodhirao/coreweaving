@@ -155,6 +155,31 @@ def show_pending_turn():
     st.caption("Your question is running. You can browse saved answers while you wait.")
 
 
+def unresolved_groups(outcomes):
+    """Summarize workflow gaps while preserving ordinary requested outcomes."""
+    labels = {
+        "input": "what it uses",
+        "execution_trigger": "when it runs",
+        "output": "what it produces",
+    }
+    groups, workflows = [], {}
+    for item in outcomes:
+        subject, facet = item.get("workflow_subject"), item.get("facet")
+        if not subject or facet not in labels:
+            groups.append(item["description"])
+            continue
+        key = subject.casefold()
+        if key not in workflows:
+            workflows[key] = (len(groups), subject, set())
+            groups.append("")
+        index, name, facets = workflows[key]
+        facets.add(facet)
+        groups[index] = (
+            name + ": " + ", ".join(label for key, label in labels.items() if key in facets)
+        )
+    return groups
+
+
 def show_result(result):
     """Show the answer first and link its saved data to the analysis dialog."""
     verification = result["verification"]
@@ -193,9 +218,13 @@ def show_result(result):
     else:
         show_markdown(result["answer"])
     if missing := result.get("missing_outcomes"):
-        show_markdown(
-            "**Still unresolved:**\n" + "\n".join(f"- {item['description']}" for item in missing)
-        )
+        groups = unresolved_groups(missing)
+        show_markdown("**Still unresolved:**\n" + "\n".join(f"- {group}" for group in groups[:3]))
+        if len(groups) > 3:
+            st.caption(
+                f"{len(groups) - 3} more unresolved parts. "
+                "Open Sources & analysis below for all details."
+            )
     if status == "not_run":
         st.warning("Verification was disabled for this experimental run.")
     source_label = (
@@ -239,9 +268,7 @@ def show_analysis(result):
     st.caption("Documents read, source checks and usage for this answer.")
     st.link_button("Open this conversation in Weave ↗", result["trace_url"])
     if plan := result.get("task_plan"):
-        assessments = {
-            item["outcome_id"]: item for item in result.get("outcome_assessments", [])
-        }
+        assessments = {item["outcome_id"]: item for item in result.get("outcome_assessments", [])}
         with st.expander("Did it answer your question?"):
             st.caption(
                 "These requested outcomes were set before research and kept through revisions. "
