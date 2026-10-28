@@ -1347,6 +1347,9 @@ class Agent:
         full_recheck_attempted = False
         full_answer_rechecked = False
         full_recheck_candidate = None
+        truncation_retried = False
+        planner_token_limit = 2400
+        planner_output_exhausted = False
         task_plan = ()
         released = False
         # 2. Keep every model/tool operation inside one traced conversation turn.
@@ -1416,13 +1419,31 @@ class Agent:
                             if research_open
                             else [tool for tool in TOOLS if tool["name"] == "submit_answer"],
                             purpose="planner",
+                            max_tokens=planner_token_limit,
                             cache_enabled=self.config.cache_enabled,
                         )
+                        planner_token_limit = 2400
                         response = redact_sensitive(response)
                         for key in usage:
                             usage[key] += response["usage"].get(key, 0)
                         if response["stop_reason"] == "max_tokens":
-                            # Never accept a truncated message or execute a partial tool input.
+                            # Discard the whole message: even apparently complete tool
+                            # blocks in a truncated response must not execute. One fresh
+                            # attempt may use the next existing planning slot.
+                            if not truncation_retried and remaining_planning_calls > 1:
+                                truncation_retried = True
+                                planner_token_limit = 4800
+                                messages.append(
+                                    {
+                                        "role": "user",
+                                        "content": "The previous response reached its output limit "
+                                        "and was discarded; no tool call from it ran. Produce a "
+                                        "fresh, concise, complete response for the fixed task using "
+                                        "the available evidence. Do not continue the discarded response.",
+                                    }
+                                )
+                                continue
+                            planner_output_exhausted = True
                             break
                         messages.append({"role": "assistant", "content": response["content"]})
                         calls = [b for b in response["content"] if b["type"] == "tool_use"]
@@ -1638,7 +1659,10 @@ class Agent:
                             released = True
                     if not answer:
                         answer = (
-                            "I reached this turn's research limit without a draft passing all "
+                            "This turn stopped after a planner response exceeded its output "
+                            "limit. No truncated tool call or answer was used."
+                            if planner_output_exhausted
+                            else "I reached this turn's research limit without a draft passing all "
                             "checks. Research may be incomplete, or the verifier may have rejected "
                             "a useful draft; this does not establish that the docs lack an answer. "
                             "Inspect the trace for the stopping reason."
@@ -1646,7 +1670,11 @@ class Agent:
                         verdict = Verification(
                             passed=False,
                             mode=self.config.verify_mode,
-                            issues=["Research or repair budget exhausted."],
+                            issues=[
+                                "Planner output limit exhausted."
+                                if planner_output_exhausted
+                                else "Research or repair budget exhausted."
+                            ],
                         )
                 except Exception as exc:
                     # Keep operational failures visible; do not substitute a confident answer.

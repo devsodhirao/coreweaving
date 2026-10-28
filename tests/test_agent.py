@@ -310,7 +310,7 @@ def test_truncated_cited_prose_never_reaches_normalization(corpus):
     fake = FakeModel(
         [response(READ), prose_response(ANSWER[1]["answer"], stop_reason="max_tokens")]
     )
-    result = Agent(corpus, Settings(project="test/test"), fake).run("Initialize.")
+    result = Agent(corpus, Settings(project="test/test", max_steps=3), fake).run("Initialize.")
     assert result["kind"] == "insufficient"
     assert len(fake.requests) == 2
     assert [action["tool"] for action in result["actions"]] == ["read_page"]
@@ -3100,3 +3100,82 @@ def test_later_bad_citation_does_not_erase_candidate_awaiting_strict_full_rechec
     assert not result["verification_attempts"][1]["full_recheck_eligible"]
     assert result["verification_attempts"][-1]["candidate"] == ANSWER[1]
     assert [call["purpose"] for call in fake.requests].count("verification") == 2
+
+
+@pytest.mark.parametrize("supported", [True, False])
+def test_truncated_planner_retries_once_without_executing_partial_tools(
+    corpus, monkeypatch, supported
+):
+    monkeypatch.setattr(
+        "coreweaving.agent.run_python", lambda **kw: pytest.fail("Truncated tools must not run.")
+    )
+    truncated = response(("run_python", {"code": "print('discard this')"}), ANSWER)
+    truncated["stop_reason"] = "max_tokens"
+    truncated["content"][0]["id"] = "truncated-never-executed"
+    truncated["content"][1]["input"] = {}  # The captured provider failure had empty draft args.
+    truncated["usage"] = {"input_tokens": 7, "output_tokens": 2400}
+    retry = response(ANSWER)
+    retry["usage"] = {"input_tokens": 11, "output_tokens": 600}
+    audit_result = contract_verdict(scope="supported" if supported else "unsupported")
+    fake = FakeModel([response(READ), truncated, retry, audit_result], protocol_defaults=False)
+    result = Agent(corpus, Settings(project="test/test", max_steps=4, max_revisions=0), fake).run(
+        "Initialize."
+    )
+    planners = [call for call in fake.requests if call["purpose"] == "planner"]
+    assert [call["max_tokens"] for call in planners] == [2400, 2400, 4800]
+    assert [tool["name"] for tool in planners[-1]["tools"]] == ["submit_answer"]
+    assert "truncated-never-executed" not in json.dumps(planners[-1]["messages"])
+    assert "fresh, concise, complete response" in json.dumps(planners[-1]["messages"])
+    assert [action["tool"] for action in result["actions"]] == ["read_page", "submit_answer"]
+    assert len(result["verification_attempts"]) == 1
+    assert result["verification"]["passed"] is supported
+    assert result["task_complete"] is supported
+    assert result["kind"] == ("answer" if supported else "insufficient")
+    assert result["error_type"] is None
+    assert result["metrics"]["model_calls"] == 5  # Plan, three planners, normal audit.
+    assert result["metrics"]["tokens"]["output_tokens"] == 3000
+    assert result["metrics"]["tokens"]["input_tokens"] == 18
+    audit_payload = json.loads(fake.requests[-1]["messages"][0]["content"])
+    assert audit_payload["task_plan"] == result["task_plan"]
+
+
+def test_larger_planner_cap_applies_only_to_the_one_retry(corpus):
+    truncated = prose_response("unfinished", stop_reason="max_tokens")
+    fake = FakeModel([truncated, response(READ), response(ANSWER), verdict()])
+    result = Agent(corpus, Settings(project="test/test", max_steps=4), fake).run("Initialize.")
+    assert result["verification"]["passed"]
+    planners = [call for call in fake.requests if call["purpose"] == "planner"]
+    assert [call["max_tokens"] for call in planners] == [2400, 4800, 2400]
+
+
+@pytest.mark.parametrize("intervening_complete_response", [False, True])
+def test_second_planner_truncation_stops_even_with_unused_planning_slots(
+    corpus, intervening_complete_response
+):
+    truncated = prose_response("unfinished", stop_reason="max_tokens")
+    responses = [truncated]
+    if intervening_complete_response:
+        responses.append(response(READ))
+    responses.append(truncated)
+    fake = FakeModel(responses)
+    result = Agent(corpus, Settings(project="test/test", max_steps=10), fake).run("Initialize.")
+    assert result["kind"] == "insufficient" and result["error_type"] is None
+    assert "output limit" in result["answer"]
+    assert result["verification"]["issues"] == ["Planner output limit exhausted."]
+    assert result["verification_attempts"] == []
+    assert len(fake.requests) == (3 if intervening_complete_response else 2)
+    assert [call["max_tokens"] for call in fake.requests] == (
+        [2400, 4800, 2400] if intervening_complete_response else [2400, 4800]
+    )
+
+
+def test_planner_truncation_in_final_slot_never_extends_the_call_budget(corpus):
+    truncated = response(READ, ANSWER)
+    truncated["stop_reason"] = "max_tokens"
+    fake = FakeModel([truncated])
+    result = Agent(corpus, Settings(project="test/test", max_steps=2), fake).run("Initialize.")
+    assert len(fake.plan_requests) == len(fake.requests) == 1
+    assert fake.requests[0]["max_tokens"] == 2400
+    assert result["actions"] == result["verification_attempts"] == []
+    assert result["kind"] == "insufficient" and result["error_type"] is None
+    assert "output limit" in result["answer"]
