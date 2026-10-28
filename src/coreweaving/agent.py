@@ -464,19 +464,25 @@ def live_verdict_schema() -> dict:
 
 
 def parse_live_verdict(value: dict) -> Verification:
-    """Validate required live fields before adapting to the persisted receipt."""
+    """Validate known audit fields, ignoring forward-compatible annotations.
+
+    Unknown observational fields never become receipt data or actions. Typed
+    research requests retain strict validation; application-owned mode/text
+    cannot be supplied through an annotation.
+    """
     schema = VERDICT_TOOL["input_schema"]
 
-    def require_fields(item, shape):
-        if not isinstance(item, dict) or set(item) != set(shape["required"]):
-            raise ValueError("Live verdict must contain exactly its required audit fields.")
+    def select_fields(item, shape):
+        required = shape["required"]
+        if not isinstance(item, dict) or not set(required).issubset(item):
+            raise ValueError("Live verdict must contain all its required audit fields.")
+        return {key: item[key] for key in required}
 
-    require_fields(value, schema)
+    value = select_fields(value, schema)
     for key, definition in (("claims", "Claim"), ("outcome_assessments", "OutcomeAssessment")):
         if not isinstance(value[key], list):
             raise ValueError("Live audit checks must be lists.")
-        for item in value[key]:
-            require_fields(item, schema["$defs"][definition])
+        value[key] = [select_fields(item, schema["$defs"][definition]) for item in value[key]]
     return Verification.model_validate(
         {
             **value,

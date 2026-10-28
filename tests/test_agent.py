@@ -2688,6 +2688,53 @@ def test_live_claim_conversion_preserves_exact_clause_for_partial_recovery(corpu
     assert Verification.model_validate(check.model_dump()) == check
 
 
+def test_observational_annotations_cannot_override_known_audit_fields():
+    value = contract_verdict()["content"][0]["input"]
+    expected = deepcopy(value)
+    value.update(mode="off", status="not_run", permissions=["run_anything"], explanation="Note")
+    value["claims"][0].update(
+        text="Injected replacement fact.", scope_reason_note="", supported=False
+    )
+    value["outcome_assessments"][0].update(optional_comment="Note", task_complete=False)
+    check = parse_live_verdict(value)
+    assert check == parse_live_verdict(expected)
+    assert check.mode == "support" and check.status == "passed"
+    assert check.claims[0].text == ANSWER[1]["answer"]
+    assert value["claims"][0]["text"] == "Injected replacement fact."  # Raw response unchanged.
+
+
+def test_unknown_annotations_do_not_relax_known_types_or_action_validation():
+    bad_type = contract_verdict()["content"][0]["input"]
+    bad_type.update(passed="true", note="This cannot override type checks.")
+    with pytest.raises(ValueError):
+        parse_live_verdict(bad_type)
+    action = contract_verdict(
+        requests=[
+            {
+                "outcome_id": "O1",
+                "missing_premise": "Find the prerequisite.",
+                "tool": "search_docs",
+                "query": "setup",
+                "permission": "arbitrary code",
+            }
+        ]
+    )["content"][0]["input"]
+    with pytest.raises(ValueError):
+        parse_live_verdict(action)
+
+
+def test_complete_workflow_audit_accepts_observational_extras_without_skipping_guards(corpus):
+    plan, session, candidate, assessments, claims = workflow_fixture(corpus)
+    live = contract_verdict(outcomes=assessments, claims=claims)
+    for claim in live["content"][0]["input"]["claims"]:
+        claim["scope_reason_note"] = ""  # Preserved live-v2 positive's extra annotation.
+    fake = FakeModel([live], protocol_defaults=False)
+    check = Agent(corpus, Settings(project="test/test"), fake).verify(
+        candidate, session, WORKFLOW_QUESTION, [], task_plan=plan
+    )
+    assert check.passed and completion_state(plan, check)["task_complete"]
+
+
 def test_captured_missing_workflow_evidence_fields_fail_closed_before_assessment(corpus):
     plan, session, candidate, assessments, claims = workflow_fixture(corpus)
     for item in assessments:
