@@ -247,8 +247,8 @@ def test_rejected_prose_gets_plain_feedback_then_a_real_tool_repair(corpus, mode
     result = Agent(corpus, Settings(project="test/test", verify_mode=mode), fake).run("Initialize.")
     assert result["answer"] == ANSWER[1]["answer"]
     assert [check["passed"] for check in result["verification_attempts"]] == [False, True]
-    assert snapshots[-1][-2] == {"role": "assistant", "content": draft["content"]}
-    feedback = snapshots[-1][-1]
+    assert snapshots[-1][-3] == {"role": "assistant", "content": draft["content"]}
+    feedback = snapshots[-1][-2]
     assert feedback["role"] == "user" and isinstance(feedback["content"], str)
     assert "Source verification feedback" in feedback["content"]
     assert '"passed": false' in feedback["content"]
@@ -317,14 +317,12 @@ def test_truncated_cited_prose_never_reaches_normalization(corpus):
     assert result["verification_attempts"] == []
 
 
-@pytest.mark.parametrize("max_tools,max_revisions", [(2, 10), (10, 0)])
-def test_normalized_drafts_consume_existing_tool_and_repair_limits(
-    corpus, max_tools, max_revisions
-):
+@pytest.mark.parametrize("max_steps,max_revisions", [(3, 10), (10, 0)])
+def test_normalized_drafts_respect_planning_and_revision_limits(corpus, max_steps, max_revisions):
     fake = FakeModel([response(READ), prose_response("Unknown evidence. [C1]")])
     result = Agent(
         corpus,
-        Settings(project="test/test", max_tools=max_tools, max_revisions=max_revisions),
+        Settings(project="test/test", max_steps=max_steps, max_revisions=max_revisions),
         fake,
     ).run("Initialize.")
     assert result["kind"] == "insufficient"
@@ -639,7 +637,8 @@ def test_partial_recovery_requires_its_own_full_check(corpus, recheck_passes, mo
     fake = FakeModel([response(READ, ANSWER), rejected, recheck])
     config = Settings(
         project="test/test",
-        max_steps=2,
+        max_steps=3,
+        max_revisions=0,
         agent_model="planner-fixture",
         judge_model="recovery-fixture",
     )
@@ -1107,7 +1106,9 @@ def test_coverage_includes_prior_cited_evidence_but_not_unrelated_old_reads(corp
 def test_material_coverage_gaps_fail_even_if_model_says_pass(corpus, gap):
     fake = FakeModel([response(READ, ANSWER), audit(coverage=[obligation(gap, ["S1"])])])
     result = Agent(
-        corpus, Settings(project="test/test", verify_mode="support+coverage", max_steps=2), fake
+        corpus,
+        Settings(project="test/test", verify_mode="support+coverage", max_steps=3, max_revisions=0),
+        fake,
     ).run("Explain all necessary setup.")
     assert result["verification_attempts"][0]["passed"] is False
     assert result["kind"] == "insufficient"
@@ -1118,10 +1119,14 @@ def test_material_coverage_gaps_fail_even_if_model_says_pass(corpus, gap):
 def test_missing_or_invented_coverage_evidence_cannot_pass(corpus, coverage):
     fake = FakeModel([response(READ, ANSWER), audit(coverage=coverage)])
     result = Agent(
-        corpus, Settings(project="test/test", verify_mode="support+coverage", max_steps=2), fake
+        corpus,
+        Settings(project="test/test", verify_mode="support+coverage", max_steps=3, max_revisions=0),
+        fake,
     ).run("Explain initialization.")
     assert result["verification_attempts"][0]["passed"] is False
     assert result["kind"] == "insufficient"
+    assert result["error_type"] is None
+    assert not result["full_recheck_attempted"]
 
 
 def test_coverage_can_accept_a_focused_clarification_without_product_claims(corpus):
@@ -1162,7 +1167,9 @@ def test_coverage_can_accept_a_focused_clarification_without_product_claims(corp
 )
 def test_malformed_verdict_is_recorded_and_never_releases_the_draft(corpus, payload):
     fake = FakeModel([response(READ, ANSWER), response(("record_verdict", payload))])
-    result = Agent(corpus, Settings(project="test/test", max_steps=2), fake).run("Initialize it.")
+    result = Agent(corpus, Settings(project="test/test", max_steps=3, max_revisions=0), fake).run(
+        "Initialize it."
+    )
     assert result["kind"] == "insufficient"
     assert result["verification_attempts"][0]["passed"] is False
     assert "invalid or incomplete" in result["verification_attempts"][0]["issues"][0]
@@ -1172,7 +1179,9 @@ def test_truncated_verdict_is_not_accepted(corpus):
     truncated = audit()
     truncated["stop_reason"] = "max_tokens"
     fake = FakeModel([response(READ, ANSWER), truncated])
-    result = Agent(corpus, Settings(project="test/test", max_steps=2), fake).run("Initialize it.")
+    result = Agent(corpus, Settings(project="test/test", max_steps=3, max_revisions=0), fake).run(
+        "Initialize it."
+    )
     assert result["verification_attempts"][0]["passed"] is False
     assert result["kind"] == "insufficient"
 
@@ -1183,8 +1192,10 @@ def test_caught_tool_error_is_recorded_on_tool_span(corpus, monkeypatch):
         "weave.conversation.conversation.Tool.record_error",
         lambda self, error: errors.append(error) or self,
     )
-    fake = FakeModel([response(("read_page", {"page_id": "invented-page", "section": 0}))])
-    result = Agent(corpus, Settings(project="test/test", max_steps=2), fake).run("Read a page.")
+    fake = FakeModel(
+        [response(("read_page", {"page_id": "invented-page", "section": 0})), prose_response("")]
+    )
+    result = Agent(corpus, Settings(project="test/test", max_steps=3), fake).run("Read a page.")
     assert len(errors) == 1
     assert isinstance(errors[0], RuntimeError)
     assert str(errors[0]).startswith("ValueError:")
@@ -1957,8 +1968,8 @@ def test_verifier_research_runs_before_next_planner_with_honest_origin_and_proto
     assert "tool_call_id" not in starts[2]
     assert attributes[2] == {"coreweaving.tool_origin": "verifier_repair"}
     assert transcripts[-1][-1]["role"] == "user"
-    assert "Application research requested by the verifier" in transcripts[-1][-1]["content"]
-    actual_results = transcripts[-1][-2]["content"]
+    assert "Application research requested by the verifier" in transcripts[-1][-2]["content"]
+    actual_results = transcripts[-1][-3]["content"]
     assert {r["tool_use_id"] for r in actual_results} == {"call-0", "call-1"}
     assert result["metrics"]["research"]["passage_reads"] == 2
     assert "outgoing_links" in repair["result"]
@@ -2007,23 +2018,29 @@ def test_repair_requests_are_limited_to_two_and_cannot_change_tool_arguments():
         ResearchRequest(**request, page_id="extra")
 
 
-@pytest.mark.parametrize("budget,expected_repairs", [(2, 0), (3, 1), (4, 2)])
-def test_verifier_repairs_share_existing_tool_budget(corpus, budget, expected_repairs):
+@pytest.mark.parametrize("budget,expected_repairs", [(1, 0), (2, 1), (3, 2)])
+def test_verifier_repairs_share_research_budget_without_charging_submissions(
+    corpus, budget, expected_repairs
+):
     requests = [
         {"outcome_id": "O1", "missing_premise": "Timing", "tool": "search_docs", "query": query}
         for query in ("turn completed", "signal trigger")
     ]
     rejected = contract_verdict(outcomes=[assessment("missing", quote="")], requests=requests)
-    # Fresh partial recheck still records the task as missing; no further planner call fits.
+    # The final planner call may draft, then a fresh partial recheck retains the missing task.
     recovery = contract_verdict(outcomes=[assessment("missing", quote="")])
-    fake = FakeModel([response(READ, ANSWER), rejected, recovery], protocol_defaults=True)
-    result = Agent(corpus, Settings(project="test/test", max_steps=2, max_tools=budget), fake).run(
+    fake = FakeModel(
+        [response(READ, ANSWER), rejected, prose_response("Still incomplete."), recovery],
+        protocol_defaults=True,
+    )
+    result = Agent(corpus, Settings(project="test/test", max_steps=3, max_tools=budget), fake).run(
         "Question"
     )
     assert (
         len([a for a in result["actions"] if a["origin"] == "verifier_repair"]) == expected_repairs
     )
-    assert len(result["actions"]) <= budget
+    assert sum(action["tool"] != "submit_answer" for action in result["actions"]) <= budget
+    assert result["metrics"]["research"]["drafts_submitted"] == 1
     assert len(fake.plan_requests) == 1
 
 
@@ -2034,7 +2051,9 @@ def test_partial_recovery_retains_missing_task_outcome_and_fresh_support_check(c
     for block in recovery["content"]:
         block["input"]["claims"][0].pop("answer_quote")
     fake = FakeModel([response(READ, ANSWER), rejected, recovery])
-    result = Agent(corpus, Settings(project="test/test", max_steps=2), fake).run("Question")
+    result = Agent(corpus, Settings(project="test/test", max_steps=3, max_revisions=0), fake).run(
+        "Question"
+    )
     assert result["recovered_partial"] and result["verification"]["passed"]
     assert not result["task_complete"] and result["completion_status"] == "partial"
     assert result["missing_outcomes"][0]["id"] == "O1"
@@ -2089,7 +2108,9 @@ def test_partial_recovery_never_appends_unchecked_task_text_to_verified_answer(c
     recovery = contract_verdict(outcomes=[assessment("missing", quote="")])
     recovery["content"][0]["input"]["claims"][0].pop("answer_quote")
     fake = FakeModel([response(READ, ANSWER), rejected, recovery], plan=plan)
-    result = Agent(corpus, Settings(project="test/test", max_steps=2), fake).run(question)
+    result = Agent(corpus, Settings(project="test/test", max_steps=3, max_revisions=0), fake).run(
+        question
+    )
     assert result["verification"]["passed"] and result["recovered_partial"]
     assert result["missing_outcomes"][0]["description"] == "Explain [S999]."
     assert result["answer"] == result["verification_attempts"][-1]["candidate"]["answer"]
@@ -2468,7 +2489,9 @@ def test_focused_property_question_keeps_ordinary_outcomes_without_new_evidence_
         plan=task_response(question),
         protocol_defaults=False,
     )
-    result = Agent(corpus, Settings(project="test/test", max_steps=2), fake).run(question)
+    result = Agent(corpus, Settings(project="test/test", max_steps=3, max_revisions=0), fake).run(
+        question
+    )
     assert result["task_complete"] and result["verification"]["passed"]
     assert result["task_plan"][0]["facet"] is None
     assert result["verification"]["outcome_assessments"][0]["evidence_quotes"] == []
@@ -2775,3 +2798,305 @@ def test_verdict_delivery_headroom_scales_only_with_frozen_workflow_facets(
         Candidate(**ANSWER[1]), session, "Question", [], task_plan=plan
     )
     assert fake.requests[0]["max_tokens"] == expected
+
+
+@pytest.mark.parametrize("research_calls", [17, 18])
+def test_research_limit_leaves_room_for_a_verified_rewrite(corpus, research_calls):
+    # Captured failure shape: many reads, one rejected draft, but unused planning
+    # and revision capacity. Submissions must not consume research dispatches.
+    fake = FakeModel(
+        [
+            response(*([READ] * research_calls), ANSWER),
+            verdict(False),
+            response(ANSWER),
+            verdict(),
+        ]
+    )
+    result = Agent(corpus, Settings(project="test/test", max_steps=3, max_tools=18), fake).run(
+        "Initialize."
+    )
+    assert result["answer"] == ANSWER[1]["answer"] and result["task_complete"]
+    assert [item["passed"] for item in result["verification_attempts"]] == [False, True]
+    assert not result["recovery_attempted"] and result["error_type"] is None
+    assert result["metrics"]["research"]["passage_reads"] == research_calls
+    assert result["metrics"]["research"]["drafts_submitted"] == 2
+    planners = [call for call in fake.requests if call["purpose"] == "planner"]
+    assert len(planners) == 2 and len(fake.plan_requests) == 1
+    assert [tool["name"] for tool in planners[-1]["tools"]] == ["submit_answer"]
+    state = [
+        message["content"]
+        for message in planners[-1]["messages"]
+        if isinstance(message["content"], str)
+        and message["content"].startswith("Application-owned remaining budget:")
+    ][-1]
+    budget = json.loads(state.split("\n", 1)[0].split(": ", 1)[1])
+    assert budget == {
+        "planning_calls_including_this": 1,
+        "research_dispatches": 18 - research_calls,
+        "draft_attempts": 2,
+        "research_open": False,
+    }
+
+
+def test_excess_batched_and_verifier_research_are_denied_but_revision_can_pass(corpus, monkeypatch):
+    monkeypatch.setattr(corpus, "search", lambda **kw: pytest.fail("No research slot remains."))
+    requested = {
+        "outcome_id": "O1",
+        "missing_premise": "Check timing.",
+        "tool": "search_docs",
+        "query": "timing",
+    }
+    rejected = contract_verdict(outcomes=[assessment("missing", quote="")], requests=[requested])
+    fake = FakeModel(
+        [
+            response(READ, ("search_docs", {"query": "must be denied"}), ANSWER),
+            rejected,
+            response(ANSWER),
+            contract_verdict(),
+        ],
+        protocol_defaults=False,
+    )
+    result = Agent(corpus, Settings(project="test/test", max_steps=3, max_tools=1), fake).run(
+        "Question"
+    )
+    assert result["task_complete"] and result["verification"]["passed"]
+    assert result["actions"][1]["result"]["error"].startswith("Research is closed")
+    assert result["verification_attempts"][0]["research_requests"][0]["outcome_id"] == "O1"
+    assert not any(action["origin"] == "verifier_repair" for action in result["actions"])
+    assert len([action for action in result["actions"] if action["tool"] == "submit_answer"]) == 2
+
+
+def test_failed_research_dispatch_consumes_a_slot_and_denied_calls_do_not_execute(
+    corpus, monkeypatch
+):
+    dispatched = []
+
+    def fail_read(**arguments):
+        dispatched.append(arguments)
+        raise ValueError("Missing page")
+
+    monkeypatch.setattr(corpus, "read", fail_read)
+    fake = FakeModel([response(READ, READ), prose_response("Still incomplete.")])
+    result = Agent(corpus, Settings(project="test/test", max_steps=3, max_tools=1), fake).run(
+        "Read."
+    )
+    assert len(dispatched) == 1
+    assert result["actions"][0]["result"] == {"error": "Missing page"}
+    assert result["actions"][1]["result"]["error"].startswith("Research is closed")
+    assert result["kind"] == "insufficient" and result["error_type"] is None
+
+
+@pytest.mark.parametrize("kind", ["answer", "clarification", "insufficient"])
+def test_final_planner_call_only_offers_submission_even_with_research_capacity(
+    corpus, monkeypatch, kind
+):
+    monkeypatch.setattr(corpus, "search", lambda **kw: pytest.fail("Last call is for the draft."))
+    draft = {**ANSWER[1], "kind": kind}
+    check = verdict()
+    if kind == "clarification":
+        draft = {"answer": "Which language do you use?", "kind": kind, "source_ids": []}
+        check = contract_verdict(
+            claims=[], outcomes=[assessment("clarification", quote=draft["answer"])]
+        )
+    fake = FakeModel(
+        [
+            response(READ),
+            response(("search_docs", {"query": "unneeded"}), ("submit_answer", draft)),
+            check,
+        ]
+    )
+    result = Agent(corpus, Settings(project="test/test", max_steps=3), fake).run("Question")
+    assert result["kind"] == kind and result["verification"]["passed"]
+    planners = [call for call in fake.requests if call["purpose"] == "planner"]
+    assert len(planners[0]["tools"]) == 4
+    assert [tool["name"] for tool in planners[-1]["tools"]] == ["submit_answer"]
+    assert result["actions"][1]["result"]["error"].startswith("Research is closed")
+
+
+def test_last_call_skips_unused_research_but_preserves_fresh_partial_recheck(corpus, monkeypatch):
+    monkeypatch.setattr(
+        corpus, "search", lambda **kw: pytest.fail("No planner call can use a new read.")
+    )
+    request = {
+        "outcome_id": "O1",
+        "missing_premise": "Check timing.",
+        "tool": "search_docs",
+        "query": "timing",
+    }
+    gap = [assessment("missing", quote="")]
+    fake = FakeModel(
+        [
+            response(ANSWER),
+            contract_verdict(outcomes=gap, requests=[request]),
+            contract_verdict(outcomes=gap),
+        ]
+    )
+    session = Session()
+    session.add_passage(corpus.read(**READ[1]))
+    result = Agent(corpus, Settings(project="test/test", max_steps=2), fake).run(
+        "Question", session
+    )
+    assert result["recovered_partial"] and not result["task_complete"]
+    assert len(result["actions"]) == 1 and result["actions"][0]["tool"] == "submit_answer"
+    assert result["verification_attempts"][-1]["recovery"]
+    assert [call["purpose"] for call in fake.requests] == [
+        "planner",
+        "verification",
+        "verification",
+    ]
+
+
+def test_denied_research_cannot_exceed_planning_limit_or_release_uncited_facts(corpus, monkeypatch):
+    monkeypatch.setattr(corpus, "search", lambda **kw: pytest.fail("Research budget is zero."))
+    fake = FakeModel([response(("search_docs", {"query": "blocked"}))] * 9)
+    result = Agent(corpus, Settings(project="test/test", max_steps=10, max_tools=0), fake).run(
+        "Question"
+    )
+    assert len(fake.plan_requests) == 1 and len(fake.requests) == 9
+    assert result["kind"] == "insufficient" and not result["verification"]["passed"]
+    assert result["source_ids"] == [] and result["error_type"] is None
+    assert all(
+        action["result"]["error"].startswith("Research is closed") for action in result["actions"]
+    )
+
+
+def record_only_failure():
+    check = contract_verdict()
+    check["content"][0]["input"]["claims"][0]["source_ids"] = ["S1", "S2"]
+    return check
+
+
+@pytest.mark.parametrize(
+    "final_outcome", ["pass", "missing_outcome", "uncited_source", "unsupported_scope"]
+)
+def test_record_only_failure_reuses_one_strict_full_answer_judge_call(
+    corpus, monkeypatch, final_outcome
+):
+    attributes = []
+    monkeypatch.setattr(
+        "weave.conversation.conversation.SubAgent.set_attributes",
+        lambda self, values: attributes.append(values) or self,
+    )
+    final = contract_verdict()
+    if final_outcome == "missing_outcome":
+        final = contract_verdict(outcomes=[assessment("missing", quote="")])
+    elif final_outcome == "uncited_source":
+        final = record_only_failure()
+    elif final_outcome == "unsupported_scope":
+        final = contract_verdict(scope="unsupported")
+    fake = FakeModel(
+        [response(READ, ANSWER), record_only_failure(), final], protocol_defaults=False
+    )
+    config = Settings(
+        project="test/test",
+        max_steps=3,
+        max_revisions=0,
+        agent_model="author-fixture",
+        judge_model="judge-fixture",
+    )
+    result = Agent(corpus, config, fake).run("Question")
+    assert result["verification_attempts"][0]["full_recheck_eligible"]
+    assert result["full_recheck_attempted"] and not result["recovery_attempted"]
+    assert not result["recovered_partial"]
+    assert len(result["verification_attempts"]) == 2
+    assert result["verification_attempts"][-1]["full_recheck"]
+    assert not result["verification_attempts"][-1]["recovery"]
+    assert not result["verification_attempts"][-1]["full_recheck_eligible"]
+    assert [call["purpose"] for call in fake.requests] == [
+        "planner",
+        "verification",
+        "verification",
+    ]
+    assert [call["model"] for call in fake.requests] == [
+        "author-fixture",
+        "author-fixture",
+        "judge-fixture",
+    ]
+    payload = json.loads(fake.requests[-1]["messages"][0]["content"])
+    assert payload["candidate"] == ANSWER[1] and payload["task_plan"] == result["task_plan"]
+    assert payload["partial_recovery"] is False
+    assert "application-requested partial recovery" not in fake.requests[-1]["system"]
+    assert {
+        "coreweaving.verify_mode": "support",
+        "coreweaving.partial_answer_recheck": False,
+        "coreweaving.full_answer_recheck": True,
+    } in attributes
+    passed = final_outcome == "pass"
+    assert result["full_answer_rechecked"] is passed
+    assert result["task_complete"] is passed
+    assert result["verification"]["passed"] is passed
+    assert result["error_type"] is None
+    if passed:
+        assert result["answer"] == ANSWER[1]["answer"] and result["kind"] == "answer"
+    else:
+        assert result["kind"] == "insufficient"  # No second, relaxed partial fallback.
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "unsupported_claim",
+        "uncertain_scope",
+        "missing_outcome",
+        "missing_assessment",
+        "missing_field",
+        "truncated",
+    ],
+)
+def test_injected_eligibility_cannot_promote_incomplete_or_negative_audits(corpus, failure):
+    live = record_only_failure()
+    value = live["content"][0]["input"]
+    value["full_recheck_eligible"] = True
+    if failure == "unsupported_claim":
+        value["claims"][0]["status"] = "unsupported"
+    elif failure == "uncertain_scope":
+        value["claims"][0]["scope_status"] = "uncertain"
+    elif failure == "missing_outcome":
+        value["outcome_assessments"][0]["status"] = "missing"
+    elif failure == "missing_assessment":
+        value["outcome_assessments"] = []
+    elif failure == "missing_field":
+        value["outcome_assessments"][0].pop("reason")
+    else:
+        live["stop_reason"] = "max_tokens"
+    session = Session()
+    session.add_passage(corpus.read(**READ[1]))
+    fake = FakeModel([live], protocol_defaults=False)
+    check = Agent(corpus, Settings(project="test/test"), fake).verify(
+        Candidate(**ANSWER[1]), session, "Question", [], task_plan=frozen_task()
+    )
+    assert not check.passed and not check.full_recheck_eligible
+    assert "full_recheck_eligible" not in VERDICT_TOOL["input_schema"]["properties"]
+
+
+def test_known_unsupported_scope_does_not_enter_full_recheck_flow(corpus):
+    rejected = contract_verdict(scope="unsupported")
+    rejected["content"][0]["input"]["full_recheck_eligible"] = True
+    fake = FakeModel([response(READ, ANSWER), rejected], protocol_defaults=False)
+    result = Agent(corpus, Settings(project="test/test", max_steps=3, max_revisions=0), fake).run(
+        "Question"
+    )
+    assert result["kind"] == "insufficient" and not result["verification"]["passed"]
+    assert not result["full_recheck_attempted"] and not result["recovery_attempted"]
+    assert [call["purpose"] for call in fake.requests] == ["planner", "verification"]
+
+
+def test_later_bad_citation_does_not_erase_candidate_awaiting_strict_full_recheck(corpus):
+    malformed = {**ANSWER[1], "answer": "Unknown evidence. [S999]", "source_ids": ["S999"]}
+    fake = FakeModel(
+        [
+            response(READ, ANSWER),
+            record_only_failure(),
+            response(("submit_answer", malformed)),
+            contract_verdict(),
+        ],
+        protocol_defaults=False,
+    )
+    result = Agent(corpus, Settings(project="test/test", max_steps=3, max_revisions=1), fake).run(
+        "Question"
+    )
+    assert result["full_answer_rechecked"] and result["answer"] == ANSWER[1]["answer"]
+    assert [check["passed"] for check in result["verification_attempts"]] == [False, False, True]
+    assert not result["verification_attempts"][1]["full_recheck_eligible"]
+    assert result["verification_attempts"][-1]["candidate"] == ANSWER[1]
+    assert [call["purpose"] for call in fake.requests].count("verification") == 2

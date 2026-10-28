@@ -425,6 +425,8 @@ class Verification(BaseModel):
     outcome_assessments: list[OutcomeAssessment] = Field(default_factory=list)
     research_requests: list[ResearchRequest] = Field(default_factory=list, max_length=2)
     mode: VerifyMode = "support"
+    # Application-owned: a complete positive audit failed only record checks.
+    full_recheck_eligible: StrictBool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -455,6 +457,7 @@ def live_verdict_schema() -> dict:
     """Require live audit fields while retaining defaults for historical readers."""
     schema = Verification.model_json_schema()
     schema["properties"].pop("mode")  # The application selects the mode.
+    schema["properties"].pop("full_recheck_eligible")
     schema["$defs"]["Claim"]["properties"].pop("text")
     for item in (schema, schema["$defs"]["Claim"], schema["$defs"]["OutcomeAssessment"]):
         item["required"] = list(item["properties"])
@@ -931,6 +934,7 @@ class Agent:
         actions: list[dict],
         *,
         recovery: bool = False,
+        full_recheck: bool = False,
         task_plan: tuple[TaskOutcome, ...] | None = None,
     ) -> Verification:
         """Validate citations, ask a separate auditor, then enforce its verdict.
@@ -990,7 +994,9 @@ class Agent:
         system = VERIFY_SYSTEM + (COVERAGE_SYSTEM if mode == "support+coverage" else SUPPORT_SYSTEM)
         if recovery:
             system += RECOVERY_SYSTEM
-        verifier_model = self.config.judge_model if recovery else self.config.agent_model
+        verifier_model = (
+            self.config.judge_model if recovery or full_recheck else self.config.agent_model
+        )
         # The provider's cap includes thinking. Anchored workflow facets need
         # additional delivery headroom; ordinary audits retain their prior cap.
         facet_count = sum(item.facet is not None for item in task_plan or ())
@@ -1000,7 +1006,11 @@ class Agent:
         ) as verifier:
             verifier.input_messages = [weave.Message(role="user", content=json.dumps(payload))]
             verifier.set_attributes(
-                {"coreweaving.verify_mode": mode, "coreweaving.partial_answer_recheck": recovery}
+                {
+                    "coreweaving.verify_mode": mode,
+                    "coreweaving.partial_answer_recheck": recovery,
+                    "coreweaving.full_answer_recheck": full_recheck,
+                }
             )
             response = self.llm.call(
                 model=verifier_model,
@@ -1026,9 +1036,46 @@ class Agent:
                 verifier.record_error(safe_exception(exc))
                 verdict = failed("Verifier returned an invalid or incomplete verdict.")
             verdict.mode = mode
+            # Classify from typed assessments before record checks can downgrade
+            # them. Missing, truncated or semantically negative audits never
+            # qualify; an issue's prose is not an authority for this decision.
+            expected = {item.id: item for item in task_plan or ()}
+            assessed = [item.outcome_id for item in verdict.outcome_assessments]
+            semantic_positive = (
+                verdict.passed
+                and mode == "support"
+                and bool(expected)
+                and len(assessed) == len(expected)
+                and set(assessed) == set(expected)
+                and all(
+                    item.answer_quote
+                    and (
+                        item.status == "answered"
+                        or (
+                            item.status == "clarification"
+                            and expected[item.outcome_id].requires_clarification
+                            and candidate.kind == "clarification"
+                        )
+                    )
+                    and (expected[item.outcome_id].facet is None or item.evidence_quotes)
+                    for item in verdict.outcome_assessments
+                )
+                and (candidate.kind != "answer" or bool(verdict.claims))
+                and all(
+                    claim.status == "supported"
+                    and (
+                        claim.kind != "product"
+                        or (
+                            claim.answer_quote
+                            and claim.source_ids
+                            and claim.scope_status == "supported"
+                            and claim.scope_reason
+                        )
+                    )
+                    for claim in verdict.claims
+                )
+            )
             if task_plan is not None:
-                expected = {item.id: item for item in task_plan}
-                assessed = [item.outcome_id for item in verdict.outcome_assessments]
                 if not expected or len(assessed) != len(expected) or set(assessed) != set(expected):
                     verdict.passed = False
                     verdict.issues.append("Assess every frozen task outcome exactly once.")
@@ -1182,6 +1229,9 @@ class Agent:
             else:
                 # A support-only audit cannot claim to have measured coverage.
                 verdict.coverage = []
+            verdict.full_recheck_eligible = bool(
+                semantic_positive and not verdict.passed and not recovery and not full_recheck
+            )
             verifier.output_messages = [
                 weave.Message(role="assistant", content=verdict.model_dump_json())
             ]
@@ -1289,11 +1339,14 @@ class Agent:
             Verification(passed=False, mode=self.config.verify_mode),
         )
         released_source_ids = []
-        repairs, tool_count = 0, 0
+        repairs, research_count = 0, 0
         error_type = None
         recovery_attempted = False
         recovered_partial = False
         recovery_candidate = None
+        full_recheck_attempted = False
+        full_answer_rechecked = False
+        full_recheck_candidate = None
         task_plan = ()
         released = False
         # 2. Keep every model/tool operation inside one traced conversation turn.
@@ -1328,12 +1381,40 @@ class Agent:
                         )
                     # The initial task-planning call consumes one of the existing calls.
                     for step in range(max(0, self.config.max_steps - 1)):
-                        notify({"stage": "thinking", "detail": f"Research step {step + 1}"})
+                        remaining_planning_calls = self.config.max_steps - 1 - step
+                        research_open = (
+                            remaining_planning_calls > 1 and research_count < self.config.max_tools
+                        )
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": "Application-owned remaining budget: "
+                                + json.dumps(
+                                    {
+                                        "planning_calls_including_this": remaining_planning_calls,
+                                        "research_dispatches": max(
+                                            0, self.config.max_tools - research_count
+                                        ),
+                                        "draft_attempts": max(
+                                            0, self.config.max_revisions + 1 - repairs
+                                        ),
+                                        "research_open": research_open,
+                                    }
+                                )
+                                + "\nReserve time for verification and revision: draft before the "
+                                "last planning call when possible. If research is closed, submit or "
+                                "revise using evidence already read. State remaining limitations "
+                                "honestly; a budget limit does not prove the docs lack an answer.",
+                            }
+                        )
+                        notify({"stage": "thinking", "detail": f"Planning step {step + 1}"})
                         response = self.llm.call(
                             model=self.config.agent_model,
                             system=system,
                             messages=messages,
-                            tools=TOOLS,
+                            tools=TOOLS
+                            if research_open
+                            else [tool for tool in TOOLS if tool["name"] == "submit_answer"],
                             purpose="planner",
                             cache_enabled=self.config.cache_enabled,
                         )
@@ -1381,7 +1462,6 @@ class Agent:
                         results, accepted, pending_research = [], None, []
                         for call in calls:
                             name, arguments = call["name"], call["input"]
-                            tool_count += 1
                             notify({"stage": name, "detail": arguments})
                             span_arguments = {"name": name, "arguments": json.dumps(arguments)}
                             if not normalized_draft:
@@ -1389,9 +1469,7 @@ class Agent:
                             with weave.start_tool(**span_arguments) as span:
                                 span.set_attributes({"coreweaving.tool_origin": origin})
                                 try:
-                                    if tool_count > self.config.max_tools:
-                                        result = {"error": "Tool budget exhausted."}
-                                    elif repairs > self.config.max_revisions:
+                                    if repairs > self.config.max_revisions:
                                         # A response can queue several drafts or research tools.
                                         # Finish their results without spending beyond this turn's limit.
                                         result = {"error": "Repair budget exhausted."}
@@ -1424,8 +1502,19 @@ class Agent:
                                                 partial_candidate(verdict, session)
                                                 or recovery_candidate
                                             )
+                                            if verdict.full_recheck_eligible:
+                                                full_recheck_candidate = candidate
                                             pending_research.extend(verdict.research_requests)
+                                    elif name in ("search_docs", "read_page", "run_python") and (
+                                        remaining_planning_calls <= 1
+                                        or research_count >= self.config.max_tools
+                                    ):
+                                        result = {
+                                            "error": "Research is closed. Submit or revise using evidence already read."
+                                        }
                                     else:
+                                        if name in ("search_docs", "read_page", "run_python"):
+                                            research_count += 1
                                         result = self.execute(name, arguments, session)
                                 except (ValueError, TypeError, KeyError) as exc:
                                     span.record_error(safe_exception(exc))
@@ -1473,12 +1562,13 @@ class Agent:
                         repair_results = []
                         for request in pending_research:
                             if (
-                                tool_count >= self.config.max_tools
+                                research_count >= self.config.max_tools
+                                or remaining_planning_calls <= 1
                                 or repairs > self.config.max_revisions
                             ):
                                 break
                             arguments = request.arguments()
-                            tool_count += 1
+                            research_count += 1
                             notify({"stage": request.tool, "detail": arguments})
                             with weave.start_tool(
                                 name=request.tool, arguments=json.dumps(arguments)
@@ -1510,28 +1600,32 @@ class Agent:
                                     + json.dumps(repair_results),
                                 }
                             )
-                        if (
-                            repairs > self.config.max_revisions
-                            or tool_count >= self.config.max_tools
-                        ):
+                        if repairs > self.config.max_revisions:
                             break
-                    if not answer and recovery_candidate is not None:
-                        # Only support mode can propose this narrower answer. It
-                        # still needs a fresh strict check before any facts are shown.
-                        candidate = recovery_candidate
-                        recovery_attempted = True
+                    if not answer and (
+                        full_recheck_candidate is not None or recovery_candidate is not None
+                    ):
+                        # Spend the single terminal judge call on the complete
+                        # draft after a record-only failure, otherwise on the
+                        # existing partial proposal. A failed full recheck never
+                        # gets a second partial fallback or relaxed task checks.
+                        full_recheck_attempted = full_recheck_candidate is not None
+                        recovery_attempted = not full_recheck_attempted
+                        candidate = full_recheck_candidate or recovery_candidate
                         verdict = self.verify(
                             candidate,
                             session,
                             question,
                             actions,
-                            recovery=True,
+                            recovery=recovery_attempted,
+                            full_recheck=full_recheck_attempted,
                             task_plan=task_plan,
                         )
                         checks.append(
                             {
                                 "candidate": candidate.model_dump(),
-                                "recovery": True,
+                                "recovery": recovery_attempted,
+                                "full_recheck": full_recheck_attempted,
                                 **verdict.model_dump(),
                             }
                         )
@@ -1539,7 +1633,8 @@ class Agent:
                         if verdict.passed:
                             answer, kind = candidate.answer, candidate.kind
                             released_source_ids = candidate.source_ids
-                            recovered_partial = True
+                            recovered_partial = recovery_attempted
+                            full_answer_rechecked = full_recheck_attempted
                             released = True
                     if not answer:
                         answer = (
@@ -1585,6 +1680,7 @@ class Agent:
                         "coreweaving.verification_status": verdict.status,
                         "coreweaving.answer_kind": kind,
                         "coreweaving.recovered_partial": recovered_partial,
+                        "coreweaving.full_answer_rechecked": full_answer_rechecked,
                         "coreweaving.task_complete": completion["task_complete"],
                         "coreweaving.completion_status": completion["completion_status"],
                         "coreweaving.review_reason": reason,
@@ -1638,4 +1734,6 @@ class Agent:
             "error_type": error_type,
             "recovery_attempted": recovery_attempted,
             "recovered_partial": recovered_partial,
+            "full_recheck_attempted": full_recheck_attempted,
+            "full_answer_rechecked": full_answer_rechecked,
         }
