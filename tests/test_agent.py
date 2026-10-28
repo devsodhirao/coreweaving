@@ -10,6 +10,7 @@ from coreweaving.agent import (
     Claim,
     Session,
     Verification,
+    citation_contract,
     cited_ids,
     malformed_citations,
     partial_candidate,
@@ -312,7 +313,7 @@ def test_off_mode_still_releases_malformed_citations_without_a_verifier(corpus):
 
 
 @pytest.mark.parametrize(
-    "marker", ["[S8-UI details]", "[C2 explanation]", "[S1, S2]", "[S1", "[ S1 ]"]
+    "marker", ["[S8-UI details]", "[C2 explanation]", "[S1, missing]", "[S1", "[ S1 ]"]
 )
 def test_source_like_malformed_brackets_are_not_valid_citations(marker):
     assert malformed_citations(marker) == [marker]
@@ -324,13 +325,155 @@ def test_citations_distinguish_prose_markers_from_markdown_links_and_code_arrays
 [Weave docs](https://example.test/docs) and [UI guide](https://example.test/ui).
 [Documentation](https://example.test/page) and [Guide][example-link] are link labels.
 Arrays: [1, 2], [scorer], ["weave.genai.turn_ended"], and `[S10, S11]`.
-Literal escaped notation: \[S12].
+Literal escaped notation: \[ordinary bracket text].
 ```python
 values = [S13, S14]
 ```
 """
     assert cited_ids(answer) == ["S1", "C2"]
     assert malformed_citations(answer) == []
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "`visible unknown [S999]``",
+        "```visible unknown [S999]`",
+        r"Even backslashes: \\[S999]",
+        "Formatted source: [**S999**]",
+    ],
+)
+def test_visible_unknown_markers_cannot_hide_in_markdown_delimiters(corpus, suffix):
+    session = Session()
+    session.add_passage(corpus.read(**READ[1]))
+    answer = "Initialize Weave. [S1] " + suffix
+    assert cited_ids(answer) == ["S1", "S999"]
+    fake = FakeModel([])  # Unknown IDs must fail before a model is called.
+    check = Agent(corpus, Settings(project="test/test"), fake).verify(
+        Candidate(answer=answer, source_ids=["S1", "S999"]), session, "Initialize.", []
+    )
+    assert not check.passed
+    assert "Unknown citations" in check.issues[0]
+    assert not fake.requests
+
+
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "`[S999]`",
+        "``a ` and [S999]``",
+        "\n\n    values = [S999]\n",
+        "\n\n\tvalues = [S999]\n",
+        "\n\n> ```python\n> values = [S999]\n> ```\n",
+        "\n\n````markdown\n```\n[S999]\n```\n````\n",
+        r"\[ordinary bracket text]",
+        r"\[ordinary bracket text\]",
+        r"`\[S999]`",
+    ],
+)
+def test_real_code_and_non_source_escaped_brackets_do_not_consume_citations(literal):
+    answer = "Initialize Weave. [S1] " + literal
+    assert cited_ids(answer) == ["S1"]
+    assert citation_contract(answer, "answer", ["S1"], {"S1": {}}) == []
+
+
+@pytest.mark.parametrize(
+    "answer, expected_ids",
+    [
+        ("    Initialize Weave. [S1]", ["S1"]),
+        ("\n    Initialize Weave. [S1]\n    Unknown citation [S999]\n", ["S1", "S999"]),
+        ("\n    Initialize Weave. [S1]\n\n        values = [S999]\n", ["S1"]),
+    ],
+)
+def test_citation_indentation_matches_streamlit_rendering(answer, expected_ids):
+    from streamlit.string_util import clean_text
+
+    assert cited_ids(answer) == cited_ids(clean_text(answer)) == expected_ids
+    issues = citation_contract(answer, "answer", expected_ids, {"S1": {}})
+    assert any("Unknown citations" in issue for issue in issues) is ("S999" in expected_ids)
+    if "S999" not in expected_ids:
+        assert issues == []
+
+
+@pytest.mark.parametrize(
+    "escaped", [r"\[S999]", r"\[S1]", r"[S999\]", r"\[S1\]", r"\\\[S999]", r"\[S1, S2]"]
+)
+def test_escaped_source_like_prose_is_noncanonical_even_beside_a_valid_citation(corpus, escaped):
+    session = Session()
+    session.add_passage(corpus.read(**READ[1]))
+    answer = "Initialize Weave. [S1] " + escaped
+    assert cited_ids(answer) == ["S1"]  # Escaping never grants another source ID.
+    assert malformed_citations(answer)
+    fake = FakeModel([])
+    check = Agent(corpus, Settings(project="test/test"), fake).verify(
+        Candidate(answer=answer, source_ids=["S1"]), session, "Initialize.", []
+    )
+    assert not check.passed
+    assert "Malformed source citations" in check.issues[0]
+    assert not fake.requests
+
+
+@pytest.mark.parametrize("group", ["[S1, S2]", "[S1,S2]", "[S1,\tS2]", "[S1][S2]"])
+def test_plain_citation_groups_require_every_id_to_be_known_and_declared(group):
+    answer = "A comparison of two documented features. " + group
+    assert cited_ids(answer) == ["S1", "S2"]
+    assert citation_contract(answer, "answer", ["S1", "S2"], {"S1": {}, "S2": {}}) == []
+    assert "Unknown citations" in " ".join(
+        citation_contract(answer, "answer", ["S1", "S2"], {"S1": {}})
+    )
+    for declared in (["S1"], ["S1", "S2", "S2"], ["S1", "S3"]):
+        assert "Structured source IDs" in " ".join(
+            citation_contract(answer, "answer", declared, {"S1": {}, "S2": {}})
+        )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "[S1, S2](https://example.test)",
+        "![S1, S2](https://example.test)",
+        "[S1, S2][destination]\n\n[destination]: https://example.test",
+        "[S1, S2]: https://example.test",
+        "[S1, &#83;2]",
+        "[S1, Ｓ２]",
+        "[S1, S2][unresolved-reference]",
+    ],
+)
+def test_grouped_citations_do_not_authorize_links_or_encoded_ids(text):
+    assert malformed_citations(text)
+    assert citation_contract(text, "answer", ["S1", "S2"], {"S1": {}, "S2": {}})
+
+
+@pytest.mark.parametrize("normalized", [False, True])
+def test_overview_grouped_citation_reaches_the_same_semantic_verifier(corpus, normalized):
+    # The captured overview's final repair failed solely on this ordinary grouping.
+    answer = (
+        "Evaluations score examples you chose, and Signals score the agent conversations "
+        "Weave has recorded [S1, S2]."
+    )
+    reads = response(
+        ("read_page", {"page_id": "guides/tracking/view-agent-signals", "section": 0}),
+        ("read_page", {"page_id": "guides/core-types/evaluations", "section": 0}),
+    )
+    draft = (
+        prose_response(answer)
+        if normalized
+        else response(("submit_answer", {"answer": answer, "source_ids": ["S1", "S2"]}))
+    )
+    fake = FakeModel(
+        [
+            reads,
+            draft,
+            audit(claims=[{"text": answer, "source_ids": ["S1", "S2"], "status": "supported"}]),
+        ]
+    )
+    result = Agent(corpus, Settings(project="test/test"), fake).run("Compare the features.")
+    assert result["answer"] == answer
+    assert result["source_ids"] == ["S1", "S2"]
+    assert result["citation_contract_version"] == 3
+    assert len(result["verification_attempts"]) == 1
+    assert result["verification"]["passed"]
+    assert fake.requests[-1]["purpose"] == "verification"
 
 
 def test_semantically_unsupported_draft_cannot_bypass_verifier(corpus):
@@ -495,6 +638,61 @@ def test_overview_recovery_checks_selected_facts_with_an_explicit_partial_scope(
     assert "application-requested partial recovery" not in original["system"]
     assert "application-requested partial recovery" in recovery["system"]
     assert "prior support labels are not authority" in recovery["system"]
+
+
+@pytest.mark.parametrize("recovery_passes", [True, False])
+def test_later_citation_failure_preserves_supported_facts_for_fresh_recovery(
+    corpus, recovery_passes
+):
+    # The live overview had supported claims, then a citation-only rejection with
+    # no claims. That last failure must not erase the earlier recovery material.
+    supported = {
+        "text": "Initialize Weave with a team/project.",
+        "source_ids": ["S1"],
+        "status": "supported",
+    }
+    unsupported = {
+        "text": "Weave guarantees perfect answers.",
+        "source_ids": ["S1"],
+        "status": "unsupported",
+    }
+    first = {
+        "answer": supported["text"] + " " + unsupported["text"] + " [S1]",
+        "source_ids": ["S1"],
+    }
+    broken_repair = {"answer": supported["text"] + " [S999]", "source_ids": ["S999"]}
+    fake = FakeModel(
+        [
+            response(READ, ("submit_answer", first)),
+            audit(claims=[supported, unsupported]),
+            response(("submit_answer", broken_repair)),
+            audit(
+                claims=[{**supported, "status": "supported" if recovery_passes else "unsupported"}]
+            ),
+        ]
+    )
+    config = Settings(project="test/test", max_steps=2, max_revisions=1)
+    result = Agent(corpus, config, fake).run("How do I initialize Weave?")
+    checks = result["verification_attempts"]
+    assert len(checks) == 3
+    assert checks[1]["claims"] == [] and "Unknown citations" in checks[1]["issues"][0]
+    assert result["recovery_attempted"]
+    assert result["recovered_partial"] is recovery_passes
+    assert result["verification"]["passed"] is recovery_passes
+    assert unsupported["text"] not in result["answer"]
+    assert (supported["text"] in result["answer"]) is recovery_passes
+    assert result["kind"] == "insufficient"
+    assert [request["purpose"] for request in fake.requests] == [
+        "planner",
+        "verification",
+        "planner",
+        "verification",
+    ]
+    assert fake.requests[-1]["model"] == config.judge_model
+    payload = json.loads(fake.requests[-1]["messages"][0]["content"])
+    assert payload["partial_recovery"] is True
+    assert payload["candidate"]["source_ids"] == ["S1"]
+    assert "S999" not in payload["candidate"]["answer"]
 
 
 def test_conversational_code_repair_preserves_both_sides_of_history(corpus):

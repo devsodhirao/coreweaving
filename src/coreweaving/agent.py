@@ -15,9 +15,11 @@ import unicodedata
 import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
+from textwrap import dedent
 from typing import Annotated, Literal
 
 import weave
+from markdown_it import MarkdownIt
 from opentelemetry import trace as otel_trace
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, computed_field, model_validator
 
@@ -394,40 +396,79 @@ class Session:
         )
 
 
-# Deterministic checks: formatting/provenance before any model-based judgment.
-def _citation_prose(answer: str) -> str:
-    # Code is literal data. Source-like link labels remain visible to validation.
-    prose = re.sub(
-        r"(?ms)^ {0,3}`{3,}[^\n]*\n.*?^ {0,3}`{3,}[ \t]*(?:\n|$)"
-        r"|^ {0,3}~{3,}[^\n]*\n.*?^ {0,3}~{3,}[ \t]*(?:\n|$)",
-        "",
-        answer,
-    )
-    return re.sub(r"`+[^`]*`+", "", prose)
+# Keep escape/entity tokens distinct until citation validation has inspected them.
+_CITATION_MARKDOWN = MarkdownIt("commonmark", {"html": False}).disable("text_join")
+_CITATION_GROUP = r"\[[SC][1-9][0-9]*(?:,[ \t]*[SC][1-9][0-9]*)*\]"
 
 
 def citation_markers(answer: str) -> list[str]:
-    prose = _citation_prose(answer)
-    pattern = r"(?i)(?<!\\)\[[ \t]*[SC][ \t]*[0-9]+[^\]\[\n]*(?:\]|(?=[\[\n]|$))"
+    """Read visible Markdown citations, excluding actual code.
+
+    Plain citation groups expand to individual IDs. Links, images, reference
+    definitions and encoded/escaped source markers cannot impersonate citations.
+    """
+    pattern = r"(?i)\[[ \t]*[SC][ \t]*[0-9]+[^\]\[\n]*(?:\]|(?=[\[\n]|$))"
     markers = []
-    for match in re.finditer(pattern, prose):
-        marker = match.group()
-        tail = prose[match.end() :]
-        prefix = prose[prose.rfind("\n", 0, match.start()) + 1 : match.start()]
-        definition_start = re.fullmatch(r" {0,3}(?:>[ \t]*)*(?:(?:[-+*]|\d+[.)])[ \t]+)?", prefix)
-        if (
-            tail.startswith("(")
-            or re.match(r"\[(?![SC][1-9][0-9]*\])", tail)
-            or (definition_start and re.match(r"[ \t]*:", tail))
-        ):
-            marker += " (source markers cannot be links or definitions)"
-        if match.start() and prose[match.start() - 1] == "!":
-            marker += " (source markers cannot be images)"
-        markers.append(marker)
-    normalized = unicodedata.normalize("NFKC", html.unescape(prose))
-    raw_markers = re.findall(pattern, prose)
-    if re.findall(pattern, normalized) != raw_markers:
-        markers.append("Noncanonical encoded or Unicode source marker")
+
+    def scan(prose: str, *, link: bool = False):
+        for match in re.finditer(pattern, prose):
+            marker = match.group()
+            tail = prose[match.end() :]
+            prefix = prose[prose.rfind("\n", 0, match.start()) + 1 : match.start()]
+            # Also reject incomplete link/reference disguises that Markdown
+            # leaves as text. Adjacent plain citation groups remain valid.
+            if (
+                link
+                or tail.startswith("(")
+                or (tail.startswith("[") and not re.match(_CITATION_GROUP, tail))
+                or (not prefix.strip() and re.match(r"[ \t]*:", tail))
+                or (match.start() and prose[match.start() - 1] == "!")
+            ):
+                markers.append(marker + " (source markers cannot be links or definitions)")
+            elif re.fullmatch(_CITATION_GROUP, marker):
+                markers.extend(f"[{sid}]" for sid in re.findall(r"[SC][1-9][0-9]*", marker))
+            else:
+                markers.append(marker)
+        normalized = unicodedata.normalize("NFKC", html.unescape(prose))
+        if re.findall(pattern, normalized) != re.findall(pattern, prose):
+            markers.append("Noncanonical encoded, escaped or Unicode source marker")
+
+    environment = {}
+    # Streamlit clean_text dedents and strips the whole Markdown body before
+    # rendering. Preserve that boundary while retaining code indentation inside it.
+    for block in _CITATION_MARKDOWN.parse(dedent(answer).strip(), environment):
+        if block.type != "inline":
+            continue
+        prose, label = [], None
+        for token in block.children or []:
+            if token.type == "link_open":
+                scan("".join(prose))
+                prose, label = [], []
+            elif token.type == "link_close":
+                scan("[" + "".join(label or []) + "]", link=True)
+                label = None
+            elif label is not None:
+                label.append(token.content)
+            elif token.type == "image":
+                scan("".join(prose))
+                prose = []
+                scan("[" + token.content + "]", link=True)
+            elif token.type == "text":
+                prose.append(token.content)
+            elif token.type == "text_special":
+                if token.info == "entity":
+                    prose.append(token.markup)  # Preserve encoding for the canonicality check.
+                elif token.content in ("[", "]"):
+                    # Escaped brackets still look like citations when rendered.
+                    # Use the same canonicality check as encoded literal brackets.
+                    prose.append(f"&#{ord(token.content)};")
+                else:
+                    prose.append(token.content)
+            elif token.type in ("softbreak", "hardbreak", "code_inline"):
+                prose.append("\n")  # Neither code nor line breaks can join a citation.
+        scan("".join(prose))
+    for label in environment.get("references", {}):
+        scan("[" + label + "]", link=True)
     return markers
 
 
@@ -785,6 +826,7 @@ class Agent:
         error_type = None
         recovery_attempted = False
         recovered_partial = False
+        recovery_candidate = None
         # 2. Keep every model/tool operation inside one traced conversation turn.
         with weave.start_conversation(
             agent_name=AGENT_NAME,
@@ -887,6 +929,13 @@ class Agent:
                                             accepted = candidate
                                         else:
                                             repairs += 1
+                                            # A later formatting/schema failure has no audited
+                                            # claims. Keep the last supported proposal for a
+                                            # fresh check, never for automatic release.
+                                            recovery_candidate = (
+                                                partial_candidate(verdict, session)
+                                                or recovery_candidate
+                                            )
                                     else:
                                         result = self.execute(name, arguments, session)
                                 except (ValueError, TypeError, KeyError) as exc:
@@ -933,9 +982,10 @@ class Agent:
                             or tool_count >= self.config.max_tools
                         ):
                             break
-                    if not answer and checks and (candidate := partial_candidate(verdict, session)):
+                    if not answer and recovery_candidate is not None:
                         # Only support mode can propose this narrower answer. It
                         # still needs a fresh strict check before any facts are shown.
+                        candidate = recovery_candidate
                         recovery_attempted = True
                         verdict = self.verify(candidate, session, question, actions, recovery=True)
                         checks.append(
@@ -1004,7 +1054,7 @@ class Agent:
             "answer_id": str(uuid.uuid4()),
             "question": question,
             "source_ids": released_source_ids,
-            "citation_contract_version": 2,
+            "citation_contract_version": 3,
             "conversation_context": input_history,
             "answer": answer,
             "kind": kind,
