@@ -35,7 +35,7 @@ Choose manual spans or supported automatic instrumentation after inspecting what
 
 Record real provider call IDs only for provider-requested tools. Application-owned repairs or normalized drafts need an explicit origin rather than invented provider IDs. Capture actual outputs, exceptions and returned usage, including retries/verification where observable. Explain usage gaps instead of inventing charges.
 
-A successful initialization, flush, or UI screenshot is not backend delivery evidence. Read back the known IDs and compare the stored records with the local execution receipt. Check query pagination, sampling and truncation before calling a result exhaustive. An unavailable readback remains unverified.
+A successful initialization, flush, or UI screenshot is not backend delivery evidence. Read back the known IDs and compare the stored records with the local execution receipt. Stored fields may be SDK object references rather than inline values: preserve the reference, resolve it through the supported read API, and compare the resolved value at the same schema level before declaring a hash mismatch. An unresolved reference remains unverified. Check query pagination, sampling and truncation before calling a result exhaustive. An unavailable readback remains unverified.
 
 ## Evaluate and monitor proportionately
 
