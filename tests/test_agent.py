@@ -14,6 +14,7 @@ from coreweaving.agent import (
     Verification,
     citation_contract,
     cited_ids,
+    completion_state,
     malformed_citations,
     partial_candidate,
     quote_anchor,
@@ -1738,9 +1739,9 @@ def test_task_plan_is_first_question_only_frozen_and_metered(corpus):
         "previous_dialogue": history,
     }
     assert plan_call["required_tool"] == "record_task"
-    assert "inputs, timing and outputs" in plan_call["system"]
+    assert "input, execution_trigger and output" in plan_call["system"]
     assert result["task_plan"][0]["id"] == "O1"
-    assert result["verification_contract_version"] == 2
+    assert result["verification_contract_version"] == 3
     assert result["metrics"]["by_purpose"]["task_planning"]["calls"] == 1
     assert result["planner_usage"] == {"input_tokens": 12, "output_tokens": 7}
     assert result["task_complete"] and result["completion_status"] == "complete"
@@ -2303,3 +2304,272 @@ def test_omitted_citation_anchor_applies_to_claim_outcome_and_repair_target(corp
     assert agent.verify(candidate, session, "Question", [], task_plan=frozen_task()).passed
     check = agent.verify(candidate, session, "Question", [], task_plan=frozen_task())
     assert not check.passed and len(check.research_requests) == 1
+
+
+WORKFLOW_QUESTION = "How do capture, review, and monitoring fit together?"
+WORKFLOW_NAMES = ("capture", "review", "monitoring")
+
+
+def workflow_plan_response(question=WORKFLOW_QUESTION, names=WORKFLOW_NAMES):
+    return response(
+        (
+            "record_task",
+            {
+                "outcomes": [],
+                "workflow_subjects": [{"name": name, "request_quote": question} for name in names],
+            },
+        )
+    )
+
+
+def workflow_fixture(corpus):
+    # Synthetic read passages isolate protocol enforcement, not real-model
+    # relevance judgments. Each facet has a separate literal answer/evidence pair.
+    plan, _ = Agent(
+        corpus,
+        Settings(project="test/test"),
+        FakeModel([], plan=workflow_plan_response()),
+    ).plan_task(WORKFLOW_QUESTION, [])
+    session = Session()
+    statements = (
+        (
+            "Capture consumes requests.",
+            "Capture runs when a request starts.",
+            "Capture emits traces.",
+        ),
+        (
+            "Review consumes examples.",
+            "Review runs when explicitly invoked.",
+            "Review emits scores.",
+        ),
+        (
+            "Monitoring consumes finished turns.",
+            "Monitoring runs after each turn completes.",
+            "Monitoring emits labels.",
+        ),
+    )
+    assessments, lines = [], []
+    for index, subject in enumerate(WORKFLOW_NAMES, 1):
+        sid = f"S{index}"
+        session.evidence[sid] = {
+            "source_id": sid,
+            "page_id": subject,
+            "section": 0,
+            "url": f"https://docs.example.test/{subject}",
+            "text": " ".join(statements[index - 1]),
+            "page_context": "Documented lifecycle.",
+            "title": "Title-only claim.",
+            "outline": [{"section": 1, "heading": "Navigation-only claim."}],
+            "outgoing_links": [{"page_id": "elsewhere", "title": "Link-only claim."}],
+        }
+        for facet, statement in zip(
+            ("input", "execution_trigger", "output"), statements[index - 1], strict=True
+        ):
+            line = f"{statement} [{sid}]"
+            lines.append(line)
+            assessments.append(
+                {
+                    "outcome_id": f"W{index}.{facet}",
+                    "status": "answered",
+                    "answer_quote": line,
+                    "reason": "The requested facet is stated and grounded.",
+                    "source_ids": [sid],
+                    "evidence_quotes": [{"source_id": sid, "quote": statement}],
+                }
+            )
+    candidate = Candidate(answer="\n".join(lines), source_ids=["S1", "S2", "S3"])
+    claims = [
+        {
+            "text": item["answer_quote"],
+            "answer_quote": item["answer_quote"],
+            "source_ids": item["source_ids"],
+            "status": "supported",
+            "scope_status": "supported",
+            "scope_reason": "The synthetic read passage states this scope.",
+        }
+        for item in assessments
+    ]
+    return plan, session, candidate, assessments, claims
+
+
+def test_workflow_plan_expands_three_subjects_into_nine_frozen_facets(corpus):
+    fake = FakeModel([], plan=workflow_plan_response())
+    plan, _ = Agent(corpus, Settings(project="test/test"), fake).plan_task(WORKFLOW_QUESTION, [])
+    assert [item.id for item in plan] == [
+        f"W{index}.{facet}"
+        for index in range(1, 4)
+        for facet in ("input", "execution_trigger", "output")
+    ]
+    assert [item.workflow_subject for item in plan] == [
+        name for name in WORKFLOW_NAMES for _ in range(3)
+    ]
+    assert all(item.request_quote == WORKFLOW_QUESTION for item in plan)
+    assert all(not item.requires_clarification for item in plan)
+    assert "not merely configuration or activation" in plan[1].description
+    with pytest.raises(ValueError):
+        plan[0].facet = "output"
+    assert len(fake.plan_requests) == 1 and fake.requests == []
+
+
+def test_workflow_subjects_can_use_retained_names_but_need_a_user_request(corpus):
+    question = "How do those fit together?"
+    history = [{"role": "assistant", "content": "The options are capture and review."}]
+    fake = FakeModel([], plan=workflow_plan_response(question, ("capture", "review")))
+    plan, _ = Agent(corpus, Settings(project="test/test"), fake).plan_task(question, history)
+    assert len(plan) == 6
+    fake.plan["content"][0]["input"]["workflow_subjects"][0]["request_quote"] = history[0][
+        "content"
+    ]
+    with pytest.raises(ValueError, match="quote a user request"):
+        Agent(corpus, Settings(project="test/test"), fake).plan_task(question, history)
+
+
+@pytest.mark.parametrize("names", [("capture", "CAPTURE"), ("unrequested",), ("capture",) * 7])
+def test_workflow_subjects_reject_duplicate_unknown_or_excess_names(corpus, names):
+    fake = FakeModel([], plan=workflow_plan_response(names=names))
+    with pytest.raises(ValueError):
+        Agent(corpus, Settings(project="test/test"), fake).plan_task(WORKFLOW_QUESTION, [])
+
+
+def test_focused_property_question_keeps_ordinary_outcomes_without_new_evidence_fields(corpus):
+    question = "What project string should I pass to weave.init?"
+    fake = FakeModel(
+        [response(READ, ANSWER), contract_verdict()],
+        plan=task_response(question),
+        protocol_defaults=False,
+    )
+    result = Agent(corpus, Settings(project="test/test", max_steps=2), fake).run(question)
+    assert result["task_complete"] and result["verification"]["passed"]
+    assert result["task_plan"][0]["facet"] is None
+    assert result["verification"]["outcome_assessments"][0]["evidence_quotes"] == []
+    assert (
+        "specific difference does NOT request a whole workflow overview"
+        in fake.plan_requests[0]["system"]
+    )
+
+
+def test_all_nine_workflow_facets_allow_a_complete_answer_with_same_call_budgets(corpus):
+    plan, session, candidate, assessments, claims = workflow_fixture(corpus)
+    fake = FakeModel(
+        [
+            response(("submit_answer", candidate.model_dump())),
+            contract_verdict(outcomes=assessments, claims=claims),
+        ],
+        plan=workflow_plan_response(),
+        protocol_defaults=False,
+    )
+    result = Agent(corpus, Settings(project="test/test", max_steps=2), fake).run(
+        WORKFLOW_QUESTION, session
+    )
+    assert result["verification"]["passed"] and result["task_complete"]
+    assert result["missing_outcomes"] == [] and result["review_reason"] == "none"
+    assert result["task_plan"] == [item.model_dump() for item in plan]
+    assert result["verification_contract_version"] == 3
+    assert len(fake.plan_requests) == 1 and len(fake.requests) == 2
+    assert fake.requests[-1]["max_tokens"] == 4000
+
+
+def test_old_bundled_outcomes_and_tiny_trace_quote_cannot_cover_workflow_facets(corpus):
+    plan, session, _, _, claims = workflow_fixture(corpus)
+    # This is the captured shortcut: one bundled inputs/timing/outputs outcome
+    # was marked answered using only this prerequisite sentence.
+    old_quote = "Trace first. Signals work on agent turns. [S1]"
+    candidate = Candidate(answer=old_quote, source_ids=["S1"])
+    old_assessments = [assessment(quote=old_quote, outcome_id=f"O{i}") for i in (1, 2)]
+    claims = [{**claims[0], "answer_quote": old_quote, "text": old_quote}]
+    fake = FakeModel(
+        [contract_verdict(outcomes=old_assessments, claims=claims)], protocol_defaults=False
+    )
+    check = Agent(corpus, Settings(project="test/test"), fake).verify(
+        candidate, session, WORKFLOW_QUESTION, [], task_plan=plan
+    )
+    assert not check.passed and check.outcome_assessments == []
+    assert len(completion_state(plan, check)["missing_outcomes"]) == 9
+
+
+@pytest.mark.parametrize(
+    "bad_quotes",
+    [
+        [],
+        [{"source_id": "S999", "quote": "Capture consumes requests."}],
+        [{"source_id": "S2", "quote": "Review consumes examples."}],
+        [{"source_id": "S1", "quote": "Capture consumes every request."}],
+        [{"source_id": "S1", "quote": "Title-only claim."}],
+        [{"source_id": "S1", "quote": "Navigation-only claim."}],
+        [{"source_id": "S1", "quote": "Link-only claim."}],
+        [{"source_id": "C1", "quote": "Capture consumes requests."}],
+        [{"source_id": "S1", "quote": "Capture consumes requests."}] * 4,
+    ],
+)
+def test_workflow_completion_rejects_missing_nonliteral_or_navigation_evidence(corpus, bad_quotes):
+    plan, session, candidate, assessments, claims = workflow_fixture(corpus)
+    assessments[0]["evidence_quotes"] = bad_quotes
+    fake = FakeModel(
+        [contract_verdict(outcomes=assessments, claims=claims)], protocol_defaults=False
+    )
+    check = Agent(corpus, Settings(project="test/test"), fake).verify(
+        candidate, session, WORKFLOW_QUESTION, [], task_plan=plan
+    )
+    assert not check.passed and not completion_state(plan, check)["task_complete"]
+
+
+def test_workflow_facet_can_compose_literal_quotes_from_multiple_read_cited_sources(corpus):
+    plan, session, candidate, assessments, claims = workflow_fixture(corpus)
+    assessments[0]["source_ids"] = ["S1", "S2"]
+    assessments[0]["evidence_quotes"] = [
+        {"source_id": "S1", "quote": "Capture consumes requests."},
+        {"source_id": "S2", "quote": "Documented lifecycle."},
+    ]
+    fake = FakeModel(
+        [contract_verdict(outcomes=assessments, claims=claims)], protocol_defaults=False
+    )
+    check = Agent(corpus, Settings(project="test/test"), fake).verify(
+        candidate, session, WORKFLOW_QUESTION, [], task_plan=plan
+    )
+    assert check.passed and completion_state(plan, check)["task_complete"]
+
+
+def test_missing_execution_event_stays_unresolved_and_authorizes_targeted_repair(corpus):
+    plan, session, candidate, assessments, claims = workflow_fixture(corpus)
+    assessments[7].update(
+        status="missing",
+        answer_quote="",
+        source_ids=[],
+        evidence_quotes=[],
+        reason="Activation does not establish the execution event.",
+    )
+    request = {
+        "outcome_id": "W3.execution_trigger",
+        "missing_premise": "Find the event for each execution.",
+        "tool": "search_docs",
+        "query": "monitoring execution lifecycle",
+    }
+    fake = FakeModel(
+        [contract_verdict(outcomes=assessments, claims=claims, requests=[request])] * 2,
+        protocol_defaults=False,
+    )
+    agent = Agent(corpus, Settings(project="test/test"), fake)
+    check = agent.verify(candidate, session, WORKFLOW_QUESTION, [], task_plan=plan)
+    assert not check.passed and check.research_requests[0].outcome_id == "W3.execution_trigger"
+    state = completion_state(plan, check)
+    assert not state["task_complete"] and state["completion_status"] == "partial"
+    assert [item["id"] for item in state["missing_outcomes"]] == ["W3.execution_trigger"]
+    recovery = agent.verify(
+        candidate, session, WORKFLOW_QUESTION, [], task_plan=plan, recovery=True
+    )
+    assert recovery.passed  # Fresh support can pass while completion stays false.
+    assert completion_state(plan, recovery) == state
+
+
+def test_off_mode_preserves_workflow_plan_without_claiming_facet_verification(corpus):
+    plan, session, candidate, _, _ = workflow_fixture(corpus)
+    fake = FakeModel(
+        [response(("submit_answer", candidate.model_dump()))], plan=workflow_plan_response()
+    )
+    result = Agent(corpus, Settings(project="test/test", verify_mode="off", max_steps=2), fake).run(
+        WORKFLOW_QUESTION, session
+    )
+    assert result["task_plan"] == [item.model_dump() for item in plan]
+    assert result["completion_status"] == "unassessed" and not result["task_complete"]
+    assert len(fake.requests) == 1
+    assert "verification" not in result["metrics"]["by_purpose"]

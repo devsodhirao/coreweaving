@@ -40,11 +40,17 @@ from coreweaving.sandbox import run_python
 
 # Model instructions. These strings are fingerprinted with the tool schemas.
 TASK_SYSTEM = """Identify the user's task before any documentation is retrieved.
-Return record_task with one to six concrete outcomes needed to answer this question,
-using only the question and retained dialogue. Include each requested part and the
-relationships a comparison asks about (for workflows: inputs, timing and outputs).
-Name these properties in the outcomes; "describe each feature" alone omits their
-relationship and is not a sufficient plan for a workflow comparison.
+Return record_task using only the question and retained dialogue. For ordinary or
+focused questions, return one to six concrete requested outcomes and leave
+workflow_subjects empty. A question about one property, parameter, setup step or
+specific difference does NOT request a whole workflow overview.
+For a BROAD workflow overview or comparison (including how workflows fit together),
+return workflow_subjects with each requested workflow's name and an exact motivating
+user request_quote. Names must occur in the question or retained dialogue. The
+application will create separate input, execution_trigger and output checks for
+EVERY subject; do not bundle those facets into a free-form outcome. Use outcomes
+only for additional explicit deliverables, not a duplicate role catalogue. Subject
+selection is question-derived, never a list of everything in the documentation.
 Do not add a documentation catalogue, page caveats, optional features or research
 steps. Each outcome must quote the user request that motivates it, exactly, from
 the current question or an earlier USER message. Earlier assistant text supplies
@@ -216,6 +222,17 @@ user input flagged by requires_clarification in the plan, with an exact question
 quote. A supported correction of a false premise can be answered. Cite the read
 source IDs supporting factual fulfillment. Do not require unrelated page caveats.
 Set passed=false for missing/uncertain outcomes except during partial recovery.
+Workflow facets are independent checks, not a single overview score. For each
+answered workflow facet, include one to three evidence_quotes with source_id and
+an exact quote from that read source's text or page_context. Every supporting ID
+must also be cited in the draft. Titles, outlines and outgoing links are not
+evidence. Judge that each answer quote and its evidence actually establish THIS
+subject's facet, not merely another part of the overview. An execution_trigger is
+the lifecycle event on which EACH execution runs. Creating, enabling or configuring
+a workflow establishes availability, not its per-execution trigger. Mark the facet
+missing/uncertain and request the missing premise when only activation is known.
+Use short literal clauses and brief reasons so all checks fit the verdict budget.
+Ordinary outcomes do not require this additional evidence_quotes field.
 
 For missing evidence that blocks a requested outcome, return up to two typed
 research_requests: outcome_id, missing_premise, and either search_docs with query
@@ -327,13 +344,34 @@ class RequestedOutcome(BaseModel):
     requires_clarification: StrictBool = False
 
 
+class WorkflowSubject(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+    name: str = Field(min_length=1, max_length=120)
+    request_quote: str = Field(min_length=1, max_length=1200)
+
+
 class TaskPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    outcomes: list[RequestedOutcome] = Field(min_length=1, max_length=6)
+    outcomes: list[RequestedOutcome] = Field(default_factory=list, max_length=6)
+    workflow_subjects: list[WorkflowSubject] = Field(default_factory=list, max_length=6)
+
+    @model_validator(mode="after")
+    def needs_requested_work(self):
+        if not self.outcomes and not self.workflow_subjects:
+            raise ValueError("A task plan needs ordinary outcomes or requested workflow subjects.")
+        return self
 
 
 class TaskOutcome(RequestedOutcome):
     id: str
+    workflow_subject: str | None = None
+    facet: Literal["input", "execution_trigger", "output"] | None = None
+
+
+class EvidenceQuote(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    source_id: str = Field(pattern=r"^S[1-9][0-9]*$", strict=True)
+    quote: str = Field(min_length=1, max_length=1000)
 
 
 class OutcomeAssessment(BaseModel):
@@ -343,6 +381,7 @@ class OutcomeAssessment(BaseModel):
     answer_quote: str = ""
     reason: str = Field(min_length=1, max_length=1000)
     source_ids: list[str] = Field(default_factory=list)
+    evidence_quotes: list[EvidenceQuote] = Field(default_factory=list, max_length=3)
 
 
 class ResearchRequest(BaseModel):
@@ -798,16 +837,45 @@ class Agent:
             raise ValueError("Task planner returned no single complete plan.")
         plan = TaskPlan.model_validate(blocks[0]["input"])
         requests = [question, *(m["content"] for m in history if m["role"] == "user")]
-        if any(not any(item.request_quote in text for text in requests) for item in plan.outcomes):
+        if any(
+            not any(item.request_quote in text for text in requests)
+            for item in [*plan.outcomes, *plan.workflow_subjects]
+        ):
             raise ValueError(
                 "Task outcomes must quote a user request, not retrieved or invented text."
             )
         if len({item.description.casefold() for item in plan.outcomes}) != len(plan.outcomes):
             raise ValueError("Task outcomes must be distinct.")
-        return tuple(
+        subjects = plan.workflow_subjects
+        context = [question, *(message["content"] for message in history)]
+        if len({item.name.casefold() for item in subjects}) != len(subjects) or any(
+            not any(item.name.casefold() in text.casefold() for text in context)
+            for item in subjects
+        ):
+            raise ValueError(
+                "Workflow subjects must be distinct names from the request or retained context."
+            )
+        outcomes = [
             TaskOutcome(id=f"O{index}", **item.model_dump())
             for index, item in enumerate(plan.outcomes, 1)
-        ), response["usage"]
+        ]
+        facets = {
+            "input": "Identify the input consumed by this workflow.",
+            "execution_trigger": "Identify the lifecycle event that runs each execution, not merely configuration or activation.",
+            "output": "Identify the output produced by this workflow.",
+        }
+        for index, subject in enumerate(subjects, 1):
+            outcomes.extend(
+                TaskOutcome(
+                    id=f"W{index}.{facet}",
+                    description=f"{subject.name}: {description}",
+                    request_quote=subject.request_quote,
+                    workflow_subject=subject.name,
+                    facet=facet,
+                )
+                for facet, description in facets.items()
+            )
+        return tuple(outcomes), response["usage"]
 
     def verify(
         self,
@@ -928,6 +996,27 @@ class Agent:
                             )
                         )
                     )
+                    if expected[item.outcome_id].facet is not None and item.status == "answered":
+                        read_sources = {source["source_id"]: source for source in evidence}
+                        valid_evidence = (
+                            bool(item.evidence_quotes)
+                            and {anchor.source_id for anchor in item.evidence_quotes}
+                            == set(item.source_ids)
+                            and all(
+                                anchor.source_id in ids
+                                and anchor.source_id in read_sources
+                                and any(
+                                    anchor.quote in read_sources[anchor.source_id].get(field, "")
+                                    for field in ("text", "page_context")
+                                )
+                                for anchor in item.evidence_quotes
+                            )
+                        )
+                        if not valid_evidence:
+                            valid_resolution = False
+                            verdict.issues.append(
+                                f"{item.outcome_id}: workflow fulfillment needs literal text from read, cited evidence."
+                            )
                     if item.status in ("answered", "clarification") and not valid_resolution:
                         item.status = "uncertain"
                         verdict.issues.append(
@@ -1142,7 +1231,7 @@ class Agent:
             "coreweaving.config_sha256": config_sha256,
             "coreweaving.verify_mode": self.config.verify_mode,
             "coreweaving.cache_enabled": self.config.cache_enabled,
-            "coreweaving.verification_contract_version": 2,
+            "coreweaving.verification_contract_version": 3,
         }
         answer, kind, verdict = (
             "",
@@ -1470,7 +1559,7 @@ class Agent:
             "question": question,
             "source_ids": released_source_ids,
             "citation_contract_version": 3,
-            "verification_contract_version": 2,
+            "verification_contract_version": 3,
             "task_plan": [item.model_dump() for item in task_plan],
             "outcome_assessments": [item.model_dump() for item in verdict.outcome_assessments],
             **completion,
