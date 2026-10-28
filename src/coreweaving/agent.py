@@ -13,6 +13,7 @@ import re
 import time
 import unicodedata
 import uuid
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from textwrap import dedent
@@ -609,6 +610,37 @@ def cited_ids(answer: str) -> list[str]:
     )
 
 
+def quote_anchor(quote: str, answer: str, source_ids: list[str]) -> bool:
+    """Anchor literal words, allowing only plain citation omission and whitespace.
+
+    Markdown parsing decides which markers are citations: deleting an occurrence
+    must remove exactly those visible markers. Code, links and encoded markers
+    cannot disappear through this normalization. This is not an entailment check.
+    """
+    if not quote:
+        return False
+    if quote in answer:
+        return True
+
+    def normalized(text):
+        if malformed_citations(text) or not set(cited_ids(text)).issubset(source_ids):
+            return None
+        for match in reversed(list(re.finditer(_CITATION_GROUP, text))):
+            without = text[: match.start()] + text[match.end() :]
+            removed = Counter(f"[{sid}]" for sid in re.findall(r"[SC][1-9][0-9]*", match.group()))
+            if Counter(citation_markers(without)) + removed == Counter(citation_markers(text)):
+                text = without
+        # Keep literal code whitespace intact; normalize only the surrounding prose.
+        parts = re.split(r"(`+[^`]*`+)", text)
+        for index in range(0, len(parts), 2):
+            parts[index] = re.sub(r"\s+", " ", parts[index])
+            parts[index] = re.sub(r" +([.,;:!?])", r"\1", parts[index])
+        return "".join(parts).strip()
+
+    anchored, body = normalized(quote), normalized(answer)
+    return bool(anchored) and body is not None and anchored in body
+
+
 def citation_contract(answer: str, kind: str, source_ids, evidence: dict) -> list[str]:
     """Check marker syntax and exact source-ID agreement, not factual truth."""
     issues = []
@@ -887,8 +919,7 @@ class Agent:
                     verdict.outcome_assessments = []
                 for item in verdict.outcome_assessments:
                     valid_resolution = (
-                        bool(item.answer_quote)
-                        and item.answer_quote in candidate.answer
+                        quote_anchor(item.answer_quote, candidate.answer, ids)
                         and set(item.source_ids).issubset(ids)
                         and (
                             item.status != "clarification"
@@ -908,8 +939,7 @@ class Agent:
                         verdict.issues.append(f"{item.outcome_id}: {item.reason}")
                 for claim in verdict.claims:
                     if claim.kind == "product" and (
-                        not claim.answer_quote
-                        or claim.answer_quote not in candidate.answer
+                        not quote_anchor(claim.answer_quote, candidate.answer, ids)
                         or claim.scope_status != "supported"
                         or not claim.scope_reason
                     ):
@@ -927,7 +957,7 @@ class Agent:
                     for claim in verdict.claims
                     if claim.kind == "product"
                     and claim.answer_quote
-                    and claim.answer_quote in candidate.answer
+                    and quote_anchor(claim.answer_quote, candidate.answer, ids)
                     and (claim.status != "supported" or claim.scope_status != "supported")
                 }
                 # A repair can only read navigation actually supplied to this auditor.
@@ -950,7 +980,15 @@ class Agent:
                     )
                 valid_requests = []
                 for request in verdict.research_requests:
-                    target_valid = request.outcome_id in gaps or request.claim_quote in unsupported
+                    target_valid = request.outcome_id in gaps or (
+                        request.claim_quote is not None
+                        and quote_anchor(request.claim_quote, candidate.answer, ids)
+                        and any(
+                            quote_anchor(request.claim_quote, claim_quote, ids)
+                            and quote_anchor(claim_quote, request.claim_quote, ids)
+                            for claim_quote in unsupported
+                        )
+                    )
                     navigation_valid = (
                         request.tool != "read_page"
                         or (request.page_id, request.section) in allowed_reads

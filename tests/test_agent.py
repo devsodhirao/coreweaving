@@ -16,6 +16,7 @@ from coreweaving.agent import (
     cited_ids,
     malformed_citations,
     partial_candidate,
+    quote_anchor,
     review_reason,
 )
 from coreweaving.config import Settings
@@ -2242,3 +2243,59 @@ def test_outgoing_link_credentials_are_masked_before_every_evidence_sink(corpus,
     assert all(item["outgoing_links"][0]["title"] == "API_KEY=[REDACTED_SECRET]" for item in sinks)
     assert secret not in json.dumps([session.evidence, fake.requests, result], default=str)
     assert links[0]["title"] == "API_KEY=" + secret  # Caller-owned metadata stays unchanged.
+
+
+@pytest.mark.parametrize(
+    "quote,answer,expected",
+    [
+        (
+            "Tags and ratings appear on the Signals tab.",
+            "Tags and ratings appear on the Signals tab [S8][S1].",
+            True,
+        ),
+        ("A documented fact.", "A documented  fact [S1, S8].", True),
+        ("A documented\nfact.", "A documented fact. [S1]", True),
+        ("It guarantees every call.", "It records eligible calls [S1].", False),
+        ("It does save calls.", "It does not save calls [S1].", False),
+        (
+            "For all integrations, it saves calls.",
+            "For this integration, it saves calls [S1].",
+            False,
+        ),
+        ("Use your team name.", "Use your team [S1].", False),
+        ("Use 100 percent.", "Use 10 percent [S1].", False),
+        ("Use the literal value ``.", "Use the literal value `[S1]`. [S8]", False),
+        ("Use `a b`.", "Use `a  b` [S1].", False),
+        ("A fact [S999].", "A fact [S1].", False),
+        ("A fact.", "A fact [S1](https://example.test).", False),
+        ("A fact.", "A fact &#91;S1&#93;.", False),
+    ],
+)
+def test_quote_anchors_allow_only_citation_omission_and_prose_whitespace(quote, answer, expected):
+    assert quote_anchor(quote, answer, ["S1", "S8"]) is expected
+
+
+def test_omitted_citation_anchor_applies_to_claim_outcome_and_repair_target(corpus):
+    text = "Tags and ratings appear on the Signals tab [S1]."
+    quote = "Tags and ratings appear on the Signals tab."
+    session = Session()
+    session.add_passage(corpus.read("guides/tracking/view-agent-signals", 0))
+    accepted = contract_verdict(quote=quote, outcomes=[assessment(quote=quote)])
+    rejected = contract_verdict(
+        scope="uncertain",
+        quote=quote,
+        requests=[
+            {
+                "claim_quote": text,
+                "missing_premise": "Confirm the claimed scope.",
+                "tool": "search_docs",
+                "query": "signals tab scope",
+            }
+        ],
+    )
+    fake = FakeModel([accepted, rejected], protocol_defaults=False)
+    agent = Agent(corpus, Settings(project="test/test"), fake)
+    candidate = Candidate(answer=text, source_ids=["S1"])
+    assert agent.verify(candidate, session, "Question", [], task_plan=frozen_task()).passed
+    check = agent.verify(candidate, session, "Question", [], task_plan=frozen_task())
+    assert not check.passed and len(check.research_requests) == 1
