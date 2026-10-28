@@ -162,7 +162,9 @@ must actually support the attached claim. Recommendations must be clearly framed
 as recommendations. Code execution proves only the behavior of the recorded run.
 
 Return a verdict with concise checks of material factual claims and actionable issues.
-Keep checks and reasons brief; do not repeat full paragraphs from the draft.
+Supply every required field, using empty lists where appropriate. Keep reasons to
+one short sentence; do not repeat full paragraphs from the draft. Each claim has
+one exact answer_quote; do not also generate a paraphrased text field.
 Classify each claim as supported, partial, or unsupported based on the combined
 evidence behind its citations. Set passed=false for partial or unsupported material
 claims, or if a factual answer lacks citations. Partial support requires a revision,
@@ -225,14 +227,16 @@ Set passed=false for missing/uncertain outcomes except during partial recovery.
 Workflow facets are independent checks, not a single overview score. For each
 answered workflow facet, include one to three evidence_quotes with source_id and
 an exact quote from that read source's text or page_context. Every supporting ID
-must also be cited in the draft. Titles, outlines and outgoing links are not
-evidence. Judge that each answer quote and its evidence actually establish THIS
+must also be cited in the draft. For each answered workflow assessment, source_ids
+must be exactly the distinct IDs used in its evidence_quotes, not every citation
+near the clause. Titles, outlines and outgoing links are not evidence.
+Judge that each answer quote and its evidence actually establish THIS
 subject's facet, not merely another part of the overview. An execution_trigger is
 the lifecycle event on which EACH execution runs. Creating, enabling or configuring
 a workflow establishes availability, not its per-execution trigger. Mark the facet
 missing/uncertain and request the missing premise when only activation is known.
 Use short literal clauses and brief reasons so all checks fit the verdict budget.
-Ordinary outcomes do not require this additional evidence_quotes field.
+Return evidence_quotes=[] for ordinary outcomes and unresolved workflow facets.
 
 For missing evidence that blocks a requested outcome, return up to two typed
 research_requests: outcome_id, missing_premise, and either search_docs with query
@@ -447,6 +451,42 @@ class Verification(BaseModel):
         return "passed" if self.passed else "failed"
 
 
+def live_verdict_schema() -> dict:
+    """Require live audit fields while retaining defaults for historical readers."""
+    schema = Verification.model_json_schema()
+    schema["properties"].pop("mode")  # The application selects the mode.
+    schema["$defs"]["Claim"]["properties"].pop("text")
+    for item in (schema, schema["$defs"]["Claim"], schema["$defs"]["OutcomeAssessment"]):
+        item["required"] = list(item["properties"])
+        for property_schema in item["properties"].values():
+            property_schema.pop("default", None)
+    return schema
+
+
+def parse_live_verdict(value: dict) -> Verification:
+    """Validate required live fields before adapting to the persisted receipt."""
+    schema = VERDICT_TOOL["input_schema"]
+
+    def require_fields(item, shape):
+        if not isinstance(item, dict) or set(item) != set(shape["required"]):
+            raise ValueError("Live verdict must contain exactly its required audit fields.")
+
+    require_fields(value, schema)
+    for key, definition in (("claims", "Claim"), ("outcome_assessments", "OutcomeAssessment")):
+        if not isinstance(value[key], list):
+            raise ValueError("Live audit checks must be lists.")
+        for item in value[key]:
+            require_fields(item, schema["$defs"][definition])
+    return Verification.model_validate(
+        {
+            **value,
+            # Preserve the exact audited clause for existing readers/recovery;
+            # never synthesize an unaudited claim or a completion assessment.
+            "claims": [{**claim, "text": claim["answer_quote"]} for claim in value["claims"]],
+        }
+    )
+
+
 SourceId = Annotated[str, Field(pattern=r"^[SC][1-9][0-9]*$", strict=True)]
 
 
@@ -505,7 +545,7 @@ TOOLS = [
 VERDICT_TOOL = {
     "name": "record_verdict",
     "description": "Record your evidence audit.",
-    "input_schema": Verification.model_json_schema(),
+    "input_schema": live_verdict_schema(),
 }
 TASK_TOOL = {
     "name": "record_task",
@@ -945,6 +985,10 @@ class Agent:
         if recovery:
             system += RECOVERY_SYSTEM
         verifier_model = self.config.judge_model if recovery else self.config.agent_model
+        # The provider's cap includes thinking. Anchored workflow facets need
+        # additional delivery headroom; ordinary audits retain their prior cap.
+        facet_count = sum(item.facet is not None for item in task_plan or ())
+        verdict_tokens = min(9000, 4000 + 300 * facet_count)
         with weave.start_subagent(
             name="source_verifier", model=verifier_model, system_instructions=[system]
         ) as verifier:
@@ -959,7 +1003,7 @@ class Agent:
                 tools=[VERDICT_TOOL],
                 purpose="verification",
                 required_tool="record_verdict",
-                max_tokens=4000,
+                max_tokens=verdict_tokens,
                 cache_enabled=self.config.cache_enabled,
                 span_parent=verifier,
             )
@@ -971,7 +1015,7 @@ class Agent:
                 ]
                 if len(blocks) != 1 or response["stop_reason"] == "max_tokens":
                     raise ValueError("Verifier returned no single complete verdict.")
-                verdict = Verification.model_validate(redact_sensitive(blocks[0]["input"]))
+                verdict = parse_live_verdict(redact_sensitive(blocks[0]["input"]))
             except (ValueError, TypeError, KeyError) as exc:
                 verifier.record_error(safe_exception(exc))
                 verdict = failed("Verifier returned an invalid or incomplete verdict.")

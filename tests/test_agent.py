@@ -5,6 +5,7 @@ from dataclasses import replace
 import pytest
 
 from coreweaving.agent import (
+    VERDICT_TOOL,
     Agent,
     Candidate,
     Claim,
@@ -16,6 +17,7 @@ from coreweaving.agent import (
     cited_ids,
     completion_state,
     malformed_citations,
+    parse_live_verdict,
     partial_candidate,
     quote_anchor,
     review_reason,
@@ -126,6 +128,9 @@ class FakeModel:
                 if not isinstance(value, dict):
                     continue
                 candidate = payload["candidate"]
+                value.setdefault("coverage", [])
+                value.setdefault("issues", [])
+                value.setdefault("research_requests", [])
                 value.setdefault(
                     "outcome_assessments",
                     [
@@ -137,13 +142,27 @@ class FakeModel:
                             "answer_quote": candidate["answer"],
                             "reason": "Fixture task fulfilled.",
                             "source_ids": candidate["source_ids"],
+                            "evidence_quotes": [],
                         }
                         for item in payload.get("task_plan", [])
                     ],
                 )
                 for claim in value.get("claims", []):
                     if isinstance(claim, dict):
-                        claim.setdefault("answer_quote", candidate["answer"])
+                        text = claim.pop("text", "")
+                        claim.setdefault(
+                            "answer_quote",
+                            text if text and text in candidate["answer"] else candidate["answer"],
+                        )
+                        claim.setdefault("kind", "product")
+                        if "supported" in claim:
+                            supported = claim.pop("supported")
+                            if type(supported) is bool:
+                                claim.setdefault(
+                                    "status", "supported" if supported else "unsupported"
+                                )
+                            else:
+                                claim["status"] = supported
                         claim.setdefault("scope_status", "supported")
                         claim.setdefault("scope_reason", "Fixture evidence applies to the claim.")
         return result
@@ -1515,15 +1534,18 @@ def test_search_process_audit_can_distinguish_hits_from_no_matches(corpus, query
             outcome = payload["research_actions"][0]["outcome"]
             assert outcome["ok"] is True
             assert payload["evidence"] == []  # Search hits are not documentation authority.
-            return audit(
+            return contract_verdict(
+                outcomes=[],
                 claims=[
                     {
-                        "text": candidate.answer,
+                        "answer_quote": candidate.answer,
                         "kind": "research_process",
                         "source_ids": [],
                         "status": "supported" if outcome["returned_count"] == 0 else "unsupported",
+                        "scope_status": None,
+                        "scope_reason": "Recorded search outcome.",
                     }
-                ]
+                ],
             )
 
     check = Agent(corpus, Settings(project="test/test"), OutcomeAuditor()).verify(
@@ -1673,6 +1695,7 @@ def assessment(status="answered", *, quote=ANSWER[1]["answer"], outcome_id="O1")
         if status == "answered"
         else "Timing remains unresolved.",
         "source_ids": ["S1"] if "[S1]" in quote else [],
+        "evidence_quotes": [],
     }
 
 
@@ -1683,11 +1706,17 @@ def contract_verdict(*, outcomes=None, claims=None, requests=None, scope="suppor
             "record_verdict",
             {
                 "passed": True,
-                "claims": claims
+                "claims": [
+                    {
+                        "kind": "product",
+                        **{key: value for key, value in item.items() if key != "text"},
+                    }
+                    for item in claims
+                ]
                 if claims is not None
                 else [
                     {
-                        "text": "Initialize Weave with a team/project.",
+                        "kind": "product",
                         "source_ids": ["S1"],
                         "status": "supported",
                         "answer_quote": quote,
@@ -1702,6 +1731,7 @@ def contract_verdict(*, outcomes=None, claims=None, requests=None, scope="suppor
                 else [assessment(quote=quote)],
                 "research_requests": requests or [],
                 "issues": [],
+                "coverage": [],
             },
         )
     )
@@ -2466,7 +2496,7 @@ def test_all_nine_workflow_facets_allow_a_complete_answer_with_same_call_budgets
     assert result["task_plan"] == [item.model_dump() for item in plan]
     assert result["verification_contract_version"] == 3
     assert len(fake.plan_requests) == 1 and len(fake.requests) == 2
-    assert fake.requests[-1]["max_tokens"] == 4000
+    assert fake.requests[-1]["max_tokens"] == 6700
 
 
 def test_old_bundled_outcomes_and_tiny_trace_quote_cannot_cover_workflow_facets(corpus):
@@ -2573,3 +2603,128 @@ def test_off_mode_preserves_workflow_plan_without_claiming_facet_verification(co
     assert result["completion_status"] == "unassessed" and not result["task_complete"]
     assert len(fake.requests) == 1
     assert "verification" not in result["metrics"]["by_purpose"]
+
+
+def test_live_verdict_schema_requires_audit_fields_without_breaking_saved_readers():
+    schema = VERDICT_TOOL["input_schema"]
+    expected = {
+        "root": {
+            "passed",
+            "claims",
+            "issues",
+            "coverage",
+            "outcome_assessments",
+            "research_requests",
+        },
+        "Claim": {"kind", "source_ids", "status", "answer_quote", "scope_status", "scope_reason"},
+        "OutcomeAssessment": {
+            "outcome_id",
+            "status",
+            "answer_quote",
+            "reason",
+            "source_ids",
+            "evidence_quotes",
+        },
+    }
+    for name, fields in expected.items():
+        shape = schema if name == "root" else schema["$defs"][name]
+        assert set(shape["required"]) == set(shape["properties"]) == fields
+        assert all("default" not in field for field in shape["properties"].values())
+        assert shape["additionalProperties"] is False
+    old = Verification.model_validate(
+        {"passed": True, "claims": [{"text": "Old fact.", "source_ids": ["S1"], "supported": True}]}
+    )
+    assert old.claims[0].answer_quote == "" and old.outcome_assessments == []
+
+
+@pytest.mark.parametrize(
+    "collection,field",
+    [
+        (None, name)
+        for name in (
+            "passed",
+            "claims",
+            "issues",
+            "coverage",
+            "outcome_assessments",
+            "research_requests",
+        )
+    ]
+    + [
+        ("claims", name)
+        for name in ("kind", "source_ids", "status", "answer_quote", "scope_status", "scope_reason")
+    ]
+    + [
+        ("outcome_assessments", name)
+        for name in (
+            "outcome_id",
+            "status",
+            "answer_quote",
+            "reason",
+            "source_ids",
+            "evidence_quotes",
+        )
+    ],
+)
+def test_live_verdict_omission_never_becomes_a_default_assessment(collection, field):
+    value = contract_verdict()["content"][0]["input"]
+    target = value if collection is None else value[collection][0]
+    target.pop(field)
+    with pytest.raises(ValueError, match="required audit fields"):
+        parse_live_verdict(value)
+
+
+def test_live_claim_conversion_preserves_exact_clause_for_partial_recovery(corpus):
+    quote = 'For this integration, call weave.init("team/project") first. [S1]'
+    value = contract_verdict(quote=quote)["content"][0]["input"]
+    assert "text" not in value["claims"][0]
+    check = parse_live_verdict(value)
+    assert check.claims[0].text == check.claims[0].answer_quote == quote
+    session = Session()
+    session.add_passage(corpus.read(**READ[1]))
+    retained = partial_candidate(check, session)
+    assert quote in retained.answer
+    assert retained.source_ids == ["S1"]
+    assert Verification.model_validate(check.model_dump()) == check
+
+
+def test_captured_missing_workflow_evidence_fields_fail_closed_before_assessment(corpus):
+    plan, session, candidate, assessments, claims = workflow_fixture(corpus)
+    for item in assessments:
+        item.pop("evidence_quotes")  # Live positive probe omitted every anchor.
+    fake = FakeModel(
+        [contract_verdict(outcomes=assessments, claims=claims)], protocol_defaults=False
+    )
+    check = Agent(corpus, Settings(project="test/test"), fake).verify(
+        candidate, session, WORKFLOW_QUESTION, [], task_plan=plan
+    )
+    assert not check.passed and check.outcome_assessments == []
+    assert not completion_state(plan, check)["task_complete"]
+    assert "invalid or incomplete" in check.issues[0]
+
+
+@pytest.mark.parametrize("facets,expected", [(0, 4000), (3, 4900), (9, 6700), (18, 9000)])
+def test_verdict_delivery_headroom_scales_only_with_frozen_workflow_facets(
+    corpus, facets, expected
+):
+    plan = (
+        tuple(
+            TaskOutcome(
+                id=f"W{index}.input",
+                description="Requested workflow input.",
+                request_quote="Question",
+                workflow_subject=f"workflow{index}",
+                facet="input",
+            )
+            for index in range(facets)
+        )
+        if facets
+        else frozen_task()
+    )
+    session = Session()
+    session.add_passage(corpus.read(**READ[1]))
+    fake = FakeModel([contract_verdict()], protocol_defaults=False)
+    Agent(corpus, Settings(project="test/test"), fake).verify(
+        Candidate(**ANSWER[1]), session, "Question", [], task_plan=plan
+    )
+    assert fake.requests[0]["max_tokens"] == expected
