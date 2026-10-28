@@ -1,0 +1,2084 @@
+{
+  "answer_id": "0eb43c55-dda8-4767-8d35-728bffe76409",
+  "question": "Run a small offline Python example that calculates the fraction of exact matches for predictions [\"yes\", \"no\", \"yes\", \"yes\"] against expected labels [\"yes\", \"yes\", \"yes\", \"no\"]. Then explain how I could use that kind of deterministic scorer with weave.Evaluation.",
+  "source_ids": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "C1"
+  ],
+  "citation_contract_version": 3,
+  "verification_contract_version": 3,
+  "task_plan": [
+    {
+      "description": "Run a small offline Python example computing the fraction of exact matches between predictions [\"yes\",\"no\",\"yes\",\"yes\"] and expected labels [\"yes\",\"yes\",\"yes\",\"no\"].",
+      "request_quote": "Run a small offline Python example that calculates the fraction of exact matches for predictions [\"yes\", \"no\", \"yes\", \"yes\"] against expected labels [\"yes\", \"yes\", \"yes\", \"no\"].",
+      "requires_clarification": false,
+      "id": "O1",
+      "workflow_subject": null,
+      "facet": null
+    },
+    {
+      "description": "Explain how a deterministic exact-match scorer like this could be used with weave.Evaluation.",
+      "request_quote": "Then explain how I could use that kind of deterministic scorer with weave.Evaluation.",
+      "requires_clarification": false,
+      "id": "O2",
+      "workflow_subject": null,
+      "facet": null
+    }
+  ],
+  "outcome_assessments": [
+    {
+      "outcome_id": "O1",
+      "status": "answered",
+      "answer_quote": "The offline run gives 0.5: two of the four predictions match their expected labels.",
+      "reason": "The recorded run computed the fraction as 0.5.",
+      "source_ids": [
+        "C1"
+      ],
+      "evidence_quotes": []
+    },
+    {
+      "outcome_id": "O2",
+      "status": "answered",
+      "answer_quote": "Write the per-row check as a scorer.",
+      "reason": "The answer explains the scorer, Evaluation, evaluate and summarization workflow with cited support.",
+      "source_ids": [
+        "S1",
+        "S2",
+        "S3",
+        "S4"
+      ],
+      "evidence_quotes": []
+    }
+  ],
+  "task_complete": true,
+  "missing_outcomes": [],
+  "completion_status": "complete",
+  "review_reason": "none",
+  "conversation_context": [],
+  "answer": "The offline run gives 0.5: two of the four predictions match their expected labels. The per-item results were `[True, False, True, False]`, and the fraction was `2/4` [C1]. That ran in plain Python with no Weave SDK, so the Weave snippet below is untested.\n\n**Using this kind of scorer with `weave.Evaluation`**\n\n- **Write the per-row check as a scorer.** In Python, a function-based scorer is a function decorated with `@weave.op` that returns a dictionary [S1]. Weave scores each dataset row, so your scorer compares one output to one label. It doesn't loop over the whole list.\n- **Use the argument names Weave expects.** A scoring function needs an `output` keyword argument. Its other arguments are taken from the dataset example by matching key names [S2]. If your labels are in an `expected` column, add an `expected` argument.\n- **Pass the scorer to the evaluation.** Give your examples and scorers to `weave.Evaluation` [S1]. Then call `.evaluate()` on it, for example `asyncio.run(evaluation.evaluate(model))`. The `model` can be a `Model` object or a function containing your application logic [S3].\n\n```python\nimport weave\n\n@weave.op\ndef exact_match(expected: str, output: str) -> dict:\n    return {\"match\": output == expected}\n\nevaluation = weave.Evaluation(\n    dataset=[\n        {\"question\": \"...\", \"expected\": \"yes\"},\n        # ... more rows with an \"expected\" label\n    ],\n    scorers=[exact_match],\n)\n# asyncio.run(evaluation.evaluate(model))  # model: your Model or op\n```\n\nThe dataset rows and the `model` are placeholders. This sketch assumes your model returns the plain string `\"yes\"` or `\"no\"`. The docs example reads `output['generated_text']` because its model returns a dictionary [S2].\n\n**Getting the fraction.** The scorer returns a boolean per row. Weave summarizes scorer results with `auto_summarize`, based on the return type [S4]. For a boolean score, the default summary gives the count and proportion of `True` [S4]. For your data, that proportion would correspond to the 0.5 calculated above. If you want a different summary, a class-based scorer can override `summarize(self, score_rows)` [S4].",
+  "kind": "answer",
+  "verification": {
+    "passed": true,
+    "claims": [
+      {
+        "text": "The offline run gives 0.5: two of the four predictions match their expected labels.",
+        "kind": "product",
+        "source_ids": [
+          "C1"
+        ],
+        "status": "supported",
+        "answer_quote": "The offline run gives 0.5: two of the four predictions match their expected labels.",
+        "scope_status": "supported",
+        "scope_reason": "The recorded plain-Python run printed the per-item list and 0.5.",
+        "supported": true
+      },
+      {
+        "text": "In Python, a function-based scorer is a function decorated with `@weave.op` that returns a dictionary",
+        "kind": "product",
+        "source_ids": [
+          "S1"
+        ],
+        "status": "supported",
+        "answer_quote": "In Python, a function-based scorer is a function decorated with `@weave.op` that returns a dictionary",
+        "scope_status": "supported",
+        "scope_reason": "S1 documents this for Python.",
+        "supported": true
+      },
+      {
+        "text": "A scoring function needs an `output` keyword argument. Its other arguments are taken from the dataset example by matching key names",
+        "kind": "product",
+        "source_ids": [
+          "S2"
+        ],
+        "status": "supported",
+        "answer_quote": "A scoring function needs an `output` keyword argument. Its other arguments are taken from the dataset example by matching key names",
+        "scope_status": "supported",
+        "scope_reason": "S2 gives the Python scoring-function rule.",
+        "supported": true
+      },
+      {
+        "text": "Give your examples and scorers to `weave.Evaluation` [S1]. Then call `.evaluate()` on it, for example `asyncio.run(evaluation.evaluate(model))`.",
+        "kind": "product",
+        "source_ids": [
+          "S1",
+          "S3"
+        ],
+        "status": "supported",
+        "answer_quote": "Give your examples and scorers to `weave.Evaluation` [S1]. Then call `.evaluate()` on it, for example `asyncio.run(evaluation.evaluate(model))`.",
+        "scope_status": "supported",
+        "scope_reason": "S1 shows the Evaluation constructor and S3 shows the evaluate call.",
+        "supported": true
+      },
+      {
+        "text": "The docs example reads `output['generated_text']` because its model returns a dictionary",
+        "kind": "product",
+        "source_ids": [
+          "S2"
+        ],
+        "status": "supported",
+        "answer_quote": "The docs example reads `output['generated_text']` because its model returns a dictionary",
+        "scope_status": "supported",
+        "scope_reason": "S2's scorer takes `output: dict` and reads `generated_text`.",
+        "supported": true
+      },
+      {
+        "text": "For a boolean score, the default summary gives the count and proportion of `True`",
+        "kind": "product",
+        "source_ids": [
+          "S4"
+        ],
+        "status": "supported",
+        "answer_quote": "For a boolean score, the default summary gives the count and proportion of `True`",
+        "scope_status": "supported",
+        "scope_reason": "S4's example with boolean match states this default.",
+        "supported": true
+      },
+      {
+        "text": "a class-based scorer can override `summarize(self, score_rows)`",
+        "kind": "product",
+        "source_ids": [
+          "S4"
+        ],
+        "status": "supported",
+        "answer_quote": "a class-based scorer can override `summarize(self, score_rows)`",
+        "scope_status": "supported",
+        "scope_reason": "S4 documents the Python Scorer summarize override.",
+        "supported": true
+      }
+    ],
+    "issues": [],
+    "coverage": [],
+    "outcome_assessments": [
+      {
+        "outcome_id": "O1",
+        "status": "answered",
+        "answer_quote": "The offline run gives 0.5: two of the four predictions match their expected labels.",
+        "reason": "The recorded run computed the fraction as 0.5.",
+        "source_ids": [
+          "C1"
+        ],
+        "evidence_quotes": []
+      },
+      {
+        "outcome_id": "O2",
+        "status": "answered",
+        "answer_quote": "Write the per-row check as a scorer.",
+        "reason": "The answer explains the scorer, Evaluation, evaluate and summarization workflow with cited support.",
+        "source_ids": [
+          "S1",
+          "S2",
+          "S3",
+          "S4"
+        ],
+        "evidence_quotes": []
+      }
+    ],
+    "research_requests": [],
+    "mode": "support",
+    "status": "passed"
+  },
+  "verification_attempts": [
+    {
+      "candidate": {
+        "source_ids": [
+          "S1",
+          "S2",
+          "S3",
+          "S4",
+          "C1"
+        ],
+        "answer": "The offline run gives 0.5: two of the four predictions match their expected labels. The per-item results were `[True, False, True, False]`, and the fraction was `2/4` [C1]. That ran in plain Python with no Weave SDK, so the Weave snippet below is untested.\n\n**Using this kind of scorer with `weave.Evaluation`**\n\n- **Write the per-row check as a scorer.** In Python, a function-based scorer is a function decorated with `@weave.op` that returns a dictionary [S1]. Weave scores each dataset row, so your scorer compares one output to one label. It doesn't loop over the whole list.\n- **Use the argument names Weave expects.** A scoring function needs an `output` keyword argument. Its other arguments are taken from the dataset example by matching key names [S2]. If your labels are in an `expected` column, add an `expected` argument.\n- **Pass the scorer to the evaluation.** Give your examples and scorers to `weave.Evaluation` [S1]. Then call `.evaluate()` on it, for example `asyncio.run(evaluation.evaluate(model))`. The `model` can be a `Model` object or a function containing your application logic [S3].\n\n```python\nimport weave\n\n@weave.op\ndef exact_match(expected: str, output: str) -> dict:\n    return {\"match\": output == expected}\n\nevaluation = weave.Evaluation(\n    dataset=[\n        {\"question\": \"...\", \"expected\": \"yes\"},\n        # ... more rows with an \"expected\" label\n    ],\n    scorers=[exact_match],\n)\n# asyncio.run(evaluation.evaluate(model))  # model: your Model or op\n```\n\nThe dataset rows and the `model` are placeholders. This sketch assumes your model returns the plain string `\"yes\"` or `\"no\"`. The docs example reads `output['generated_text']` because its model returns a dictionary [S2].\n\n**Getting the fraction.** The scorer returns a boolean per row. Weave summarizes scorer results with `auto_summarize`, based on the return type [S4]. For a boolean score, the default summary gives the count and proportion of `True` [S4]. For your data, that proportion would correspond to the 0.5 calculated above. If you want a different summary, a class-based scorer can override `summarize(self, score_rows)` [S4].",
+        "kind": "answer"
+      },
+      "passed": true,
+      "claims": [
+        {
+          "text": "The offline run gives 0.5: two of the four predictions match their expected labels.",
+          "kind": "product",
+          "source_ids": [
+            "C1"
+          ],
+          "status": "supported",
+          "answer_quote": "The offline run gives 0.5: two of the four predictions match their expected labels.",
+          "scope_status": "supported",
+          "scope_reason": "The recorded plain-Python run printed the per-item list and 0.5.",
+          "supported": true
+        },
+        {
+          "text": "In Python, a function-based scorer is a function decorated with `@weave.op` that returns a dictionary",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "answer_quote": "In Python, a function-based scorer is a function decorated with `@weave.op` that returns a dictionary",
+          "scope_status": "supported",
+          "scope_reason": "S1 documents this for Python.",
+          "supported": true
+        },
+        {
+          "text": "A scoring function needs an `output` keyword argument. Its other arguments are taken from the dataset example by matching key names",
+          "kind": "product",
+          "source_ids": [
+            "S2"
+          ],
+          "status": "supported",
+          "answer_quote": "A scoring function needs an `output` keyword argument. Its other arguments are taken from the dataset example by matching key names",
+          "scope_status": "supported",
+          "scope_reason": "S2 gives the Python scoring-function rule.",
+          "supported": true
+        },
+        {
+          "text": "Give your examples and scorers to `weave.Evaluation` [S1]. Then call `.evaluate()` on it, for example `asyncio.run(evaluation.evaluate(model))`.",
+          "kind": "product",
+          "source_ids": [
+            "S1",
+            "S3"
+          ],
+          "status": "supported",
+          "answer_quote": "Give your examples and scorers to `weave.Evaluation` [S1]. Then call `.evaluate()` on it, for example `asyncio.run(evaluation.evaluate(model))`.",
+          "scope_status": "supported",
+          "scope_reason": "S1 shows the Evaluation constructor and S3 shows the evaluate call.",
+          "supported": true
+        },
+        {
+          "text": "The docs example reads `output['generated_text']` because its model returns a dictionary",
+          "kind": "product",
+          "source_ids": [
+            "S2"
+          ],
+          "status": "supported",
+          "answer_quote": "The docs example reads `output['generated_text']` because its model returns a dictionary",
+          "scope_status": "supported",
+          "scope_reason": "S2's scorer takes `output: dict` and reads `generated_text`.",
+          "supported": true
+        },
+        {
+          "text": "For a boolean score, the default summary gives the count and proportion of `True`",
+          "kind": "product",
+          "source_ids": [
+            "S4"
+          ],
+          "status": "supported",
+          "answer_quote": "For a boolean score, the default summary gives the count and proportion of `True`",
+          "scope_status": "supported",
+          "scope_reason": "S4's example with boolean match states this default.",
+          "supported": true
+        },
+        {
+          "text": "a class-based scorer can override `summarize(self, score_rows)`",
+          "kind": "product",
+          "source_ids": [
+            "S4"
+          ],
+          "status": "supported",
+          "answer_quote": "a class-based scorer can override `summarize(self, score_rows)`",
+          "scope_status": "supported",
+          "scope_reason": "S4 documents the Python Scorer summarize override.",
+          "supported": true
+        }
+      ],
+      "issues": [],
+      "coverage": [],
+      "outcome_assessments": [
+        {
+          "outcome_id": "O1",
+          "status": "answered",
+          "answer_quote": "The offline run gives 0.5: two of the four predictions match their expected labels.",
+          "reason": "The recorded run computed the fraction as 0.5.",
+          "source_ids": [
+            "C1"
+          ],
+          "evidence_quotes": []
+        },
+        {
+          "outcome_id": "O2",
+          "status": "answered",
+          "answer_quote": "Write the per-row check as a scorer.",
+          "reason": "The answer explains the scorer, Evaluation, evaluate and summarization workflow with cited support.",
+          "source_ids": [
+            "S1",
+            "S2",
+            "S3",
+            "S4"
+          ],
+          "evidence_quotes": []
+        }
+      ],
+      "research_requests": [],
+      "mode": "support",
+      "status": "passed"
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "C1",
+      "code": "preds = [\"yes\", \"no\", \"yes\", \"yes\"]\nexpected = [\"yes\", \"yes\", \"yes\", \"no\"]\nmatches = [p == e for p, e in zip(preds, expected)]\nprint(matches)\nprint(sum(matches) / len(matches))",
+      "output": "[True, False, True, False]\n0.5\n",
+      "exit_code": 0,
+      "stopped": null,
+      "environment": "Python 3.12 standard library; offline container",
+      "limitation": "No Weave SDK or remote API calls. This only checks local Python behavior."
+    },
+    {
+      "source_id": "S1",
+      "page_id": "guides/evaluation/scorers",
+      "section": 2,
+      "title": "Scoring overview",
+      "heading": "Function-based scorers",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers",
+      "page_sha256": "37fb7e1c9814dcd294e69b6c17feff901a1ee0621b90b8609e91687480698f13",
+      "text": "### Function-based scorers\n\n**Python**\n\nFunction-based Scorers are functions decorated with `@weave.op` that return a dictionary. They work well for straightforward evaluations like:\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op\ndef evaluate_uppercase(text: str) -> dict:\n    return {\"text_is_uppercase\": text.isupper()}\n\nmy_eval = weave.Evaluation(\n    dataset=[{\"text\": \"HELLO WORLD\"}],\n    scorers=[evaluate_uppercase]\n)\n```\n\nWhen you run the evaluation, `evaluate_uppercase` checks whether the text is all uppercase.\n\n**TypeScript**\n\nThese are functions wrapped with `weave.op` that accept an object with `modelOutput` and optionally `datasetRow`. They work well for straightforward evaluations like the following example:\n\n```typescript lines theme={\"system\"}\nimport * as weave from 'weave'\n\nconst evaluateUppercase = weave.op(\n    ({modelOutput}) => modelOutput.toUpperCase() === modelOutput,\n    {name: 'textIsUppercase'}\n);\n\nconst myEval = new weave.Evaluation({\n    dataset: [{text: 'HELLO WORLD'}],\n    scorers: [evaluateUppercase],\n})\n```\n\n",
+      "page_context": "# Scoring overview\n\n> Evaluate AI outputs and return evaluation metrics with Weave Scorers\n\nIn Weave, Scorers evaluate AI outputs and return evaluation metrics. They take the AI's output, analyze it, and return a dictionary of results. Scorers can use your input data as reference if needed and can also output extra information, such as explanations or reasoning from the evaluation.\n\nThis guide is for developers who want to measure the quality of their AI system's outputs. It explains how Scorers fit into Weave evaluations, how to build your own Scorers, how to apply Scorers to individual calls, and how to analyze the resulting scores.\n\n**Python**\n\nPass Scorers to a `weave.Evaluation` object during evaluation. Weave supports two types of Scorers:\n\n1. **Function-based Scorers:** Python functions decorated with `@weave.op`.\n2. **Class-based Scorers:** Python classes that inherit from `weave.Scorer` for more complex evaluations.\n\nScorers must return a dictionary and can return multiple metrics, nested metrics, and non-numeric values such as text returned from an LLM-evaluator about its reasoning.\n\n**TypeScript**\n\nScorers are special ops that you pass to a `weave.Evaluation` object during evaluation.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Scoring overview"
+        },
+        {
+          "section": 1,
+          "heading": "Create your own scorers"
+        },
+        {
+          "section": 2,
+          "heading": "Function-based scorers"
+        },
+        {
+          "section": 3,
+          "heading": "Class-based scorers"
+        },
+        {
+          "section": 4,
+          "heading": "How scorers work"
+        },
+        {
+          "section": 5,
+          "heading": "Scorer keyword arguments"
+        },
+        {
+          "section": 6,
+          "heading": "Mapping column names with `column_map`"
+        },
+        {
+          "section": 7,
+          "heading": "Mapping column names with `columnMapping`"
+        },
+        {
+          "section": 8,
+          "heading": "Access variables from your ops in scoring prompts"
+        },
+        {
+          "section": 9,
+          "heading": "Final summarization of the scorer"
+        },
+        {
+          "section": 10,
+          "heading": "Apply scorers to a call"
+        },
+        {
+          "section": 11,
+          "heading": "Use `preprocess_model_input`"
+        },
+        {
+          "section": 12,
+          "heading": "Score analysis"
+        },
+        {
+          "section": 13,
+          "heading": "Analyze a single call's scores"
+        },
+        {
+          "section": 14,
+          "heading": "Single call API"
+        },
+        {
+          "section": 15,
+          "heading": "Single call UI"
+        },
+        {
+          "section": 16,
+          "heading": "Analyze multiple calls' scores"
+        },
+        {
+          "section": 17,
+          "heading": "Multiple calls API"
+        },
+        {
+          "section": 18,
+          "heading": "Multiple calls UI"
+        },
+        {
+          "section": 19,
+          "heading": "Analyze all calls scored by a specific scorer"
+        },
+        {
+          "section": 20,
+          "heading": "All calls by scorer API"
+        },
+        {
+          "section": 21,
+          "heading": "All calls by scorer UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/core-types/evaluations",
+      "section": 6,
+      "title": "Evaluations overview",
+      "heading": "Define scoring functions",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+      "page_sha256": "d8b701427b175b5c29906e40d24de0c1aa1bdb8c7ce862f8adfd68602e986b15",
+      "text": "## Define scoring functions\n\nThen, create one or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md). Weave uses these to score each example in the `Dataset`.\n\n**Python**\n\nEach scoring function must have an `output` parameter, and return a dictionary with the scores. Optionally, you can include other inputs from your examples.\n\nScoring functions need to have an `output` keyword argument, but the other arguments are user defined and are taken from the dataset examples. Weave only takes the necessary keys by using a dictionary key based on the argument name.\n\n> [!TIP]\n>\n> If your scorer expects an `output` argument but isn't receiving it, check whether it's using the legacy `model_output` key. To fix this, update your scorer function to use `output` as a keyword argument.\n\nThe following example scorer function `match_score1` uses the `expected` value from the `examples` dictionary for scoring:\n\n```python lines theme={\"system\"}\nimport weave\n\n# Collect your examples\nexamples = [\n    {\"question\": \"What is the capital of France?\", \"expected\": \"Paris\"},\n    {\"question\": \"Who wrote 'To Kill a Mockingbird'?\", \"expected\": \"Harper Lee\"},\n    {\"question\": \"What is the square root of 64?\", \"expected\": \"8\"},\n]\n\n# Define any custom scoring function\n@weave.op()\ndef match_score1(expected: str, output: dict) -> dict:\n    # Here is where you'd define the logic to score the model output\n    return {'match': expected == output['generated_text']}\n```\n\n",
+      "page_context": "# Evaluations overview\n\n> Evaluation-driven LLM application development to systematically improve applications\n\n*Evaluation-driven LLM application development* helps you systematically improve LLM applications by measuring their behavior using consistent, curated examples.\n\nThis guide shows you how to set up and run evaluations in Weave so you can measure your LLM application's performance against repeatable test cases, compare changes over time, and identify regressions. It's intended for developers building LLM applications who want to move beyond ad hoc testing into a structured, measurable workflow.\n\n**Python**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or list of dictionaries for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n* Optional configuration like [input preprocessing](#format-dataset-rows-before-evaluating).\n\nOnce you've defined the `Evaluation`, you can run it against a [`Model`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/models) object or any custom function containing LLM application logic. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and each run as a measurement of how your application performs under that setup.\n\n**TypeScript**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or array of objects for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n\nOnce you've defined the `Evaluation`, you can run it against any function wrapped with `weave.op`. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and eac",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Evaluations overview"
+        },
+        {
+          "section": 1,
+          "heading": "Create an `Evaluation` object"
+        },
+        {
+          "section": 2,
+          "heading": "Optional: Custom naming"
+        },
+        {
+          "section": 3,
+          "heading": "Name the `Evaluation` object"
+        },
+        {
+          "section": 4,
+          "heading": "Name individual evaluation runs"
+        },
+        {
+          "section": 5,
+          "heading": "Define a dataset of test examples"
+        },
+        {
+          "section": 6,
+          "heading": "Define scoring functions"
+        },
+        {
+          "section": 7,
+          "heading": "Optional: Define a custom `Scorer` class"
+        },
+        {
+          "section": 8,
+          "heading": "Define a model or function to evaluate"
+        },
+        {
+          "section": 9,
+          "heading": "Optional: Define a function to evaluate"
+        },
+        {
+          "section": 10,
+          "heading": "Run the evaluation"
+        },
+        {
+          "section": 11,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 12,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 13,
+          "heading": "Full evaluation code example"
+        },
+        {
+          "section": 14,
+          "heading": "Advanced evaluation usage"
+        },
+        {
+          "section": 15,
+          "heading": "Format dataset rows before evaluating"
+        },
+        {
+          "section": 16,
+          "heading": "Use HuggingFace datasets with evaluations"
+        },
+        {
+          "section": 17,
+          "heading": "Saved views"
+        },
+        {
+          "section": 18,
+          "heading": "Imperative evaluations (`EvaluationLogger`)"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/evaluation/scorers",
+          "title": "Scoring overview"
+        },
+        {
+          "page_id": "guides/core-types/datasets",
+          "title": "Collect and track datasets"
+        },
+        {
+          "page_id": "guides/core-types/models",
+          "title": "Track application versions with models"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "guides/core-types/evaluations",
+      "section": 10,
+      "title": "Evaluations overview",
+      "heading": "Run the evaluation",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+      "page_sha256": "d8b701427b175b5c29906e40d24de0c1aa1bdb8c7ce862f8adfd68602e986b15",
+      "text": "## Run the evaluation\n\nWith your `Evaluation` object, dataset, scorers, and model defined, you're ready to execute the evaluation and capture results in Weave. To run an evaluation, call `.evaluate()` on the `Evaluation` object.\n\n**Python**\n\nAssuming an `Evaluation` object called `evaluation` and a `Model` object to evaluate called `model`, the following code instantiates an evaluation run:\n\n```python lines theme={\"system\"}\nasyncio.run(evaluation.evaluate(model))\n```\n\n",
+      "page_context": "# Evaluations overview\n\n> Evaluation-driven LLM application development to systematically improve applications\n\n*Evaluation-driven LLM application development* helps you systematically improve LLM applications by measuring their behavior using consistent, curated examples.\n\nThis guide shows you how to set up and run evaluations in Weave so you can measure your LLM application's performance against repeatable test cases, compare changes over time, and identify regressions. It's intended for developers building LLM applications who want to move beyond ad hoc testing into a structured, measurable workflow.\n\n**Python**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or list of dictionaries for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n* Optional configuration like [input preprocessing](#format-dataset-rows-before-evaluating).\n\nOnce you've defined the `Evaluation`, you can run it against a [`Model`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/models) object or any custom function containing LLM application logic. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and each run as a measurement of how your application performs under that setup.\n\n**TypeScript**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or array of objects for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n\nOnce you've defined the `Evaluation`, you can run it against any function wrapped with `weave.op`. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and eac",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Evaluations overview"
+        },
+        {
+          "section": 1,
+          "heading": "Create an `Evaluation` object"
+        },
+        {
+          "section": 2,
+          "heading": "Optional: Custom naming"
+        },
+        {
+          "section": 3,
+          "heading": "Name the `Evaluation` object"
+        },
+        {
+          "section": 4,
+          "heading": "Name individual evaluation runs"
+        },
+        {
+          "section": 5,
+          "heading": "Define a dataset of test examples"
+        },
+        {
+          "section": 6,
+          "heading": "Define scoring functions"
+        },
+        {
+          "section": 7,
+          "heading": "Optional: Define a custom `Scorer` class"
+        },
+        {
+          "section": 8,
+          "heading": "Define a model or function to evaluate"
+        },
+        {
+          "section": 9,
+          "heading": "Optional: Define a function to evaluate"
+        },
+        {
+          "section": 10,
+          "heading": "Run the evaluation"
+        },
+        {
+          "section": 11,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 12,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 13,
+          "heading": "Full evaluation code example"
+        },
+        {
+          "section": 14,
+          "heading": "Advanced evaluation usage"
+        },
+        {
+          "section": 15,
+          "heading": "Format dataset rows before evaluating"
+        },
+        {
+          "section": 16,
+          "heading": "Use HuggingFace datasets with evaluations"
+        },
+        {
+          "section": 17,
+          "heading": "Saved views"
+        },
+        {
+          "section": 18,
+          "heading": "Imperative evaluations (`EvaluationLogger`)"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/datasets",
+          "title": "Collect and track datasets"
+        },
+        {
+          "page_id": "guides/evaluation/scorers",
+          "title": "Scoring overview"
+        },
+        {
+          "page_id": "guides/core-types/models",
+          "title": "Track application versions with models"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S4",
+      "page_id": "guides/evaluation/scorers",
+      "section": 9,
+      "title": "Scoring overview",
+      "heading": "Final summarization of the scorer",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers",
+      "page_sha256": "37fb7e1c9814dcd294e69b6c17feff901a1ee0621b90b8609e91687480698f13",
+      "text": "### Final summarization of the scorer\n\n**Python**\n\nDuring evaluation, Weave computes the scorer for each row of your dataset. To provide a final score for the evaluation, Weave runs `auto_summarize` based on the return type of the output.\n\nYou can override the `summarize` method on the `Scorer` class and provide your own way to compute the final scores. The `summarize` function expects:\n\n* A single parameter `score_rows`: a list of dictionaries, where each dictionary contains the scores returned by the `score` method for a single row of your dataset.\n* It returns a dictionary containing the summarized scores.\n\n**Why this is useful**\n\nWhen you need to score all rows before deciding on the final value of the score for the dataset.\n\n```python lines theme={\"system\"}\nclass MyBinaryScorer(Scorer):\n    \"\"\"\n    Returns True if the full output matches the target, False if not\n    \"\"\"\n\n    @weave.op\n    def score(self, output, target):\n        return {\"match\": output == target}\n\n    def summarize(self, score_rows: list) -> dict:\n        full_match = all(row[\"match\"] for row in score_rows)\n        return {\"full_match\": full_match}\n```\n\n> In this example, the default `auto_summarize` would return the count and proportion of True.\n\nFor more information, see the implementation of [CorrectnessLLMJudge](https://docs.coreweave.com/products/wandb/weave/tutorial-rag.md#optional-defining-a-scorer-class).\n\n**TypeScript**\n\nDuring evaluation, Weave computes the scorer for each row of your dataset. To provide a final score, Weave uses an internal `summarizeResults` function that aggregates depending on the output type.\n\nWeave doesn't support custom summarization.\n\n",
+      "page_context": "# Scoring overview\n\n> Evaluate AI outputs and return evaluation metrics with Weave Scorers\n\nIn Weave, Scorers evaluate AI outputs and return evaluation metrics. They take the AI's output, analyze it, and return a dictionary of results. Scorers can use your input data as reference if needed and can also output extra information, such as explanations or reasoning from the evaluation.\n\nThis guide is for developers who want to measure the quality of their AI system's outputs. It explains how Scorers fit into Weave evaluations, how to build your own Scorers, how to apply Scorers to individual calls, and how to analyze the resulting scores.\n\n**Python**\n\nPass Scorers to a `weave.Evaluation` object during evaluation. Weave supports two types of Scorers:\n\n1. **Function-based Scorers:** Python functions decorated with `@weave.op`.\n2. **Class-based Scorers:** Python classes that inherit from `weave.Scorer` for more complex evaluations.\n\nScorers must return a dictionary and can return multiple metrics, nested metrics, and non-numeric values such as text returned from an LLM-evaluator about its reasoning.\n\n**TypeScript**\n\nScorers are special ops that you pass to a `weave.Evaluation` object during evaluation.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Scoring overview"
+        },
+        {
+          "section": 1,
+          "heading": "Create your own scorers"
+        },
+        {
+          "section": 2,
+          "heading": "Function-based scorers"
+        },
+        {
+          "section": 3,
+          "heading": "Class-based scorers"
+        },
+        {
+          "section": 4,
+          "heading": "How scorers work"
+        },
+        {
+          "section": 5,
+          "heading": "Scorer keyword arguments"
+        },
+        {
+          "section": 6,
+          "heading": "Mapping column names with `column_map`"
+        },
+        {
+          "section": 7,
+          "heading": "Mapping column names with `columnMapping`"
+        },
+        {
+          "section": 8,
+          "heading": "Access variables from your ops in scoring prompts"
+        },
+        {
+          "section": 9,
+          "heading": "Final summarization of the scorer"
+        },
+        {
+          "section": 10,
+          "heading": "Apply scorers to a call"
+        },
+        {
+          "section": 11,
+          "heading": "Use `preprocess_model_input`"
+        },
+        {
+          "section": 12,
+          "heading": "Score analysis"
+        },
+        {
+          "section": 13,
+          "heading": "Analyze a single call's scores"
+        },
+        {
+          "section": 14,
+          "heading": "Single call API"
+        },
+        {
+          "section": 15,
+          "heading": "Single call UI"
+        },
+        {
+          "section": 16,
+          "heading": "Analyze multiple calls' scores"
+        },
+        {
+          "section": 17,
+          "heading": "Multiple calls API"
+        },
+        {
+          "section": 18,
+          "heading": "Multiple calls UI"
+        },
+        {
+          "section": 19,
+          "heading": "Analyze all calls scored by a specific scorer"
+        },
+        {
+          "section": 20,
+          "heading": "All calls by scorer API"
+        },
+        {
+          "section": 21,
+          "heading": "All calls by scorer UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "tutorial-rag",
+          "title": "Evaluate RAG applications"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "all_read_evidence": [
+    {
+      "source_id": "C1",
+      "code": "preds = [\"yes\", \"no\", \"yes\", \"yes\"]\nexpected = [\"yes\", \"yes\", \"yes\", \"no\"]\nmatches = [p == e for p, e in zip(preds, expected)]\nprint(matches)\nprint(sum(matches) / len(matches))",
+      "output": "[True, False, True, False]\n0.5\n",
+      "exit_code": 0,
+      "stopped": null,
+      "environment": "Python 3.12 standard library; offline container",
+      "limitation": "No Weave SDK or remote API calls. This only checks local Python behavior."
+    },
+    {
+      "source_id": "S1",
+      "page_id": "guides/evaluation/scorers",
+      "section": 2,
+      "title": "Scoring overview",
+      "heading": "Function-based scorers",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers",
+      "page_sha256": "37fb7e1c9814dcd294e69b6c17feff901a1ee0621b90b8609e91687480698f13",
+      "text": "### Function-based scorers\n\n**Python**\n\nFunction-based Scorers are functions decorated with `@weave.op` that return a dictionary. They work well for straightforward evaluations like:\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op\ndef evaluate_uppercase(text: str) -> dict:\n    return {\"text_is_uppercase\": text.isupper()}\n\nmy_eval = weave.Evaluation(\n    dataset=[{\"text\": \"HELLO WORLD\"}],\n    scorers=[evaluate_uppercase]\n)\n```\n\nWhen you run the evaluation, `evaluate_uppercase` checks whether the text is all uppercase.\n\n**TypeScript**\n\nThese are functions wrapped with `weave.op` that accept an object with `modelOutput` and optionally `datasetRow`. They work well for straightforward evaluations like the following example:\n\n```typescript lines theme={\"system\"}\nimport * as weave from 'weave'\n\nconst evaluateUppercase = weave.op(\n    ({modelOutput}) => modelOutput.toUpperCase() === modelOutput,\n    {name: 'textIsUppercase'}\n);\n\nconst myEval = new weave.Evaluation({\n    dataset: [{text: 'HELLO WORLD'}],\n    scorers: [evaluateUppercase],\n})\n```\n\n",
+      "page_context": "# Scoring overview\n\n> Evaluate AI outputs and return evaluation metrics with Weave Scorers\n\nIn Weave, Scorers evaluate AI outputs and return evaluation metrics. They take the AI's output, analyze it, and return a dictionary of results. Scorers can use your input data as reference if needed and can also output extra information, such as explanations or reasoning from the evaluation.\n\nThis guide is for developers who want to measure the quality of their AI system's outputs. It explains how Scorers fit into Weave evaluations, how to build your own Scorers, how to apply Scorers to individual calls, and how to analyze the resulting scores.\n\n**Python**\n\nPass Scorers to a `weave.Evaluation` object during evaluation. Weave supports two types of Scorers:\n\n1. **Function-based Scorers:** Python functions decorated with `@weave.op`.\n2. **Class-based Scorers:** Python classes that inherit from `weave.Scorer` for more complex evaluations.\n\nScorers must return a dictionary and can return multiple metrics, nested metrics, and non-numeric values such as text returned from an LLM-evaluator about its reasoning.\n\n**TypeScript**\n\nScorers are special ops that you pass to a `weave.Evaluation` object during evaluation.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Scoring overview"
+        },
+        {
+          "section": 1,
+          "heading": "Create your own scorers"
+        },
+        {
+          "section": 2,
+          "heading": "Function-based scorers"
+        },
+        {
+          "section": 3,
+          "heading": "Class-based scorers"
+        },
+        {
+          "section": 4,
+          "heading": "How scorers work"
+        },
+        {
+          "section": 5,
+          "heading": "Scorer keyword arguments"
+        },
+        {
+          "section": 6,
+          "heading": "Mapping column names with `column_map`"
+        },
+        {
+          "section": 7,
+          "heading": "Mapping column names with `columnMapping`"
+        },
+        {
+          "section": 8,
+          "heading": "Access variables from your ops in scoring prompts"
+        },
+        {
+          "section": 9,
+          "heading": "Final summarization of the scorer"
+        },
+        {
+          "section": 10,
+          "heading": "Apply scorers to a call"
+        },
+        {
+          "section": 11,
+          "heading": "Use `preprocess_model_input`"
+        },
+        {
+          "section": 12,
+          "heading": "Score analysis"
+        },
+        {
+          "section": 13,
+          "heading": "Analyze a single call's scores"
+        },
+        {
+          "section": 14,
+          "heading": "Single call API"
+        },
+        {
+          "section": 15,
+          "heading": "Single call UI"
+        },
+        {
+          "section": 16,
+          "heading": "Analyze multiple calls' scores"
+        },
+        {
+          "section": 17,
+          "heading": "Multiple calls API"
+        },
+        {
+          "section": 18,
+          "heading": "Multiple calls UI"
+        },
+        {
+          "section": 19,
+          "heading": "Analyze all calls scored by a specific scorer"
+        },
+        {
+          "section": 20,
+          "heading": "All calls by scorer API"
+        },
+        {
+          "section": 21,
+          "heading": "All calls by scorer UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/core-types/evaluations",
+      "section": 6,
+      "title": "Evaluations overview",
+      "heading": "Define scoring functions",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+      "page_sha256": "d8b701427b175b5c29906e40d24de0c1aa1bdb8c7ce862f8adfd68602e986b15",
+      "text": "## Define scoring functions\n\nThen, create one or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md). Weave uses these to score each example in the `Dataset`.\n\n**Python**\n\nEach scoring function must have an `output` parameter, and return a dictionary with the scores. Optionally, you can include other inputs from your examples.\n\nScoring functions need to have an `output` keyword argument, but the other arguments are user defined and are taken from the dataset examples. Weave only takes the necessary keys by using a dictionary key based on the argument name.\n\n> [!TIP]\n>\n> If your scorer expects an `output` argument but isn't receiving it, check whether it's using the legacy `model_output` key. To fix this, update your scorer function to use `output` as a keyword argument.\n\nThe following example scorer function `match_score1` uses the `expected` value from the `examples` dictionary for scoring:\n\n```python lines theme={\"system\"}\nimport weave\n\n# Collect your examples\nexamples = [\n    {\"question\": \"What is the capital of France?\", \"expected\": \"Paris\"},\n    {\"question\": \"Who wrote 'To Kill a Mockingbird'?\", \"expected\": \"Harper Lee\"},\n    {\"question\": \"What is the square root of 64?\", \"expected\": \"8\"},\n]\n\n# Define any custom scoring function\n@weave.op()\ndef match_score1(expected: str, output: dict) -> dict:\n    # Here is where you'd define the logic to score the model output\n    return {'match': expected == output['generated_text']}\n```\n\n",
+      "page_context": "# Evaluations overview\n\n> Evaluation-driven LLM application development to systematically improve applications\n\n*Evaluation-driven LLM application development* helps you systematically improve LLM applications by measuring their behavior using consistent, curated examples.\n\nThis guide shows you how to set up and run evaluations in Weave so you can measure your LLM application's performance against repeatable test cases, compare changes over time, and identify regressions. It's intended for developers building LLM applications who want to move beyond ad hoc testing into a structured, measurable workflow.\n\n**Python**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or list of dictionaries for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n* Optional configuration like [input preprocessing](#format-dataset-rows-before-evaluating).\n\nOnce you've defined the `Evaluation`, you can run it against a [`Model`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/models) object or any custom function containing LLM application logic. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and each run as a measurement of how your application performs under that setup.\n\n**TypeScript**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or array of objects for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n\nOnce you've defined the `Evaluation`, you can run it against any function wrapped with `weave.op`. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and eac",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Evaluations overview"
+        },
+        {
+          "section": 1,
+          "heading": "Create an `Evaluation` object"
+        },
+        {
+          "section": 2,
+          "heading": "Optional: Custom naming"
+        },
+        {
+          "section": 3,
+          "heading": "Name the `Evaluation` object"
+        },
+        {
+          "section": 4,
+          "heading": "Name individual evaluation runs"
+        },
+        {
+          "section": 5,
+          "heading": "Define a dataset of test examples"
+        },
+        {
+          "section": 6,
+          "heading": "Define scoring functions"
+        },
+        {
+          "section": 7,
+          "heading": "Optional: Define a custom `Scorer` class"
+        },
+        {
+          "section": 8,
+          "heading": "Define a model or function to evaluate"
+        },
+        {
+          "section": 9,
+          "heading": "Optional: Define a function to evaluate"
+        },
+        {
+          "section": 10,
+          "heading": "Run the evaluation"
+        },
+        {
+          "section": 11,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 12,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 13,
+          "heading": "Full evaluation code example"
+        },
+        {
+          "section": 14,
+          "heading": "Advanced evaluation usage"
+        },
+        {
+          "section": 15,
+          "heading": "Format dataset rows before evaluating"
+        },
+        {
+          "section": 16,
+          "heading": "Use HuggingFace datasets with evaluations"
+        },
+        {
+          "section": 17,
+          "heading": "Saved views"
+        },
+        {
+          "section": 18,
+          "heading": "Imperative evaluations (`EvaluationLogger`)"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/evaluation/scorers",
+          "title": "Scoring overview"
+        },
+        {
+          "page_id": "guides/core-types/datasets",
+          "title": "Collect and track datasets"
+        },
+        {
+          "page_id": "guides/core-types/models",
+          "title": "Track application versions with models"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "guides/core-types/evaluations",
+      "section": 10,
+      "title": "Evaluations overview",
+      "heading": "Run the evaluation",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+      "page_sha256": "d8b701427b175b5c29906e40d24de0c1aa1bdb8c7ce862f8adfd68602e986b15",
+      "text": "## Run the evaluation\n\nWith your `Evaluation` object, dataset, scorers, and model defined, you're ready to execute the evaluation and capture results in Weave. To run an evaluation, call `.evaluate()` on the `Evaluation` object.\n\n**Python**\n\nAssuming an `Evaluation` object called `evaluation` and a `Model` object to evaluate called `model`, the following code instantiates an evaluation run:\n\n```python lines theme={\"system\"}\nasyncio.run(evaluation.evaluate(model))\n```\n\n",
+      "page_context": "# Evaluations overview\n\n> Evaluation-driven LLM application development to systematically improve applications\n\n*Evaluation-driven LLM application development* helps you systematically improve LLM applications by measuring their behavior using consistent, curated examples.\n\nThis guide shows you how to set up and run evaluations in Weave so you can measure your LLM application's performance against repeatable test cases, compare changes over time, and identify regressions. It's intended for developers building LLM applications who want to move beyond ad hoc testing into a structured, measurable workflow.\n\n**Python**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or list of dictionaries for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n* Optional configuration like [input preprocessing](#format-dataset-rows-before-evaluating).\n\nOnce you've defined the `Evaluation`, you can run it against a [`Model`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/models) object or any custom function containing LLM application logic. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and each run as a measurement of how your application performs under that setup.\n\n**TypeScript**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or array of objects for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n\nOnce you've defined the `Evaluation`, you can run it against any function wrapped with `weave.op`. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and eac",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Evaluations overview"
+        },
+        {
+          "section": 1,
+          "heading": "Create an `Evaluation` object"
+        },
+        {
+          "section": 2,
+          "heading": "Optional: Custom naming"
+        },
+        {
+          "section": 3,
+          "heading": "Name the `Evaluation` object"
+        },
+        {
+          "section": 4,
+          "heading": "Name individual evaluation runs"
+        },
+        {
+          "section": 5,
+          "heading": "Define a dataset of test examples"
+        },
+        {
+          "section": 6,
+          "heading": "Define scoring functions"
+        },
+        {
+          "section": 7,
+          "heading": "Optional: Define a custom `Scorer` class"
+        },
+        {
+          "section": 8,
+          "heading": "Define a model or function to evaluate"
+        },
+        {
+          "section": 9,
+          "heading": "Optional: Define a function to evaluate"
+        },
+        {
+          "section": 10,
+          "heading": "Run the evaluation"
+        },
+        {
+          "section": 11,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 12,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 13,
+          "heading": "Full evaluation code example"
+        },
+        {
+          "section": 14,
+          "heading": "Advanced evaluation usage"
+        },
+        {
+          "section": 15,
+          "heading": "Format dataset rows before evaluating"
+        },
+        {
+          "section": 16,
+          "heading": "Use HuggingFace datasets with evaluations"
+        },
+        {
+          "section": 17,
+          "heading": "Saved views"
+        },
+        {
+          "section": 18,
+          "heading": "Imperative evaluations (`EvaluationLogger`)"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/datasets",
+          "title": "Collect and track datasets"
+        },
+        {
+          "page_id": "guides/evaluation/scorers",
+          "title": "Scoring overview"
+        },
+        {
+          "page_id": "guides/core-types/models",
+          "title": "Track application versions with models"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S4",
+      "page_id": "guides/evaluation/scorers",
+      "section": 9,
+      "title": "Scoring overview",
+      "heading": "Final summarization of the scorer",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers",
+      "page_sha256": "37fb7e1c9814dcd294e69b6c17feff901a1ee0621b90b8609e91687480698f13",
+      "text": "### Final summarization of the scorer\n\n**Python**\n\nDuring evaluation, Weave computes the scorer for each row of your dataset. To provide a final score for the evaluation, Weave runs `auto_summarize` based on the return type of the output.\n\nYou can override the `summarize` method on the `Scorer` class and provide your own way to compute the final scores. The `summarize` function expects:\n\n* A single parameter `score_rows`: a list of dictionaries, where each dictionary contains the scores returned by the `score` method for a single row of your dataset.\n* It returns a dictionary containing the summarized scores.\n\n**Why this is useful**\n\nWhen you need to score all rows before deciding on the final value of the score for the dataset.\n\n```python lines theme={\"system\"}\nclass MyBinaryScorer(Scorer):\n    \"\"\"\n    Returns True if the full output matches the target, False if not\n    \"\"\"\n\n    @weave.op\n    def score(self, output, target):\n        return {\"match\": output == target}\n\n    def summarize(self, score_rows: list) -> dict:\n        full_match = all(row[\"match\"] for row in score_rows)\n        return {\"full_match\": full_match}\n```\n\n> In this example, the default `auto_summarize` would return the count and proportion of True.\n\nFor more information, see the implementation of [CorrectnessLLMJudge](https://docs.coreweave.com/products/wandb/weave/tutorial-rag.md#optional-defining-a-scorer-class).\n\n**TypeScript**\n\nDuring evaluation, Weave computes the scorer for each row of your dataset. To provide a final score, Weave uses an internal `summarizeResults` function that aggregates depending on the output type.\n\nWeave doesn't support custom summarization.\n\n",
+      "page_context": "# Scoring overview\n\n> Evaluate AI outputs and return evaluation metrics with Weave Scorers\n\nIn Weave, Scorers evaluate AI outputs and return evaluation metrics. They take the AI's output, analyze it, and return a dictionary of results. Scorers can use your input data as reference if needed and can also output extra information, such as explanations or reasoning from the evaluation.\n\nThis guide is for developers who want to measure the quality of their AI system's outputs. It explains how Scorers fit into Weave evaluations, how to build your own Scorers, how to apply Scorers to individual calls, and how to analyze the resulting scores.\n\n**Python**\n\nPass Scorers to a `weave.Evaluation` object during evaluation. Weave supports two types of Scorers:\n\n1. **Function-based Scorers:** Python functions decorated with `@weave.op`.\n2. **Class-based Scorers:** Python classes that inherit from `weave.Scorer` for more complex evaluations.\n\nScorers must return a dictionary and can return multiple metrics, nested metrics, and non-numeric values such as text returned from an LLM-evaluator about its reasoning.\n\n**TypeScript**\n\nScorers are special ops that you pass to a `weave.Evaluation` object during evaluation.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Scoring overview"
+        },
+        {
+          "section": 1,
+          "heading": "Create your own scorers"
+        },
+        {
+          "section": 2,
+          "heading": "Function-based scorers"
+        },
+        {
+          "section": 3,
+          "heading": "Class-based scorers"
+        },
+        {
+          "section": 4,
+          "heading": "How scorers work"
+        },
+        {
+          "section": 5,
+          "heading": "Scorer keyword arguments"
+        },
+        {
+          "section": 6,
+          "heading": "Mapping column names with `column_map`"
+        },
+        {
+          "section": 7,
+          "heading": "Mapping column names with `columnMapping`"
+        },
+        {
+          "section": 8,
+          "heading": "Access variables from your ops in scoring prompts"
+        },
+        {
+          "section": 9,
+          "heading": "Final summarization of the scorer"
+        },
+        {
+          "section": 10,
+          "heading": "Apply scorers to a call"
+        },
+        {
+          "section": 11,
+          "heading": "Use `preprocess_model_input`"
+        },
+        {
+          "section": 12,
+          "heading": "Score analysis"
+        },
+        {
+          "section": 13,
+          "heading": "Analyze a single call's scores"
+        },
+        {
+          "section": 14,
+          "heading": "Single call API"
+        },
+        {
+          "section": 15,
+          "heading": "Single call UI"
+        },
+        {
+          "section": 16,
+          "heading": "Analyze multiple calls' scores"
+        },
+        {
+          "section": 17,
+          "heading": "Multiple calls API"
+        },
+        {
+          "section": 18,
+          "heading": "Multiple calls UI"
+        },
+        {
+          "section": 19,
+          "heading": "Analyze all calls scored by a specific scorer"
+        },
+        {
+          "section": 20,
+          "heading": "All calls by scorer API"
+        },
+        {
+          "section": 21,
+          "heading": "All calls by scorer UI"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "tutorial-rag",
+          "title": "Evaluate RAG applications"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "actions": [
+    {
+      "tool": "run_python",
+      "input": {
+        "code": "preds = [\"yes\", \"no\", \"yes\", \"yes\"]\nexpected = [\"yes\", \"yes\", \"yes\", \"no\"]\nmatches = [p == e for p, e in zip(preds, expected)]\nprint(matches)\nprint(sum(matches) / len(matches))"
+      },
+      "result": {
+        "source_id": "C1",
+        "code": "preds = [\"yes\", \"no\", \"yes\", \"yes\"]\nexpected = [\"yes\", \"yes\", \"yes\", \"no\"]\nmatches = [p == e for p, e in zip(preds, expected)]\nprint(matches)\nprint(sum(matches) / len(matches))",
+        "output": "[True, False, True, False]\n0.5\n",
+        "exit_code": 0,
+        "stopped": null,
+        "environment": "Python 3.12 standard library; offline container",
+        "limitation": "No Weave SDK or remote API calls. This only checks local Python behavior."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "weave.Evaluation scorers function-based scorer"
+      },
+      "result": {
+        "query": "weave.Evaluation scorers function-based scorer",
+        "results": [
+          {
+            "page_id": "guides/evaluation/builtin_scorers",
+            "section": 0,
+            "title": "Use builtin scorers",
+            "heading": "Use builtin scorers",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers",
+            "snippet": "# Use builtin scorers\n\n> Use Weave's predefined scorers for evaluating your AI applications\n\nWeave offers several predefined scorers for evaluating your AI applications, such as [Hallucination detection](#hallucinationfreescorer) and [Summarization quality](#summarizationscorer). These can help you quickly define an evaluation and score your application's outputs. This page describes each built-in scorer, what it measures, and how to use it in an evaluation.\n\n> [!NOTE]\n>\n> Local scorers are only available for the Weave Python SDK. They aren't yet available for the Weave TypeScript SDK.\n>\n> To use Weave scorers in TypeScript, see [function-based scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md#function-based-scorers).\n\n"
+          },
+          {
+            "page_id": "guides/evaluation/scorers",
+            "section": 2,
+            "title": "Scoring overview",
+            "heading": "Function-based scorers",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers",
+            "snippet": "### Function-based scorers\n\n**Python**\n\nFunction-based Scorers are functions decorated with `@weave.op` that return a dictionary. They work well for straightforward evaluations like:\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op\ndef evaluate_uppercase(text: str) -> dict:\n    return {\"text_is_uppercase\": text.isupper()}\n\nmy_eval = weave.Evaluation(\n    dataset=[{\"text\": \"HELLO WORLD\"}],\n    scorers=[evaluate_uppercase]\n)\n```\n\nWhen you run the evaluation, `evaluate_uppercase` checks whether the text is all uppercase.\n\n**TypeScript**\n\nThese are functions wrapped with `weave.op` that accept an object with `modelOutput` and optionally `datasetRow`. They work well for straightforward evaluations like the following example:\n\n```typescript lines theme={\"system\"}\nimport * as weave from 'weave'\n\nconst evaluateUppercase = weave.op(\n    ({modelOutput}) => modelOutput.toUpperCase() === modelOutput,\n    {name: 'textIsUppercase'}\n);\n\nconst myEval = new weave.Evaluation({\n    dataset: [{text: 'HELLO WORLD'}],\n    scorers: [evaluateUppercase],\n})\n```\n\n"
+          },
+          {
+            "page_id": "guides/evaluation/scorers",
+            "section": 0,
+            "title": "Scoring overview",
+            "heading": "Scoring overview",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers",
+            "snippet": "# Scoring overview\n\n> Evaluate AI outputs and return evaluation metrics with Weave Scorers\n\nIn Weave, Scorers evaluate AI outputs and return evaluation metrics. They take the AI's output, analyze it, and return a dictionary of results. Scorers can use your input data as reference if needed and can also output extra information, such as explanations or reasoning from the evaluation.\n\nThis guide is for developers who want to measure the quality of their AI system's outputs. It explains how Scorers fit into Weave evaluations, how to build your own Scorers, how to apply Scorers to individual calls, and how to analyze the resulting scores.\n\n**Python**\n\nPass Scorers to a `weave.Evaluation` object during evaluation. Weave supports two types of Scorers:\n\n1. **Function-based Scorers:** Python functions decorated with `@weave.op`.\n2. **Class-based Scorers:** Python classes that inherit from `weave.Scorer` for more complex evaluations.\n\nScorers must return a dictionary and can return multiple metrics, nested metrics, and non-numeric values such as text returned from an LLM-evaluator about its r"
+          },
+          {
+            "page_id": "guides/core-types/evaluations",
+            "section": 7,
+            "title": "Evaluations overview",
+            "heading": "Optional: Define a custom `Scorer` class",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+            "snippet": "### Optional: Define a custom `Scorer` class\n\nIn some applications, you may want to create custom `Scorer` classes. For example, a standardized `LLMJudge` class can be created with specific parameters (for example, chat model, prompt), specific scoring of each row, and specific calculation of an aggregate score.\n\nSee the tutorial on defining a `Scorer` class in [Model-Based Evaluation of RAG applications](https://docs.coreweave.com/products/wandb/weave/tutorial-rag.md#optional-defining-a-scorer-class) for more information.\n\n**TypeScript**\n\nEach scoring function is wrapped with `weave.op` and receives an object with `modelOutput` and `datasetRow` properties.\n\nThe following example scorer function `matchScore` compares the model output to the `expected` value from the dataset row:\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave';\n\n// Collect your examples into a dataset\nconst dataset = new weave.Dataset({\n  id: 'my-dataset',\n  rows: [\n    {question: 'What is the capital of France?', expected: 'Paris'},\n    {question: 'Who wrote \"To Kill a Mocki"
+          },
+          {
+            "page_id": "guides/evaluation/weave_local_scorers",
+            "section": 0,
+            "title": "Evaluate using local scorers",
+            "heading": "Evaluate using local scorers",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/weave_local_scorers",
+            "snippet": "# Evaluate using local scorers\n\n> Small language models that run locally to evaluate AI system safety and quality\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/master/weave/docs/scorers_local_weave_scorers.ipynb)\n\nWeave's local scorers are a suite of small language models that run locally on your machine with minimal latency. These models evaluate the safety and quality of your AI system's inputs, context, and outputs.\n\nThis page describes how to evaluate the safety and quality of your AI system using Weave's local scorers, and walks through each available scorer with usage notes and examples. Use this guide to choose a scorer for your use case, install the dependencies, and add scorers to your AI system's inputs, context, or outputs.\n\nWeights & Biases fine-tunes some of these models, while others are state-of-the-art open source models trained by the community. W\\&B Reports document the training and evaluation process. For the full details, see this [list of W\\&B Reports](https://forge.coreweave.com/wandb/c-metrics/weave-scorers/reports/Weave-Scorers-v"
+          },
+          {
+            "page_id": "tutorial-eval",
+            "section": 10,
+            "title": "Build an evaluation",
+            "heading": "Learn more about Weave evaluations",
+            "url": "https://docs.coreweave.com/products/wandb/weave/tutorial-eval",
+            "snippet": "## Learn more about Weave evaluations\n\nYou now have a complete evaluation pipeline. To go deeper into Weave's evaluation features, see the following resources:\n\n* Learn more about how to [build and use scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n* Check out Weave's [built-in scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers.md).\n* Learn about [Model-Based Evaluation](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md#model-based-evaluation) for using LLMs as judges.\n\n"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/evaluation/scorers",
+        "section": 2
+      },
+      "result": {
+        "source_id": "S1",
+        "page_id": "guides/evaluation/scorers",
+        "section": 2,
+        "title": "Scoring overview",
+        "heading": "Function-based scorers",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers",
+        "page_sha256": "37fb7e1c9814dcd294e69b6c17feff901a1ee0621b90b8609e91687480698f13",
+        "text": "### Function-based scorers\n\n**Python**\n\nFunction-based Scorers are functions decorated with `@weave.op` that return a dictionary. They work well for straightforward evaluations like:\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op\ndef evaluate_uppercase(text: str) -> dict:\n    return {\"text_is_uppercase\": text.isupper()}\n\nmy_eval = weave.Evaluation(\n    dataset=[{\"text\": \"HELLO WORLD\"}],\n    scorers=[evaluate_uppercase]\n)\n```\n\nWhen you run the evaluation, `evaluate_uppercase` checks whether the text is all uppercase.\n\n**TypeScript**\n\nThese are functions wrapped with `weave.op` that accept an object with `modelOutput` and optionally `datasetRow`. They work well for straightforward evaluations like the following example:\n\n```typescript lines theme={\"system\"}\nimport * as weave from 'weave'\n\nconst evaluateUppercase = weave.op(\n    ({modelOutput}) => modelOutput.toUpperCase() === modelOutput,\n    {name: 'textIsUppercase'}\n);\n\nconst myEval = new weave.Evaluation({\n    dataset: [{text: 'HELLO WORLD'}],\n    scorers: [evaluateUppercase],\n})\n```\n\n",
+        "page_context": "# Scoring overview\n\n> Evaluate AI outputs and return evaluation metrics with Weave Scorers\n\nIn Weave, Scorers evaluate AI outputs and return evaluation metrics. They take the AI's output, analyze it, and return a dictionary of results. Scorers can use your input data as reference if needed and can also output extra information, such as explanations or reasoning from the evaluation.\n\nThis guide is for developers who want to measure the quality of their AI system's outputs. It explains how Scorers fit into Weave evaluations, how to build your own Scorers, how to apply Scorers to individual calls, and how to analyze the resulting scores.\n\n**Python**\n\nPass Scorers to a `weave.Evaluation` object during evaluation. Weave supports two types of Scorers:\n\n1. **Function-based Scorers:** Python functions decorated with `@weave.op`.\n2. **Class-based Scorers:** Python classes that inherit from `weave.Scorer` for more complex evaluations.\n\nScorers must return a dictionary and can return multiple metrics, nested metrics, and non-numeric values such as text returned from an LLM-evaluator about its reasoning.\n\n**TypeScript**\n\nScorers are special ops that you pass to a `weave.Evaluation` object during evaluation.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Scoring overview"
+          },
+          {
+            "section": 1,
+            "heading": "Create your own scorers"
+          },
+          {
+            "section": 2,
+            "heading": "Function-based scorers"
+          },
+          {
+            "section": 3,
+            "heading": "Class-based scorers"
+          },
+          {
+            "section": 4,
+            "heading": "How scorers work"
+          },
+          {
+            "section": 5,
+            "heading": "Scorer keyword arguments"
+          },
+          {
+            "section": 6,
+            "heading": "Mapping column names with `column_map`"
+          },
+          {
+            "section": 7,
+            "heading": "Mapping column names with `columnMapping`"
+          },
+          {
+            "section": 8,
+            "heading": "Access variables from your ops in scoring prompts"
+          },
+          {
+            "section": 9,
+            "heading": "Final summarization of the scorer"
+          },
+          {
+            "section": 10,
+            "heading": "Apply scorers to a call"
+          },
+          {
+            "section": 11,
+            "heading": "Use `preprocess_model_input`"
+          },
+          {
+            "section": 12,
+            "heading": "Score analysis"
+          },
+          {
+            "section": 13,
+            "heading": "Analyze a single call's scores"
+          },
+          {
+            "section": 14,
+            "heading": "Single call API"
+          },
+          {
+            "section": 15,
+            "heading": "Single call UI"
+          },
+          {
+            "section": 16,
+            "heading": "Analyze multiple calls' scores"
+          },
+          {
+            "section": 17,
+            "heading": "Multiple calls API"
+          },
+          {
+            "section": 18,
+            "heading": "Multiple calls UI"
+          },
+          {
+            "section": 19,
+            "heading": "Analyze all calls scored by a specific scorer"
+          },
+          {
+            "section": 20,
+            "heading": "All calls by scorer API"
+          },
+          {
+            "section": 21,
+            "heading": "All calls by scorer UI"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/core-types/evaluations",
+        "section": 6
+      },
+      "result": {
+        "source_id": "S2",
+        "page_id": "guides/core-types/evaluations",
+        "section": 6,
+        "title": "Evaluations overview",
+        "heading": "Define scoring functions",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+        "page_sha256": "d8b701427b175b5c29906e40d24de0c1aa1bdb8c7ce862f8adfd68602e986b15",
+        "text": "## Define scoring functions\n\nThen, create one or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md). Weave uses these to score each example in the `Dataset`.\n\n**Python**\n\nEach scoring function must have an `output` parameter, and return a dictionary with the scores. Optionally, you can include other inputs from your examples.\n\nScoring functions need to have an `output` keyword argument, but the other arguments are user defined and are taken from the dataset examples. Weave only takes the necessary keys by using a dictionary key based on the argument name.\n\n> [!TIP]\n>\n> If your scorer expects an `output` argument but isn't receiving it, check whether it's using the legacy `model_output` key. To fix this, update your scorer function to use `output` as a keyword argument.\n\nThe following example scorer function `match_score1` uses the `expected` value from the `examples` dictionary for scoring:\n\n```python lines theme={\"system\"}\nimport weave\n\n# Collect your examples\nexamples = [\n    {\"question\": \"What is the capital of France?\", \"expected\": \"Paris\"},\n    {\"question\": \"Who wrote 'To Kill a Mockingbird'?\", \"expected\": \"Harper Lee\"},\n    {\"question\": \"What is the square root of 64?\", \"expected\": \"8\"},\n]\n\n# Define any custom scoring function\n@weave.op()\ndef match_score1(expected: str, output: dict) -> dict:\n    # Here is where you'd define the logic to score the model output\n    return {'match': expected == output['generated_text']}\n```\n\n",
+        "page_context": "# Evaluations overview\n\n> Evaluation-driven LLM application development to systematically improve applications\n\n*Evaluation-driven LLM application development* helps you systematically improve LLM applications by measuring their behavior using consistent, curated examples.\n\nThis guide shows you how to set up and run evaluations in Weave so you can measure your LLM application's performance against repeatable test cases, compare changes over time, and identify regressions. It's intended for developers building LLM applications who want to move beyond ad hoc testing into a structured, measurable workflow.\n\n**Python**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or list of dictionaries for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n* Optional configuration like [input preprocessing](#format-dataset-rows-before-evaluating).\n\nOnce you've defined the `Evaluation`, you can run it against a [`Model`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/models) object or any custom function containing LLM application logic. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and each run as a measurement of how your application performs under that setup.\n\n**TypeScript**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or array of objects for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n\nOnce you've defined the `Evaluation`, you can run it against any function wrapped with `weave.op`. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and eac",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Evaluations overview"
+          },
+          {
+            "section": 1,
+            "heading": "Create an `Evaluation` object"
+          },
+          {
+            "section": 2,
+            "heading": "Optional: Custom naming"
+          },
+          {
+            "section": 3,
+            "heading": "Name the `Evaluation` object"
+          },
+          {
+            "section": 4,
+            "heading": "Name individual evaluation runs"
+          },
+          {
+            "section": 5,
+            "heading": "Define a dataset of test examples"
+          },
+          {
+            "section": 6,
+            "heading": "Define scoring functions"
+          },
+          {
+            "section": 7,
+            "heading": "Optional: Define a custom `Scorer` class"
+          },
+          {
+            "section": 8,
+            "heading": "Define a model or function to evaluate"
+          },
+          {
+            "section": 9,
+            "heading": "Optional: Define a function to evaluate"
+          },
+          {
+            "section": 10,
+            "heading": "Run the evaluation"
+          },
+          {
+            "section": 11,
+            "heading": "Optional: Run multiple trials"
+          },
+          {
+            "section": 12,
+            "heading": "Optional: Run multiple trials"
+          },
+          {
+            "section": 13,
+            "heading": "Full evaluation code example"
+          },
+          {
+            "section": 14,
+            "heading": "Advanced evaluation usage"
+          },
+          {
+            "section": 15,
+            "heading": "Format dataset rows before evaluating"
+          },
+          {
+            "section": 16,
+            "heading": "Use HuggingFace datasets with evaluations"
+          },
+          {
+            "section": 17,
+            "heading": "Saved views"
+          },
+          {
+            "section": 18,
+            "heading": "Imperative evaluations (`EvaluationLogger`)"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/evaluation/scorers",
+            "title": "Scoring overview"
+          },
+          {
+            "page_id": "guides/core-types/datasets",
+            "title": "Collect and track datasets"
+          },
+          {
+            "page_id": "guides/core-types/models",
+            "title": "Track application versions with models"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/core-types/evaluations",
+        "section": 10
+      },
+      "result": {
+        "source_id": "S3",
+        "page_id": "guides/core-types/evaluations",
+        "section": 10,
+        "title": "Evaluations overview",
+        "heading": "Run the evaluation",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+        "page_sha256": "d8b701427b175b5c29906e40d24de0c1aa1bdb8c7ce862f8adfd68602e986b15",
+        "text": "## Run the evaluation\n\nWith your `Evaluation` object, dataset, scorers, and model defined, you're ready to execute the evaluation and capture results in Weave. To run an evaluation, call `.evaluate()` on the `Evaluation` object.\n\n**Python**\n\nAssuming an `Evaluation` object called `evaluation` and a `Model` object to evaluate called `model`, the following code instantiates an evaluation run:\n\n```python lines theme={\"system\"}\nasyncio.run(evaluation.evaluate(model))\n```\n\n",
+        "page_context": "# Evaluations overview\n\n> Evaluation-driven LLM application development to systematically improve applications\n\n*Evaluation-driven LLM application development* helps you systematically improve LLM applications by measuring their behavior using consistent, curated examples.\n\nThis guide shows you how to set up and run evaluations in Weave so you can measure your LLM application's performance against repeatable test cases, compare changes over time, and identify regressions. It's intended for developers building LLM applications who want to move beyond ad hoc testing into a structured, measurable workflow.\n\n**Python**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or list of dictionaries for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n* Optional configuration like [input preprocessing](#format-dataset-rows-before-evaluating).\n\nOnce you've defined the `Evaluation`, you can run it against a [`Model`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/models) object or any custom function containing LLM application logic. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and each run as a measurement of how your application performs under that setup.\n\n**TypeScript**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or array of objects for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n\nOnce you've defined the `Evaluation`, you can run it against any function wrapped with `weave.op`. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and eac",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Evaluations overview"
+          },
+          {
+            "section": 1,
+            "heading": "Create an `Evaluation` object"
+          },
+          {
+            "section": 2,
+            "heading": "Optional: Custom naming"
+          },
+          {
+            "section": 3,
+            "heading": "Name the `Evaluation` object"
+          },
+          {
+            "section": 4,
+            "heading": "Name individual evaluation runs"
+          },
+          {
+            "section": 5,
+            "heading": "Define a dataset of test examples"
+          },
+          {
+            "section": 6,
+            "heading": "Define scoring functions"
+          },
+          {
+            "section": 7,
+            "heading": "Optional: Define a custom `Scorer` class"
+          },
+          {
+            "section": 8,
+            "heading": "Define a model or function to evaluate"
+          },
+          {
+            "section": 9,
+            "heading": "Optional: Define a function to evaluate"
+          },
+          {
+            "section": 10,
+            "heading": "Run the evaluation"
+          },
+          {
+            "section": 11,
+            "heading": "Optional: Run multiple trials"
+          },
+          {
+            "section": 12,
+            "heading": "Optional: Run multiple trials"
+          },
+          {
+            "section": 13,
+            "heading": "Full evaluation code example"
+          },
+          {
+            "section": 14,
+            "heading": "Advanced evaluation usage"
+          },
+          {
+            "section": 15,
+            "heading": "Format dataset rows before evaluating"
+          },
+          {
+            "section": 16,
+            "heading": "Use HuggingFace datasets with evaluations"
+          },
+          {
+            "section": 17,
+            "heading": "Saved views"
+          },
+          {
+            "section": 18,
+            "heading": "Imperative evaluations (`EvaluationLogger`)"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/datasets",
+            "title": "Collect and track datasets"
+          },
+          {
+            "page_id": "guides/evaluation/scorers",
+            "title": "Scoring overview"
+          },
+          {
+            "page_id": "guides/core-types/models",
+            "title": "Track application versions with models"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/evaluation/scorers",
+        "section": 9
+      },
+      "result": {
+        "source_id": "S4",
+        "page_id": "guides/evaluation/scorers",
+        "section": 9,
+        "title": "Scoring overview",
+        "heading": "Final summarization of the scorer",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers",
+        "page_sha256": "37fb7e1c9814dcd294e69b6c17feff901a1ee0621b90b8609e91687480698f13",
+        "text": "### Final summarization of the scorer\n\n**Python**\n\nDuring evaluation, Weave computes the scorer for each row of your dataset. To provide a final score for the evaluation, Weave runs `auto_summarize` based on the return type of the output.\n\nYou can override the `summarize` method on the `Scorer` class and provide your own way to compute the final scores. The `summarize` function expects:\n\n* A single parameter `score_rows`: a list of dictionaries, where each dictionary contains the scores returned by the `score` method for a single row of your dataset.\n* It returns a dictionary containing the summarized scores.\n\n**Why this is useful**\n\nWhen you need to score all rows before deciding on the final value of the score for the dataset.\n\n```python lines theme={\"system\"}\nclass MyBinaryScorer(Scorer):\n    \"\"\"\n    Returns True if the full output matches the target, False if not\n    \"\"\"\n\n    @weave.op\n    def score(self, output, target):\n        return {\"match\": output == target}\n\n    def summarize(self, score_rows: list) -> dict:\n        full_match = all(row[\"match\"] for row in score_rows)\n        return {\"full_match\": full_match}\n```\n\n> In this example, the default `auto_summarize` would return the count and proportion of True.\n\nFor more information, see the implementation of [CorrectnessLLMJudge](https://docs.coreweave.com/products/wandb/weave/tutorial-rag.md#optional-defining-a-scorer-class).\n\n**TypeScript**\n\nDuring evaluation, Weave computes the scorer for each row of your dataset. To provide a final score, Weave uses an internal `summarizeResults` function that aggregates depending on the output type.\n\nWeave doesn't support custom summarization.\n\n",
+        "page_context": "# Scoring overview\n\n> Evaluate AI outputs and return evaluation metrics with Weave Scorers\n\nIn Weave, Scorers evaluate AI outputs and return evaluation metrics. They take the AI's output, analyze it, and return a dictionary of results. Scorers can use your input data as reference if needed and can also output extra information, such as explanations or reasoning from the evaluation.\n\nThis guide is for developers who want to measure the quality of their AI system's outputs. It explains how Scorers fit into Weave evaluations, how to build your own Scorers, how to apply Scorers to individual calls, and how to analyze the resulting scores.\n\n**Python**\n\nPass Scorers to a `weave.Evaluation` object during evaluation. Weave supports two types of Scorers:\n\n1. **Function-based Scorers:** Python functions decorated with `@weave.op`.\n2. **Class-based Scorers:** Python classes that inherit from `weave.Scorer` for more complex evaluations.\n\nScorers must return a dictionary and can return multiple metrics, nested metrics, and non-numeric values such as text returned from an LLM-evaluator about its reasoning.\n\n**TypeScript**\n\nScorers are special ops that you pass to a `weave.Evaluation` object during evaluation.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Scoring overview"
+          },
+          {
+            "section": 1,
+            "heading": "Create your own scorers"
+          },
+          {
+            "section": 2,
+            "heading": "Function-based scorers"
+          },
+          {
+            "section": 3,
+            "heading": "Class-based scorers"
+          },
+          {
+            "section": 4,
+            "heading": "How scorers work"
+          },
+          {
+            "section": 5,
+            "heading": "Scorer keyword arguments"
+          },
+          {
+            "section": 6,
+            "heading": "Mapping column names with `column_map`"
+          },
+          {
+            "section": 7,
+            "heading": "Mapping column names with `columnMapping`"
+          },
+          {
+            "section": 8,
+            "heading": "Access variables from your ops in scoring prompts"
+          },
+          {
+            "section": 9,
+            "heading": "Final summarization of the scorer"
+          },
+          {
+            "section": 10,
+            "heading": "Apply scorers to a call"
+          },
+          {
+            "section": 11,
+            "heading": "Use `preprocess_model_input`"
+          },
+          {
+            "section": 12,
+            "heading": "Score analysis"
+          },
+          {
+            "section": 13,
+            "heading": "Analyze a single call's scores"
+          },
+          {
+            "section": 14,
+            "heading": "Single call API"
+          },
+          {
+            "section": 15,
+            "heading": "Single call UI"
+          },
+          {
+            "section": 16,
+            "heading": "Analyze multiple calls' scores"
+          },
+          {
+            "section": 17,
+            "heading": "Multiple calls API"
+          },
+          {
+            "section": 18,
+            "heading": "Multiple calls UI"
+          },
+          {
+            "section": 19,
+            "heading": "Analyze all calls scored by a specific scorer"
+          },
+          {
+            "section": 20,
+            "heading": "All calls by scorer API"
+          },
+          {
+            "section": 21,
+            "heading": "All calls by scorer UI"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "tutorial-rag",
+            "title": "Evaluate RAG applications"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "answer": "The offline run gives 0.5: two of the four predictions match their expected labels. The per-item results were `[True, False, True, False]`, and the fraction was `2/4` [C1]. That ran in plain Python with no Weave SDK, so the Weave snippet below is untested.\n\n**Using this kind of scorer with `weave.Evaluation`**\n\n- **Write the per-row check as a scorer.** In Python, a function-based scorer is a function decorated with `@weave.op` that returns a dictionary [S1]. Weave scores each dataset row, so your scorer compares one output to one label. It doesn't loop over the whole list.\n- **Use the argument names Weave expects.** A scoring function needs an `output` keyword argument. Its other arguments are taken from the dataset example by matching key names [S2]. If your labels are in an `expected` column, add an `expected` argument.\n- **Pass the scorer to the evaluation.** Give your examples and scorers to `weave.Evaluation` [S1]. Then call `.evaluate()` on it, for example `asyncio.run(evaluation.evaluate(model))`. The `model` can be a `Model` object or a function containing your application logic [S3].\n\n```python\nimport weave\n\n@weave.op\ndef exact_match(expected: str, output: str) -> dict:\n    return {\"match\": output == expected}\n\nevaluation = weave.Evaluation(\n    dataset=[\n        {\"question\": \"...\", \"expected\": \"yes\"},\n        # ... more rows with an \"expected\" label\n    ],\n    scorers=[exact_match],\n)\n# asyncio.run(evaluation.evaluate(model))  # model: your Model or op\n```\n\nThe dataset rows and the `model` are placeholders. This sketch assumes your model returns the plain string `\"yes\"` or `\"no\"`. The docs example reads `output['generated_text']` because its model returns a dictionary [S2].\n\n**Getting the fraction.** The scorer returns a boolean per row. Weave summarizes scorer results with `auto_summarize`, based on the return type [S4]. For a boolean score, the default summary gives the count and proportion of `True` [S4]. For your data, that proportion would correspond to the 0.5 calculated above. If you want a different summary, a class-based scorer can override `summarize(self, score_rows)` [S4].",
+        "source_ids": [
+          "S1",
+          "S2",
+          "S3",
+          "S4",
+          "C1"
+        ]
+      },
+      "result": {
+        "passed": true,
+        "claims": [
+          {
+            "text": "The offline run gives 0.5: two of the four predictions match their expected labels.",
+            "kind": "product",
+            "source_ids": [
+              "C1"
+            ],
+            "status": "supported",
+            "answer_quote": "The offline run gives 0.5: two of the four predictions match their expected labels.",
+            "scope_status": "supported",
+            "scope_reason": "The recorded plain-Python run printed the per-item list and 0.5.",
+            "supported": true
+          },
+          {
+            "text": "In Python, a function-based scorer is a function decorated with `@weave.op` that returns a dictionary",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "answer_quote": "In Python, a function-based scorer is a function decorated with `@weave.op` that returns a dictionary",
+            "scope_status": "supported",
+            "scope_reason": "S1 documents this for Python.",
+            "supported": true
+          },
+          {
+            "text": "A scoring function needs an `output` keyword argument. Its other arguments are taken from the dataset example by matching key names",
+            "kind": "product",
+            "source_ids": [
+              "S2"
+            ],
+            "status": "supported",
+            "answer_quote": "A scoring function needs an `output` keyword argument. Its other arguments are taken from the dataset example by matching key names",
+            "scope_status": "supported",
+            "scope_reason": "S2 gives the Python scoring-function rule.",
+            "supported": true
+          },
+          {
+            "text": "Give your examples and scorers to `weave.Evaluation` [S1]. Then call `.evaluate()` on it, for example `asyncio.run(evaluation.evaluate(model))`.",
+            "kind": "product",
+            "source_ids": [
+              "S1",
+              "S3"
+            ],
+            "status": "supported",
+            "answer_quote": "Give your examples and scorers to `weave.Evaluation` [S1]. Then call `.evaluate()` on it, for example `asyncio.run(evaluation.evaluate(model))`.",
+            "scope_status": "supported",
+            "scope_reason": "S1 shows the Evaluation constructor and S3 shows the evaluate call.",
+            "supported": true
+          },
+          {
+            "text": "The docs example reads `output['generated_text']` because its model returns a dictionary",
+            "kind": "product",
+            "source_ids": [
+              "S2"
+            ],
+            "status": "supported",
+            "answer_quote": "The docs example reads `output['generated_text']` because its model returns a dictionary",
+            "scope_status": "supported",
+            "scope_reason": "S2's scorer takes `output: dict` and reads `generated_text`.",
+            "supported": true
+          },
+          {
+            "text": "For a boolean score, the default summary gives the count and proportion of `True`",
+            "kind": "product",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "answer_quote": "For a boolean score, the default summary gives the count and proportion of `True`",
+            "scope_status": "supported",
+            "scope_reason": "S4's example with boolean match states this default.",
+            "supported": true
+          },
+          {
+            "text": "a class-based scorer can override `summarize(self, score_rows)`",
+            "kind": "product",
+            "source_ids": [
+              "S4"
+            ],
+            "status": "supported",
+            "answer_quote": "a class-based scorer can override `summarize(self, score_rows)`",
+            "scope_status": "supported",
+            "scope_reason": "S4 documents the Python Scorer summarize override.",
+            "supported": true
+          }
+        ],
+        "issues": [],
+        "coverage": [],
+        "outcome_assessments": [
+          {
+            "outcome_id": "O1",
+            "status": "answered",
+            "answer_quote": "The offline run gives 0.5: two of the four predictions match their expected labels.",
+            "reason": "The recorded run computed the fraction as 0.5.",
+            "source_ids": [
+              "C1"
+            ],
+            "evidence_quotes": []
+          },
+          {
+            "outcome_id": "O2",
+            "status": "answered",
+            "answer_quote": "Write the per-row check as a scorer.",
+            "reason": "The answer explains the scorer, Evaluation, evaluate and summarization workflow with cited support.",
+            "source_ids": [
+              "S1",
+              "S2",
+              "S3",
+              "S4"
+            ],
+            "evidence_quotes": []
+          }
+        ],
+        "research_requests": [],
+        "mode": "support",
+        "status": "passed"
+      },
+      "origin": "provider_tool_call"
+    }
+  ],
+  "conversation_id": "1f58882c-ab2d-48f4-8f2e-7f24adc2d3da",
+  "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/1f58882c-ab2d-48f4-8f2e-7f24adc2d3da",
+  "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+  "source_sha256": "282e5c502f512cd2ba6a1186005b44eaa1cb0ca6220ad9e796c2c1930ce435c2",
+  "prompt_sha256": "c49d9627540d4cd1e9f6bd44f1f4a73b5c45d4b6c9adff03ab14a4541db7bcff",
+  "config_sha256": "49cc7734a6df29a6067960601a6c8e4540ed2253038ea047df999a07cfc3400b",
+  "verify_mode": "support",
+  "cache_enabled": true,
+  "trace_id": "f902bb100f6320164acd8f7cfe097bf8",
+  "model": "claude-sonnet-5-5",
+  "elapsed_seconds": 30.78,
+  "planner_usage": {
+    "input_tokens": 14,
+    "output_tokens": 1832
+  },
+  "metrics": {
+    "calls": [
+      {
+        "purpose": "task_planning",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgV4AUABrZHoruAqD2tU8",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 200
+          },
+          "cache_creation_input_tokens": 200,
+          "cache_read_input_tokens": 1265,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 326,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 3.8522,
+        "estimated_usd": 0.0038945
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgV4AgcnocPLY5hdTjn7j",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 503
+          },
+          "cache_creation_input_tokens": 503,
+          "cache_read_input_tokens": 2854,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 192,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.5321,
+        "estimated_usd": 0.0034709
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgV4AuatX3uFbQuV9usiD",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 3376
+          },
+          "cache_creation_input_tokens": 3376,
+          "cache_read_input_tokens": 3357,
+          "inference_geo": "global",
+          "input_tokens": 2,
+          "output_tokens": 199,
+          "output_tokens_details": {
+            "thinking_tokens": 41
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.4265,
+        "estimated_usd": 0.0107697
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgV4B65fWsyyUSJtA9aXN",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 4115
+          },
+          "cache_creation_input_tokens": 4115,
+          "cache_read_input_tokens": 6733,
+          "inference_geo": "global",
+          "input_tokens": 2,
+          "output_tokens": 224,
+          "output_tokens_details": {
+            "thinking_tokens": 66
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.4885,
+        "estimated_usd": 0.0132048
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgV4BH7hi9RUYDuCup4TW",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 3910
+          },
+          "cache_creation_input_tokens": 3910,
+          "cache_read_input_tokens": 10848,
+          "inference_geo": "global",
+          "input_tokens": 2,
+          "output_tokens": 891,
+          "output_tokens_details": {
+            "thinking_tokens": 44
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 7.5104,
+        "estimated_usd": 0.0197738
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-sonnet-5-5",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgV4BpwsmqhVMAcDFnMs1",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 9760
+          },
+          "cache_creation_input_tokens": 9760,
+          "cache_read_input_tokens": 4566,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 1727,
+          "output_tokens_details": {
+            "thinking_tokens": 640
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 11.4444,
+        "estimated_usd": 0.0421346
+      }
+    ],
+    "model_calls": 6,
+    "tokens": {
+      "input_tokens": 18,
+      "output_tokens": 3559,
+      "cache_creation_input_tokens": 21864,
+      "cache_read_input_tokens": 29623
+    },
+    "total_input_tokens": 51505,
+    "estimated_usd": 0.0932483,
+    "known_estimated_usd": 0.0932483,
+    "unpriced_calls": 0,
+    "by_purpose": {
+      "task_planning": {
+        "calls": 1,
+        "known_estimated_usd": 0.0038945
+      },
+      "planner": {
+        "calls": 4,
+        "known_estimated_usd": 0.0472192
+      },
+      "verification": {
+        "calls": 1,
+        "known_estimated_usd": 0.0421346
+      }
+    },
+    "research": {
+      "searches": 1,
+      "passage_reads": 4,
+      "distinct_pages_read": 2,
+      "repeated_tool_requests": 0,
+      "drafts_submitted": 1,
+      "code_runs": 1
+    },
+    "pricing": {
+      "checked_at": "2026-10-25",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": {
+        "claude-sonnet-5-5": {
+          "input": 2,
+          "output": 10,
+          "write_5m": 2.5,
+          "write_1h": 4,
+          "read": 0.1
+        },
+        "claude-opus-5-5": {
+          "input": 4,
+          "output": 20,
+          "write_5m": 5,
+          "write_1h": 8,
+          "read": 0.2
+        }
+      }
+    },
+    "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+  },
+  "error_type": null,
+  "recovery_attempted": false,
+  "recovered_partial": false
+}

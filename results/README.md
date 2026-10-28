@@ -1,20 +1,53 @@
 # Evidence index
 
-Start with the [end-to-end review](brief-e2e-v1/review.md) for findings and this index for the underlying receipts. Recorded answers, failed attempts and labeled fixtures remain unchanged.
+Start with the [task-completion repair review](task-completion-repair-v1/review.md) for findings and this index for the underlying receipts. Recorded answers, failed attempts and labeled fixtures remain unchanged.
 
-## Current result and comparison
+## Current repair status
 
-The measured runtime is `3a49a50`, source SHA-256 `b746d92df4edb8ecebe5729d7f26becb995ec088217b47b2e12b4a2b98952a13`. Later documentation edits do not constitute another evaluation.
+[Task-completion repair](task-completion-repair-v1/review.md) separates source support, task completion, audit delivery and output delivery. The questions and rubric stayed fixed throughout this pass.
+
+| Runtime | Measurement | Finding |
+| --- | --- | --- |
+| `2adf56b` | UI 5/6, 17/18; regression partly ungraded | Overview omitted Signal timing despite a completion label. Provider failure left six judges ungraded. |
+| `2033cec` / `a8aafb6` | Focused workflow probes rejected their positive control | Required-field delivery and unused annotation handling failed; original payloads are preserved. |
+| `5d719e3` | UI 5/6, 16/18; regression 12/13, 46/48 | Shared research/submission counting and an auditor-record failure obstructed valid revisions. |
+| `f4c7618` | [UI 6/6, 18/18](task-completion-repair-v1/ui-final-f4/manual-review.json); [regression 12/13, 43/48](task-completion-regression-v3/summary.json) | Original overview completes; usage follow-up retrieves the needed evidence but hits the planner output cap. |
+| `fe4b7b5` | [Regression 12/13, 47/48](task-completion-regression-v4/summary.json); [two-turn UI 5/5 assertions](task-completion-repair-v1/ui-followup-fe4/manual-review.json) | One real truncated response receives a bounded retry and normal verification. The remaining failed clarification adds unsourced alternatives; manual review also finds an overbroad span claim in passing case 02. |
+
+**Current runtime:** `fe4b7b5ea5fe1b661945a7129cc9d8a29f6565ba`, source `860e9ee6c1134ca44ed04ac9dd22103e2c8acfe5f64fe40a0969941034af53ff`. [Independent answer review](task-completion-repair-v1/regression-v4-independent-review.json), [accounting](task-completion-repair-v1/regression-v4-accounting.json): $3.32 across 116 agent/judge calls. [479 tests/Ruff](task-completion-repair-v1/local-checks-retry.json), [fresh offline setup](task-completion-repair-v1/fresh-setup-retry.json), [unchanged instrument](task-completion-repair-v1/instrument-retry.json).
+
+**Remote delivery remains incomplete:** [readback](task-completion-repair-v1/backend-retry.json) verifies all 17 Agent turns and the matching evaluation parent summary, but only 2 of 13 evaluation rows. [Exact-ID checks](task-completion-repair-v1/backend-retry-missing-rows-diagnostic.json) found missing underlying calls in sampled rows; the [pre-flush receipt](task-completion-repair-v1/backend-retry-before-flush.json) is preserved. No cases were rerun or reconstructed to mask the gap. All 17 runtime completion labels were positive, so the Signal correctly selected zero turns while missing semantic defects independently identified in cases 06 and 02.
+
+The preceding `f4c7618` source is `3c771f7a2456d2e66362d13a1006f059b30751bb45717ab28952e32d35665945`. [Backend readback](task-completion-repair-v1/backend-budget.json) verifies all 21 UI/regression turns and all 13 evaluation rows; the one eligible failed turn received a Signal tag and 20 healthy turns were excluded. [Accounting](task-completion-repair-v1/regression-v3-accounting.json): 114 calls, $3.20. Its setup, instrument and 473-test receipts remain alongside the current records.
+
+[New skill validation](skill-validation-v1/validation.json) is an offline instruction test, not proof of an MCP connection. Original hashes and any path sanitization are recorded beside copied receipts.
+
+## Earlier complete repair result
+
+Runtime `ab9a92a`, source `49e53739d78f81fcc69ecb2b48676413c4e3bfa63adf31c133bbf937d8de76d4`: **12/13 cases, 48/48 assertions, $2.52**, with rubric 2.3 and its questions/assertions unchanged. Case 01 failed the separate uncertainty gate despite passing its assertion checklist. No failed judge or missing prediction was counted as a quality score. [Run](thorough-repair-regression-v1/summary.json) · [Weave evaluation](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving/weave/calls/01a181c5-0a29-7ced-82ac-2598e9053c21)
+
+| Check | Evidence for `ab9a92a` |
+| --- | --- |
+| Actual app | [5/6 tasks, 17/18 checks](thorough-pass-2026-10-28/ui-final/manual-review.json), $0.90; overview still omits Signal completion timing. Baseline and intermediate replays remain in the [review](thorough-pass-2026-10-28/review.md). |
+| Traces | [UI](thorough-pass-2026-10-28/backend-ui.json) and [all regression turns](thorough-pass-2026-10-28/backend-regression.json): recorded hierarchy, identities, usage and evaluation-row linkage. |
+| Signals | Six final UI turns scored; one false positive under the unchanged policy. Earlier baseline contains a correctly flagged exhausted turn. [Monitoring review](thorough-pass-2026-10-28/review.md#weave-readback-and-monitoring) |
+| Setup and local checks | [310 tests/Ruff](thorough-pass-2026-10-28/local-checks.json), [zero-cache offline restore](thorough-pass-2026-10-28/fresh-setup.json), [unchanged evaluation instrument](thorough-pass-2026-10-28/instrument-check.json). Citation integrity behavior changed to contract version 3. |
+| Boundaries | [Credential canaries](thorough-pass-2026-10-28/credential-sinks.json), [Markdown image browser check](thorough-pass-2026-10-28/markdown-image-after.json), [earlier publication scan](brief-e2e-v1/submission-boundary-final.json). These are bounded checks, not general security certification. |
+| Public access | [Earlier anonymous publication check](brief-e2e-v1/publication.json). |
+
+## Earlier result and comparison
+
+The earlier measured runtime is `3a49a50`, source SHA-256 `b746d92df4edb8ecebe5729d7f26becb995ec088217b47b2e12b4a2b98952a13`. Later documentation edits do not constitute another evaluation.
 
 | Measurement | Cases | Assertions | Basis |
 | --- | ---: | ---: | --- |
-| [Current regression](brief-final-regression-v1/summary.json) | 13/13 | 48/48 | Runtime `3a49a50`, rubric 2.3, $2.85 agent + judge. |
+| [October 27 regression](brief-final-regression-v1/summary.json) | 13/13 | 48/48 | Runtime `3a49a50`, rubric 2.3, $2.85 agent + judge. |
 | [Fresh baseline](brief-e2e-regression-v1/summary.json) | 10/13 | 44/48 | Source `b269258e7786`, rubric 2.2; a separate rerun of the earlier runtime. |
 | [Original tagged submission](submission-repair-regression-v3/summary.json) | 10/13 | 45/48 | Runtime `755036e`, source `b269258e7786`, rubric 2.2. Preserved by the immutable submission tag. |
 
-Rubric 2.3 corrected two unsolicited requirements in case 03. Questions, references and the other 46 assertions stayed fixed: **43/46 baseline → 46/46 current**. [Case-by-case comparison](brief-e2e-v1/comparison.json) separates these rubric corrections from behavior changes. Manual [answer review](brief-e2e-v1/final-answer-review.json) flags a generous hierarchy grade in case 02 and an incomplete illustrative sketch; 13/13 remains the recorded judge result, not a correctness guarantee.
+Rubric 2.3 corrected two unsolicited requirements in case 03. Questions, references and the other 46 assertions stayed fixed: **43/46 baseline → 46/46 revised**. [Case-by-case comparison](brief-e2e-v1/comparison.json) separates these rubric corrections from behavior changes. Manual [answer review](brief-e2e-v1/final-answer-review.json) flags a generous hierarchy grade in case 02 and an incomplete illustrative sketch; 13/13 remains the recorded judge result, not a correctness guarantee.
 
-## Verification receipts
+## Earlier verification receipts
 
 | Check | Evidence and scope |
 | --- | --- |
@@ -27,7 +60,7 @@ Rubric 2.3 corrected two unsolicited requirements in case 03. Questions, referen
 | Public access | [Anonymous publication check](brief-e2e-v1/publication.json) records public repository commit `b06a508`, Agents and the final evaluation. This is evidence for that publication, not a fresh check of later documentation edits. |
 | Submission boundary | [Credential/private-file scan](brief-e2e-v1/submission-boundary-final.json) found no configured keys or private material in the checked candidates. `.env` was ignored and owner-only. This is a bounded scan, not general PII detection. |
 
-Signals classify assistant-reported operational failure, explicit research-limit exhaustion, or factual setup instructions with no source marker. They review completed turns; they do not verify factual correctness or block delivery.
+The earlier prose-based Signal policy classified assistant-reported failures, exhaustion and uncited instructions. The current policy selects recorded runtime review reasons in a server filter; see the repair review above. Both review completed turns and cannot block delivery.
 
 ## Why support verification is the default
 
