@@ -451,3 +451,63 @@ def test_chat_and_library_images_become_text_without_losing_code_or_links(monkey
         assert sum(item.value == literal for item in app.markdown) == 2
     finally:
         st.cache_resource.clear()
+
+
+def test_partial_answer_keeps_unresolved_question_visible_without_new_calls(monkeypatch):
+    def unexpected_agent(*args, **kwargs):
+        raise AssertionError("Inspecting task checks must not call the agent.")
+
+    monkeypatch.setattr("coreweaving.agent.Agent", unexpected_agent)
+    monkeypatch.setattr(
+        "coreweaving.corpus.Corpus", lambda: SimpleNamespace(pages={}, snapshot_id="test-snapshot")
+    )
+    monkeypatch.setattr("coreweaving.config.settings", lambda: Settings(project="test/test"))
+    monkeypatch.setattr(
+        "coreweaving.config.init_weave", lambda: SimpleNamespace(flush=lambda: None)
+    )
+    outcome = {
+        "id": "O1",
+        "description": "Explain when the workflow runs.",
+        "request_quote": "when",
+    }
+    result = {
+        "answer_id": "task-partial",
+        "answer": "The documented role is established, but timing remains unresolved.",
+        "kind": "insufficient",
+        "recovered_partial": True,
+        "task_plan": [outcome],
+        "task_complete": False,
+        "missing_outcomes": [outcome],
+        "outcome_assessments": [
+            {
+                "outcome_id": "O1",
+                "status": "uncertain",
+                "answer_quote": "timing remains unresolved",
+                "reason": "The read passage does not establish timing.",
+                "source_ids": [],
+            }
+        ],
+        "verification": {"passed": True, "issues": []},
+        "verification_attempts": [],
+        "sources": [],
+        "actions": [],
+        "elapsed_seconds": 0.1,
+        "snapshot_id": "test-snapshot",
+        "trace_url": "https://example.test/task-partial",
+    }
+    st.cache_resource.clear()
+    try:
+        app = AppTest.from_file(ROOT / "app.py", default_timeout=10).run()
+        app.session_state["turns"] = [("Explain its role and when it runs.", result)]
+        app.run()
+        assert not app.exception
+        assert any("Still unresolved:" in item.value for item in app.markdown)
+        assert any("Explain when the workflow runs." in item.value for item in app.markdown)
+        assert any("Checked facts · answer incomplete" in item.value for item in app.caption)
+        app.button(key="analysis_task-partial").click().run()
+        assert not app.exception
+        assert any(item.label == "Did it answer your question?" for item in app.expander)
+        assert any("Needs evidence:" in item.value for item in app.markdown)
+        assert any("does not establish timing" in item.value for item in app.markdown)
+    finally:
+        st.cache_resource.clear()
