@@ -4,16 +4,20 @@ Codex implemented the application, tests, evaluation and documentation, with bou
 
 **The work exceeded the brief's three-hour budget.** The core assistant, tracing, Signals and evaluation landed in the first session; comparison experiments, browser investigation and repairs followed. Commit timestamps mark milestones, not hands-on duration. [Git history](https://github.com/devsodhirao/coreweaving/commits/main/) preserves the full record.
 
-## Timeline and current result
+## Timeline and recorded results
 
 | Stage | Outcome |
 | --- | --- |
 | October 25: initial implementation | Direct tool loop, source checking, multi-turn context, Weave integration and evaluation. |
 | October 25–26: comparison | Six capability questions, two repeats, three verification policies. Coverage checking refused answerable tasks; support stayed the default. |
 | October 26: submission and repairs | Tagged runtime `755036e` scored 10/13, 45/48. Clean-install and real-browser checks exposed failures beyond the local tests. |
-| October 27 UTC: final review | Runtime `3a49a50` scored **13/13, 48/48** under rubric 2.3. Four UI journeys passed 12/12 checks. These are development results; the original submission evidence is unchanged. |
+| October 27 UTC: end-to-end review | Runtime `3a49a50` scored **13/13, 48/48** under rubric 2.3. Four UI journeys passed 12/12 checks. These are development results; the original submission evidence is unchanged. |
+| October 28: boundary review and repairs | Intermediate runtime `6761be2` fixes citation parsing/recovery, credential masking, concurrent reviews, chat input/rendering and evaluation error/model propagation. 310 local tests passed. |
+| October 28: intermediate planner correction | Runtime `ab9a92a` adds workflow input/timing/output research and missing-premise repair guidance after the intermediate UI review. Its validation is recorded separately; neither earlier quality scores nor the prompt edit alone establish improvement. |
 
-[Final regression](../results/brief-final-regression-v1/summary.json) · [Versioned comparison](../results/brief-e2e-v1/comparison.json) · [Browser review](../results/brief-e2e-v1/ui-final/manual-review.json)
+[October 27 regression](../results/brief-final-regression-v1/summary.json) · [Versioned comparison](../results/brief-e2e-v1/comparison.json) · [October 27 browser review](../results/brief-e2e-v1/ui-final/manual-review.json)
+
+[October 28 review and repair evidence](../results/thorough-pass-2026-10-28/review.md). The questions, assertions and rubric remain unchanged in this repair pass.
 
 ## What went wrong, what changed, what supports it
 
@@ -32,10 +36,32 @@ Codex implemented the application, tests, evaluation and documentation, with bou
 | A positive verifier fixture lacked the editing evidence its question required. | Correct the fixture and rerun both policies; preserve the confounded first probe. | [Fixture review](../results/brief-e2e-v1/verifier-fixture-review.json): corrected old/new policies tied 6/6. [Seven final selected probes](../results/brief-verifier-final-v1/scope-correction.json) matched labels; neither estimates population accuracy. |
 | The legacy monitor did not score agent turns; the later Signal flagged 14 of 15 normal baseline turns. | Use the current turn-ended contract and agent filter; define exactly three review conditions with exclusions and evidence. | [Diagnosis](../results/brief-e2e-v1/signal-diagnosis.json): all 14 tags were false positives under its policy. [Six fixtures](../results/brief-e2e-v1/signal-calibration/summary.json) matched; [15 final turns](../results/brief-e2e-v1/signal-final-review.json) correctly received no tag. Broad precision/recall remains unmeasured. |
 | A green source check concealed incomplete answers and invalid examples. | Review delivered answers and browser journeys separately from source support. Preserve disagreement with the judge. | [Answer audit](../results/brief-e2e-v1/final-answer-review.json): case 02's hierarchy pass is generous. [UI review](../results/brief-e2e-v1/ui-final/manual-review.json): answers still took 23–45 seconds and 340–383 words. |
+| Regex citation handling missed visible Markdown markers and rejected valid groups; a later formatting failure discarded supported recovery facts. | Citation contract version 3 parses CommonMark, requires every grouped ID to be read/declared and retains the last supported proposal for a fresh full recovery check. | [Agent tests](../tests/test_agent.py) cover code, links, definitions, escapes, indentation, groups and accepted/rejected rechecks. Syntax remains separate from support and completeness. |
+| Quoted passwords with spaces and Basic authorization values leaked suffixes; concurrent reviews lost an entry; typed input left a preset queued. | Mask complete recognized values and incomplete quotes through line end; serialize review appends; consume both input sources once. | [Redaction](../tests/test_redaction.py), [concurrency](../tests/test_library.py) and [UI](../tests/test_app.py) regressions reproduce these boundaries. Masking is not blanket PII protection. |
+| User and assistant Markdown images triggered browser requests. | Render parsed images as escaped alt text, with raw HTML and JavaScript disabled; retain code and user-initiated links. | [UI tests](../tests/test_app.py) cover conversation and saved answers; the [October 28 review](../results/thorough-pass-2026-10-28/review.md) records browser validation. This is not browser network isolation. |
+| An earlier failed evaluation turn could be hidden by a successful final turn; predictions used the default recovery model despite a configured judge. | Aggregate errors across every turn and propagate `JUDGE_MODEL` into prediction settings. | [Evaluation tests](../tests/test_evaluate.py) distinguish operational failure from measured answer-quality failure and verify model propagation. No rubric change. |
+| The `6761be2` overview and follow-up omitted completion timing; rejected drafts repeatedly rephrased the same evidence. | In `ab9a92a`, instruct the planner to establish workflow inputs, triggers/timing and outputs, then research missing premises before resubmitting. | The [October 28 review](../results/thorough-pass-2026-10-28/review.md) preserves the intermediate UI result: 4/6 cases, 16/18 manual checks. Verifier, rubric and work limits are unchanged; the correction's outcome requires separate evidence. |
+
+## Task-completion repair
+
+The [repair review](../results/task-completion-repair-v1/review.md) preserves each attempt. The external rubric and questions remain unchanged.
+
+| Finding | Correction | Evidence and limit |
+| --- | --- | --- |
+| A source-supported answer omitted Signal execution timing; revisions repeated the same evidence. | Freeze user-requested outcomes before retrieval; let the auditor request specific missing evidence through existing tools. | The `2adf56b` browser pass still failed the overview: a bundled workflow outcome let a broad sentence stand in for all required parts. |
+| A generic workflow assessment concealed the same omission. | Expand each workflow subject into input, execution trigger and output checks with literal evidence anchors. | `2033cec` planned all nine expected facets, but its focused acceptance failed: a truncated verdict and missing required quotes prevented valid audit delivery. |
+| Literal answer quotes could disagree only because displayed citations interrupted punctuation. | Normalize parser-recognized citation markers only; preserve words, whitespace and code. | Retained positive/negative fixtures and local tests cover omitted markers, word joining and fenced code. |
+| A Signal inferred operational failure from normal answer prose. | Select ERROR turns and recorded review reasons in the server filter; use the classifier to explain selected turns. | Five live fixtures matched selection/exclusion. A wrong runtime completion label still creates a monitoring blind spot. |
+| A connection failure left a regression partly ungraded. | Preserve returned usage, failed requests and missing remote roots; report an incomplete measurement. | Seven graded cases passed 25 assertions; six judges did not run successfully. No 7/13 quality claim. |
+| Correct verdicts omitted required fields or added unused annotations that the parser rejected. | Require known fields in the live schema, scale workflow output allowance and ignore unused observational annotations; keep action arguments strict. | Preserved failed live probes and an offline replay of their exact payloads. Evidence and semantic checks still apply. |
+| Research used the last shared slot before a necessary revision; an auditor-record failure reduced a complete draft to partial facts. | Count research dispatches separately from submissions; reserve existing planning calls for revisions. Permit one strict terminal full-answer recheck only for an application-classified record failure. | `f4c7618` UI: 6/6 tasks, 18/18 checks; 49-second median. The full-recheck path was not exercised in those live turns or its regression. |
+| The same runtime's usage follow-up retrieved the needed page but returned no answer. | Discard the entire truncated response; permit one fresh, larger response in the next existing planning slot. Keep normal verification and stop on repeated truncation. | Regression `task-completion-regression-v3`: 12/13, 43/48; its final planner span confirms the 2,400-token stop. Six new local cases test the bounded retry, rejection, nonexecution and accounting; live results remain separately versioned. |
+| A completed run and matching remote parent concealed missing evaluation rows after export timeouts. | Check expected child IDs separately from the summary and Agent traces; retain missing-delivery status. | `fe4b7b5`: 12/13, 47/48 locally; all 17 Agent turns and parent summary verified, only 2/13 evaluation rows present. No invented/reconstructed child records. |
+| Runtime completion and a passing judge missed product-specific overclaims. | Preserve independent manual disagreement and keep semantic calibration as the next quality experiment. | Case 06 fails for unsourced clarification alternatives; case 02 passes its assertions despite an overbroad span statement. No rubric edit or repeat run to improve the headline. |
 
 ## What the evidence supports
 
-The project demonstrates a bounded, inspectable documentation agent and a measurement process that found real failures. The final 13 questions were reused during development, the verifier and judge share a model family, and a source-check pass can still be wrong. [Evaluation design](EVALUATION_DESIGN.md) separates those limitations from the recorded outcomes.
+The project demonstrates a bounded, inspectable documentation agent and a measurement process that found real failures. The 13 regression questions were reused during development, the verifier and judge share a model family, and a source-check pass can still be wrong. [Evaluation design](EVALUATION_DESIGN.md) separates those limitations from the recorded outcomes.
 
 Weave provides agent traces, evaluation records and online feedback. Anthropic runs the assistant and offline judge; CoreWeave Serverless Inference runs the Signal. We did not train a model or host the app on CoreWeave GPUs.
 
