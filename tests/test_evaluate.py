@@ -636,6 +636,95 @@ def test_cli_status_distinguishes_quality_failures_from_incomplete_evaluation(
         assert saved["run_error"] is None
 
 
+@pytest.mark.parametrize(
+    "first_error, judge_model",
+    [
+        (None, "claude-opus-5-5"),
+        ("ConnectionError", "claude-opus-5-5"),
+        (None, "claude-sonnet-5-5"),
+    ],
+)
+def test_cli_preserves_all_turn_errors_and_configured_judge_from_prediction(
+    evaluation_environment, monkeypatch, tmp_path, first_error, judge_model
+):
+    config = evaluate.Settings(project="test/test", judge_model=judge_model)
+    prompts = ["First question", "Follow-up"]
+    agent_configs, serialized_models, judge_requests = [], [], []
+
+    class FakeAgent:
+        def __init__(self, corpus, config):
+            self.config = config
+            agent_configs.append(config)
+
+        def run(self, prompt, session, *, eval_attributes):
+            output = answer(self.config.verify_mode)
+            output["metrics"] = summarize([], [])
+            if prompt == prompts[0] and first_error:
+                output.update(
+                    answer="This turn couldn't finish (ConnectionError).",
+                    kind="error",
+                    error_type=first_error,
+                    sources=[],
+                    all_read_evidence=[],
+                )
+            return output
+
+    class FakeJudge:
+        def call(self, **kwargs):
+            judge_requests.append(kwargs["model"])
+            return {
+                **judge_response(),
+                "model": kwargs["model"],
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            }
+
+    class FakeEvaluation:
+        def __init__(self, **kwargs):
+            self.judge = kwargs["scorers"][0]
+            self.evaluate = SimpleNamespace(call=self.run)
+
+        async def run(self, evaluation, model):
+            serialized_models.append(model.model_dump())
+            prediction = await model.predict(prompts, "a", 1, "a:trial:1")
+            await self.judge.score(
+                prediction, prompts, "Initialize.", [passage()], 1, False, ASSERTIONS
+            )
+            return {}, None
+
+    monkeypatch.setattr(evaluate, "settings", lambda: config)
+    monkeypatch.setattr(evaluate, "Agent", FakeAgent)
+    monkeypatch.setattr(evaluate, "JudgeLanguageModel", FakeJudge)
+    monkeypatch.setattr(evaluate.weave, "Evaluation", FakeEvaluation)
+    monkeypatch.setattr(
+        sys, "argv", ["evaluate", "--name", "multi-turn", "--verify-mode", "support"]
+    )
+    if first_error:
+        with pytest.raises(SystemExit) as error:
+            evaluate.main()
+        assert error.value.code == 1
+    else:
+        evaluate.main()
+
+    directory = tmp_path / "results/multi-turn"
+    saved = json.loads((directory / "summary.json").read_text())
+    manifest = json.loads((directory / "manifest.json").read_text())
+    prediction = json.loads(next((directory / "predictions").glob("*.json")).read_text())
+    scored = json.loads(next((directory / "cases").glob("*.json")).read_text())
+    assert [turn["error_type"] for turn in prediction["turns"]] == [first_error, None]
+    assert prediction["error_type"] is None
+    assert len(list((directory / "turns").glob("*/*.json"))) == 2
+    assert scored["output"] == prediction
+    assert scored["scores"]["integrity"]["no_runtime_error"] is (first_error is None)
+    assert saved["status"] == ("completed_with_errors" if first_error else "complete")
+    assert saved["completed_cases"] == 1 and saved["judge_failures"] == 0
+    assert saved["passed"] == (0 if first_error else 1)
+    assert saved["missing_example_ids"] == [] and saved["run_error"] is None
+    assert [item.judge_model for item in agent_configs] == [judge_model]
+    assert [item["judge_model"] for item in serialized_models] == [judge_model]
+    assert judge_requests == [judge_model]
+    assert manifest["judge_model"] == saved["judge_model"] == judge_model
+
+
 def test_citation_integrity_checks_earlier_delivered_turns_and_labels_legacy():
     prior, final = answer(), answer()
     prior["answer"] = "An earlier invented claim [S99]"

@@ -416,6 +416,7 @@ class DocumentationModel(weave.Model):
     agent_model: str
     snapshot_id: str
     source_sha256: str
+    judge_model: str = "claude-opus-5-5"
     verify_mode: Literal["off", "support", "support+coverage"] = "support"
     cache_enabled: bool = True
     suite: str = "regression"
@@ -444,6 +445,7 @@ class DocumentationModel(weave.Model):
                 config = Settings(
                     project=settings().project,
                     agent_model=self.agent_model,
+                    judge_model=self.judge_model,
                     verify_mode=self.verify_mode,
                     cache_enabled=self.cache_enabled,
                 )
@@ -867,6 +869,7 @@ async def run_evaluation(args):
             model = DocumentationModel(
                 name=f"coreweaving-agent-{mode}",
                 agent_model=config.agent_model,
+                judge_model=config.judge_model,
                 snapshot_id=corpus.snapshot_id,
                 source_sha256=source_sha256,
                 verify_mode=mode,
@@ -913,7 +916,12 @@ async def run_evaluation(args):
             result["status"] = (
                 "complete" if not run_error and not result["missing_example_ids"] else "partial"
             )
-            if result["judge_failures"] or any(item.get("error_type") for item in predictions):
+            operational_error = any(
+                item.get("error_type")
+                or any(turn.get("error_type") for turn in item.get("turns", []))
+                for item in predictions
+            )
+            if result["judge_failures"] or operational_error:
                 result["status"] = (
                     "completed_with_errors" if result["status"] == "complete" else "partial"
                 )
