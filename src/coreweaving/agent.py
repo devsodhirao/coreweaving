@@ -611,7 +611,7 @@ def cited_ids(answer: str) -> list[str]:
 
 
 def quote_anchor(quote: str, answer: str, source_ids: list[str]) -> bool:
-    """Anchor literal words, allowing only plain citation omission and whitespace.
+    """Anchor literal wording, allowing only plain citation omission.
 
     Markdown parsing decides which markers are citations: deleting an occurrence
     must remove exactly those visible markers. Code, links and encoded markers
@@ -629,13 +629,12 @@ def quote_anchor(quote: str, answer: str, source_ids: list[str]) -> bool:
             without = text[: match.start()] + text[match.end() :]
             removed = Counter(f"[{sid}]" for sid in re.findall(r"[SC][1-9][0-9]*", match.group()))
             if Counter(citation_markers(without)) + removed == Counter(citation_markers(text)):
-                text = without
-        # Keep literal code whitespace intact; normalize only the surrounding prose.
-        parts = re.split(r"(`+[^`]*`+)", text)
-        for index in range(0, len(parts), 2):
-            parts[index] = re.sub(r"\s+", " ", parts[index])
-            parts[index] = re.sub(r" +([.,;:!?])", r"\1", parts[index])
-        return "".join(parts).strip()
+                before, after = text[: match.start()], text[match.end() :]
+                if re.match(r"[ \t]*[.,;:!?]", after):
+                    before, after = before.rstrip(" \t"), after.lstrip(" \t")
+                separator = " " if re.search(r"\w$", before) and re.match(r"\w", after) else ""
+                text = before + separator + after
+        return text
 
     anchored, body = normalized(quote), normalized(answer)
     return bool(anchored) and body is not None and anchored in body

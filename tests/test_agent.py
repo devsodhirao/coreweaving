@@ -2253,8 +2253,9 @@ def test_outgoing_link_credentials_are_masked_before_every_evidence_sink(corpus,
             "Tags and ratings appear on the Signals tab [S8][S1].",
             True,
         ),
-        ("A documented fact.", "A documented  fact [S1, S8].", True),
-        ("A documented\nfact.", "A documented fact. [S1]", True),
+        ("A documented fact.", "A documented fact [S1, S8].", True),
+        ("A documented fact.", "A documented  fact [S1, S8].", False),
+        ("A documented\nfact.", "A documented fact. [S1]", False),
         ("It guarantees every call.", "It records eligible calls [S1].", False),
         ("It does save calls.", "It does not save calls [S1].", False),
         (
@@ -2266,12 +2267,15 @@ def test_outgoing_link_credentials_are_masked_before_every_evidence_sink(corpus,
         ("Use 100 percent.", "Use 10 percent [S1].", False),
         ("Use the literal value ``.", "Use the literal value `[S1]`. [S8]", False),
         ("Use `a b`.", "Use `a  b` [S1].", False),
+        ("Use ``a ` b``.", "Use ``a `  b``. [S1]", False),
+        ('~~~python\nprint("a b")\n~~~', '~~~python\nprint("a  b")\n~~~\nFact. [S1]', False),
+        ("Use notable values.", "Use not[S1]able values. [S8]", False),
         ("A fact [S999].", "A fact [S1].", False),
         ("A fact.", "A fact [S1](https://example.test).", False),
         ("A fact.", "A fact &#91;S1&#93;.", False),
     ],
 )
-def test_quote_anchors_allow_only_citation_omission_and_prose_whitespace(quote, answer, expected):
+def test_quote_anchors_allow_only_citation_omission_and_adjacent_spacing(quote, answer, expected):
     assert quote_anchor(quote, answer, ["S1", "S8"]) is expected
 
 
