@@ -28,7 +28,10 @@ _TOKEN = re.compile(
 _ASSIGNMENT = re.compile(
     r"""(?ix)(["']?(?:(?:anthropic|wandb|openai|github)[_-])?
     (?:api[_-]?key|access[_-]?token|auth[_-]?token|authorization|password|client[_-]?secret|secret[_-]?key)
-    ["']?\s*[:=]\s*)(["']?)([^\s,"'{};]+)(["']?)"""
+    ["']?\s*[:=]\s*)
+    ((?P<quoted>"(?:\\[^\r\n]|[^"\\\r\n])*"|'(?:\\[^\r\n]|[^'\\\r\n])*')|
+     (?:Basic|Bearer)[ \t]+(?:<[^>\r\n]+>|\$\{\w+\}|[^\s,"'{};]+)|
+     ["'][^\r\n]*|\$\{\w+\}|[^\s,"'{};]+)"""
 )
 
 
@@ -41,6 +44,29 @@ def redact_sensitive(value):
     secret (legacy W&B keys are also caught in labelled assignments).
     """
     secrets = sorted({os.getenv(key, "") for key in _SECRET_ENV} - {""}, key=len, reverse=True)
+
+    def assignment(match):
+        value = match[2]
+        quote = value[0] if value[0] in "\"'" else ""
+        closing_quote = quote if match["quoted"] else ""
+        credential = value[1:] if quote else value
+        if closing_quote:
+            credential = credential[:-1]
+        scheme = re.match(r"(?i)^(?:Basic|Bearer)[ \t]+", credential)
+        if scheme:
+            credential = credential[scheme.end() :]
+        # Keep explicit documentation placeholders and the ordinary names of
+        # authentication concepts; they are not pasted credential values.
+        if re.fullmatch(
+            r"(?i)(?:\[REDACTED_SECRET\]|<[^>\r\n]+>|\$\{\w+\}|\$[A-Z_]\w*|"
+            r"YOUR[_ -](?:API[_ -])?(?:KEY|TOKEN|PASSWORD)|\.\.\.)",
+            credential,
+        ) or (
+            scheme
+            and credential.lower() in {"token", "tokens", "authentication", "credentials", "scheme"}
+        ):
+            return match[0]
+        return match[1] + quote + REDACTED + closing_quote
 
     def text(value):
         for secret in secrets:
@@ -57,7 +83,7 @@ def redact_sensitive(value):
             "Bearer " + REDACTED,
             value,
         )
-        return _ASSIGNMENT.sub(lambda m: m[1] + m[2] + REDACTED + m[4], value)
+        return _ASSIGNMENT.sub(assignment, value)
 
     def walk(item, depth=0):
         if depth > 40:

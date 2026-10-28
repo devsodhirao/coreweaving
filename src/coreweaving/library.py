@@ -70,6 +70,8 @@ def review_answer(answer_id: str, state: str, notes: str, path: Path | None = No
     if state == "needs_correction" and not notes.strip():
         raise ValueError("Describe what needs correcting so the next review has context.")
     with database(path) as db:
+        # Serialize the read/append/write so simultaneous tabs retain both reviews.
+        db.execute("BEGIN IMMEDIATE")
         row = db.execute("SELECT review_history FROM answers WHERE id = ?", (answer_id,)).fetchone()
         if row is None:
             raise KeyError(answer_id)

@@ -77,3 +77,60 @@ def test_documented_bearer_token_label_is_not_a_credential():
         redact_sensitive("Select the **Bearer token secret name**.")
         == "Select the **Bearer token secret name**."
     )
+
+
+@pytest.mark.parametrize(
+    "value,secret",
+    [
+        ('password="synthetic alpha beta"', "alpha beta"),
+        ("password='synthetic alpha beta'", "alpha beta"),
+        ('"client_secret": "synthetic alpha beta"', "alpha beta"),
+        ('password="synthetic \\"quoted\\" value"', "value"),
+        ("Authorization: Basic c3ludGhldGljOm9ubHk=", "c3ludGhldGljOm9ubHk="),
+        ('"Authorization": "Basic c3ludGhldGljOm9ubHk="', "c3ludGhldGljOm9ubHk="),
+        ("Authorization: Bearer synthetic-credential", "synthetic-credential"),
+        ('Authorization: "Bearer synthetic credential"', "synthetic credential"),
+    ],
+)
+def test_complete_labelled_credential_values_are_masked(value, secret):
+    masked = redact_sensitive(value)
+    assert secret not in masked
+    assert REDACTED in masked
+    assert redact_sensitive(masked) == masked
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        'password="synthetic alpha beta',
+        "password='synthetic alpha beta",
+        'password="synthetic \\"partial quote',
+        'password="synthetic trailing \\"',
+        "Authorization: 'Basic synthetic credential",
+        'client_secret="synthetic trailing slash\\',
+    ],
+)
+def test_incomplete_quoted_credentials_are_masked_through_end_of_line(value):
+    masked = redact_sensitive(value + '\nAn "ordinary" next line.')
+    assert "synthetic" not in masked
+    assert REDACTED in masked
+    assert masked.endswith('\nAn "ordinary" next line.')
+    assert redact_sensitive(masked) == masked
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        'api_key="YOUR_API_KEY"',
+        'api_key="<your-api-key>"',
+        'api_key="${ANTHROPIC_API_KEY}"',
+        "api_key=${ANTHROPIC_API_KEY}",
+        "Authorization: Bearer <TOKEN>",
+        "Authorization: Basic <CREDENTIALS>",
+        "Authorization: Bearer token",
+        "Authorization: Basic authentication",
+        "Select the **Bearer token secret name**.",
+    ],
+)
+def test_credential_placeholders_and_authentication_prose_stay_readable(value):
+    assert redact_sensitive(value) == value

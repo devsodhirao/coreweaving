@@ -1,8 +1,9 @@
 """Render conversation/library views around the shared agent runtime.
 
-run_question owns background execution and saves before rendering; show_result
-and show_analysis only inspect returned data. The bottom of this file wires
-Streamlit controls to one pending job per session. No UI callback chooses tools.
+run_question owns background execution, attempts to save before rendering and
+reports failures; show_result and show_analysis only inspect returned data. The
+bottom of this file wires Streamlit controls to one pending job per session.
+No UI callback chooses tools.
 """
 
 import json
@@ -10,8 +11,11 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from importlib.metadata import version
 from queue import Empty, Queue
+from textwrap import dedent
 
 import streamlit as st
+from markdown_it import MarkdownIt
+from markdown_it.common.utils import escapeHtml
 
 from coreweaving.agent import Agent, Session
 from coreweaving.config import init_weave, redact_sensitive, settings
@@ -61,6 +65,28 @@ def resources():
 @st.cache_resource
 def worker_pool():
     return ThreadPoolExecutor(max_workers=2, thread_name_prefix="coreweaving")
+
+
+def show_markdown(text):
+    """Keep chat formatting and links without automatically fetching images."""
+    # Match Streamlit's own Markdown normalization before classifying tokens.
+    text = dedent(text).strip()
+    parser = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
+    has_images = False
+
+    def image_as_text(tokens, index, options, env):
+        nonlocal has_images
+        has_images = True
+        return escapeHtml(parser.renderer.renderInlineAsText(tokens[index].children, options, env))
+
+    parser.renderer.rules["image"] = image_as_text
+    rendered = parser.render(text)
+    if has_images:
+        # This HTML comes only from the parser with raw HTML disabled. Streamlit
+        # also sanitizes it with DOMPurify; scripts remain explicitly disabled.
+        st.html(rendered, unsafe_allow_javascript=False)
+    else:
+        st.markdown(text)
 
 
 def run_question(corpus, config, client, question, session, events):
@@ -159,7 +185,7 @@ def show_result(result):
             for url, title in list(pages.items())[:3]:
                 st.markdown(f"- [{title}]({url})")
     else:
-        st.markdown(result["answer"])
+        show_markdown(result["answer"])
     if status == "not_run":
         st.warning("Verification was disabled for this experimental run.")
     source_label = (
@@ -216,8 +242,8 @@ def show_analysis(result):
                     "uncertain": "Needs evidence",
                     "not_applicable": "Outside this question",
                 }.get(item["status"], item["status"])
-                st.markdown(f"**{label}:** {item['obligation']}")
-                st.write(item["reason"])
+                show_markdown(f"**{label}:** {item['obligation']}")
+                show_markdown(item["reason"])
                 if item.get("source_ids"):
                     st.caption("Evidence: " + ", ".join(item["source_ids"]))
     coverage_ids = {sid for item in verification.get("coverage", []) for sid in item["source_ids"]}
@@ -261,9 +287,9 @@ def show_analysis(result):
                 claim_status = claim.get(
                     "status", "supported" if claim.get("supported") else "unsupported"
                 )
-                st.write(f"{claim_status.capitalize()}: {claim['text']}")
+                show_markdown(f"{claim_status.capitalize()}: {claim['text']}")
             for issue in check["issues"]:
-                st.write(issue)
+                show_markdown(issue)
         if not result["verification_attempts"]:
             st.write(result["verification"]["issues"])
     if metrics := result.get("metrics"):
@@ -343,7 +369,7 @@ def show_analysis(result):
         st.caption("Your review is separate from this original record and its source check.")
     with st.expander("Research steps"):
         for action in result["actions"]:
-            st.markdown(f"**{action['tool']}**")
+            show_markdown(f"**{action['tool']}**")
             st.json(action["input"], expanded=False)
             st.json(action["result"], expanded=False)
 
@@ -408,7 +434,7 @@ def show_library(corpus):
         "Saved question", list(by_id), format_func=option_labels.get, key="saved_question"
     )
     row = by_id[answer_id]
-    st.markdown(f"**{row['question']}**")
+    show_markdown(f"**{row['question']}**")
     st.caption(f"Saved {row['created_at']} · Review: {row['review_state'].replace('_', ' ')}")
     if row["result"].get("snapshot_id") != corpus.snapshot_id:
         st.warning(
@@ -422,7 +448,7 @@ def show_library(corpus):
         with st.expander("Conversation context used for this answer"):
             for message in context:
                 st.markdown(f"**{message['role'].title()}**")
-                st.markdown(message["content"])
+                show_markdown(message["content"])
     show_result(row["result"])
     st.info(
         "Review the whole task: did it answer every part, explain prerequisites, name its assumptions, "
@@ -581,17 +607,20 @@ if not st.session_state.turns and not busy:
 
 for previous_question, previous_result in st.session_state.turns:
     with st.chat_message("user"):
-        st.markdown(previous_question)
+        show_markdown(previous_question)
     with st.chat_message("assistant"):
         show_result(previous_result)
 
 if busy:
     with st.chat_message("user"):
-        st.markdown(st.session_state.job["question"])
+        show_markdown(st.session_state.job["question"])
     with st.chat_message("assistant"):
         show_pending_turn()
 
-question = question or st.session_state.pop("pending_question", None)
+# Consume both input sources even when typed text takes precedence. A queued
+# preset must not survive this interaction and start another request on a rerun.
+preset_question = st.session_state.pop("pending_question", None)
+question = question or preset_question
 if question and not busy:
     question = redact_sensitive(question)
     events = Queue()

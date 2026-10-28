@@ -164,6 +164,18 @@ def test_each_submission_runs_once_across_layout_changes_and_reset(monkeypatch, 
         assert any("Checked points · partial answer" in x.value for x in app.caption)
         assert not any("Source check passed" in x.value for x in app.caption)
         assert len(requests) == 5
+
+        # A batched typed submission and preset click must consume the preset
+        # even though typed text wins. Later renders cannot submit it silently.
+        next(button for button in app.button if button.label == "New conversation").click().run()
+        app.chat_input[0].set_value("Prefer this typed question.")
+        next(button for button in app.button if button.label == "Trace an agent →").click().run()
+        assert not app.exception
+        assert len(requests) == 6 and requests[-1][0] == "Prefer this typed question."
+        app.run()
+        app.radio[0].set_value("Answer library").run()
+        assert not app.exception
+        assert len(requests) == 6 and len(list_answers()) == 6
     finally:
         st.cache_resource.clear()
 
@@ -331,5 +343,111 @@ def test_library_duplicate_questions_keep_selected_answer_when_inspecting(monkey
         links = app.get("link_button")
         assert len(links) == 1 and links[0].proto.url == "https://example.test/newer-answer"
         assert agent_calls == []
+    finally:
+        st.cache_resource.clear()
+
+
+def test_chat_and_library_images_become_text_without_losing_code_or_links(monkeypatch):
+    content = r"""## Example
+
+- A list item.
+
+[Read docs](https://docs.wandb.ai/weave/)
+
+![Inline alt](https://image.example.test/inline.png)
+
+![Reference alt][picture]
+
+[picture]: https://image.example.test/reference.png
+
+\![Escaped image](https://image.example.test/escaped.png)
+
+`![Inline code](https://image.example.test/code.png)`
+
+```markdown
+![Fenced code](https://image.example.test/fenced.png)
+```
+
+<img src="https://image.example.test/html.png">
+<script>alert("synthetic")</script>
+"""
+    result = {
+        "answer_id": "markdown-images",
+        "answer": content,
+        "verification": {"passed": True, "issues": []},
+        "verification_attempts": [],
+        "sources": [],
+        "actions": [],
+        "elapsed_seconds": 0.1,
+        "snapshot_id": "test-snapshot",
+        "conversation_context": [{"role": "user", "content": content}],
+    }
+    records = [
+        {
+            "id": result["answer_id"],
+            "created_at": "2026-10-28T01:00:00+00:00",
+            "question": content,
+            "review_state": "unreviewed",
+            "notes": "",
+            "result": result,
+        }
+    ]
+
+    def unexpected_agent(*args, **kwargs):
+        raise AssertionError("Rendering saved text must not call the agent.")
+
+    monkeypatch.setattr("coreweaving.agent.Agent", unexpected_agent)
+    monkeypatch.setattr("coreweaving.library.list_answers", lambda: records)
+    monkeypatch.setattr(
+        "coreweaving.corpus.Corpus", lambda: SimpleNamespace(pages={}, snapshot_id="test-snapshot")
+    )
+    monkeypatch.setattr("coreweaving.config.settings", lambda: Settings(project="test/test"))
+    monkeypatch.setattr(
+        "coreweaving.config.init_weave", lambda: SimpleNamespace(flush=lambda: None)
+    )
+
+    def check_rendered(app, expected_count):
+        assert not app.exception
+        rendered = app.get("html")
+        assert len(rendered) == expected_count
+        for element in rendered:
+            html = element.proto.body
+            assert not element.proto.unsafe_allow_javascript
+            assert "<img" not in html and "<script" not in html
+            assert "Inline alt" in html and "Reference alt" in html
+            assert "&lt;img src=" in html and "&lt;script&gt;" in html
+            assert '<a href="https://docs.wandb.ai/weave/">Read docs</a>' in html
+            assert "<li>A list item.</li>" in html
+            assert "<code>![Inline code](https://image.example.test/code.png)</code>" in html
+            assert '<code class="language-markdown">![Fenced code]' in html
+            assert '!<a href="https://image.example.test/escaped.png">Escaped image</a>' in html
+        # The library wraps its question in bold; answers and saved context
+        # retain the heading, as do both unwrapped conversation messages.
+        assert sum("<h2>Example</h2>" in item.proto.body for item in rendered) == 2
+        assert not any(content in element.value for element in app.markdown)
+
+    st.cache_resource.clear()
+    try:
+        app = AppTest.from_file(ROOT / "app.py", default_timeout=10).run()
+        app.session_state.turns = [(content, result)]
+        app.run()
+        check_rendered(app, 2)  # The user question and assistant answer.
+        app.radio[0].set_value("Answer library").run()
+        check_rendered(app, 3)  # Saved question, prior context and answer.
+
+        # Streamlit dedents Markdown. Classification must use those same bytes
+        # or an indented image could be mistaken for a harmless code block.
+        indented = "    ![Indented alt](https://image.example.test/indented.png)"
+        app.session_state.turns = [(indented, {**result, "answer": indented})]
+        app.radio[0].set_value("Conversation").run()
+        assert not app.exception
+        assert len(app.get("html")) == 2
+        assert all(item.proto.body == "<p>Indented alt</p>" for item in app.get("html"))
+
+        literal = "`![Literal image](https://image.example.test/literal.png)`"
+        app.session_state.turns = [(literal, {**result, "answer": literal})]
+        app.run()
+        assert not app.exception and not app.get("html")
+        assert sum(item.value == literal for item in app.markdown) == 2
     finally:
         st.cache_resource.clear()

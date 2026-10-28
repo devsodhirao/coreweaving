@@ -1,4 +1,8 @@
+import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from threading import Event, local
+from types import SimpleNamespace
 
 import pytest
 
@@ -106,3 +110,49 @@ def test_library_defensively_masks_questions_results_and_review_notes(
     review_answer(answer["answer_id"], "useful", "Bearer " + secret, path)
     assert secret not in json.dumps(list_answers(path))
     assert secret.encode() not in path.read_bytes()
+
+
+def test_simultaneous_reviews_preserve_both_history_entries(tmp_path, answer, monkeypatch):
+    path = tmp_path / "concurrent.sqlite3"
+    save_answer("Question", answer, path)
+    first_read, second_attempt, release_first = Event(), Event(), Event()
+    thread = local()
+    original_connect = sqlite3.connect
+
+    class CoordinatedConnection(sqlite3.Connection):
+        def execute(self, sql, *args):
+            if sql == "BEGIN IMMEDIATE" and thread.role == "second":
+                second_attempt.set()
+            cursor = super().execute(sql, *args)
+            if sql.startswith("SELECT review_history"):
+                rows = cursor.fetchall()
+                cursor.close()
+                if thread.role == "first":
+                    first_read.set()
+                    assert release_first.wait(5)
+                else:
+                    second_attempt.set()
+                return SimpleNamespace(fetchone=lambda: rows[0] if rows else None)
+            return cursor
+
+    def connect(*args, **kwargs):
+        return original_connect(*args, **kwargs, factory=CoordinatedConnection)
+
+    def review(role):
+        thread.role = role
+        review_answer(answer["answer_id"], "useful", role, path)
+
+    monkeypatch.setattr("coreweaving.library.sqlite3.connect", connect)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(review, "first")
+        assert first_read.wait(5)
+        second = pool.submit(review, "second")
+        try:
+            assert second_attempt.wait(5)
+        finally:
+            release_first.set()
+        first.result(timeout=10)
+        second.result(timeout=10)
+    saved = list_answers(path)[0]
+    assert [entry["notes"] for entry in saved["review_history"]] == ["first", "second"]
+    assert saved["result"] == answer
