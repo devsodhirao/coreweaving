@@ -40,3 +40,9 @@ The earlier compact-audit runtime passed five selected controls. Neither set is 
 [Unpaid browser-observer controls](render-measurement-proof.json) · [428 local tests and Ruff](local-checks.json) · [Fresh clone, clean install and 351-page offline restore](fresh-setup.json)
 
 The [freshly read-back Signal policy](signal-readback.json) is unchanged. The current billing-failed turn received one [attributed needs-review tag](signal-error-readback.json) from the configured monitor. The trace identifies the billing cause; the tag only establishes that operational review ran. It cannot block delivery and can miss factual errors on turns the runtime marks complete. [Earlier scoring history](../product-final-v1/signal-history.json) remains preserved.
+
+## Reading the public Weave pages
+
+[Anonymous access check](publication.json) verified the published repository, Agents dashboard and current Evaluation, including all 13 example rows. Its `passed` value is 11/13 (84.6%); `output.task_complete` is the assistant's own 12/13 label and misses the initialization omission. The displayed mean assertion fraction (0.972) averages graded case fractions; it is neither the pooled 44/45 graded assertions nor 44/48 planned assertions. Its mean final-output time (26.84 s) also differs from our all-15-turn median (20.06 s). These are different aggregations, not interchangeable quality or speed scores.
+
+The Conversations list labels several successful conversations `source_verifier`. A [bounded span check](conversation-label-readback.json) found the root still named `coreweaving`, with explicitly named verifier children and correct parentage. The list's label-selection rule remains unknown; the observed display alone does not establish a tracing defect or vendor bug.
