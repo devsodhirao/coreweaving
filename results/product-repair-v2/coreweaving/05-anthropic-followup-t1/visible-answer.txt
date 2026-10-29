@@ -1,0 +1,46 @@
+Structure it with the Weave agents data model: one conversation, a turn for each user exchange, and an LLM call and tool calls nested inside each turn. This is the pattern the docs show for hand-instrumenting a bare Anthropic client. [S1][S2]
+
+Layers to map onto your loop
+
+The Weave SDK for Agents models an agent, its conversations, the turns in each conversation, the LLM calls within a turn, and the tool executions those LLM calls trigger. [S1]
+Every turn, LLM call, and tool call emits an OpenTelemetry span. Traces appear in the Agents tab. [S1]
+The tracing functions return objects that work as context managers (with). You can also close them manually with .end(). [S1]
+
+Pattern from the docs (placeholders, not a runnable program)
+
+import weave
+from weave.conversation import start_conversation, Message, Usage
+
+weave.init(
+    "[YOUR-TEAM]/[YOUR-PROJECT]",
+    settings={"implicitly_patch_integrations": False},
+)
+
+with start_conversation(agent_name="support-agent", conversation_id=convo_id) as conv:
+    with conv.start_turn(user_message=user_message) as turn:
+        with turn.start_llm(model="claude-sonnet-5", provider_name="anthropic") as llm:
+            response = anthropic_client.messages.create(...)  # your model call
+            llm.record(
+                input_messages=[...],   # list of weave.Message
+                output_messages=[...],
+                usage=Usage(input_tokens=..., output_tokens=...),
+            )
+        for call in response_tool_calls:   # your tool loop
+            with turn.start_tool(name=call.name, arguments=call.arguments) as tool:
+                tool.result = run_tool(call)
+
+convo_id, user_message, anthropic_client, response_tool_calls and run_tool are your own code. [S2]
+
+Structuring advice
+
+In the example, each conversation gets a unique ID, such as a UUID, and each turn takes the user's message for that exchange. So open one conversation per session and one turn per user message. [S2]
+Wrap each messages.create call in start_llm, and call record with the input and output messages and token usage. [S2]
+Wrap each tool execution in start_tool with its name and arguments, and set tool.result. A dict result is auto-encoded. [S2]
+Set implicitly_patch_integrations to False when you hand-instrument. Otherwise Weave autopatches the SDK, and each call is traced twice: once as your Conversation span and once as a traced Op. [S2]
+The custom-agent quickstart also covers recording complete token usage and a priceable model so that token counts and cost render. [S3]
+
+Caveats
+
+These spans don't replace your message history. You still send the full message list to Anthropic yourself.
+For function-level tracing with @weave.op, the docs point to a separate workflow. [S1]
+I didn't read the argument reference sections for each start_* call, so check them for exact parameters.

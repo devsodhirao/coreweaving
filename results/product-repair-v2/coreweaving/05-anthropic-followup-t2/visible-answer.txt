@@ -1,0 +1,41 @@
+Inside your start_llm block, call llm.record(usage=weave.Usage(...)). Set input_tokens to the total input, including cached tokens, and report the two cache counts separately. Also pass a concrete model id. [S4]
+
+Why the mapping matters
+
+Weave shows token counts from the usage you record and derives cost from that usage plus the model id. Incomplete usage or an unpriceable model shows 0 in / 0 out or Cost -. [S4]
+input_tokens must be the total input, cached tokens included. Weave prices cache reads and writes at their own rates and subtracts them from that total. [S4]
+Anthropic reports cached tokens separately from input_tokens, so you add them back into the total. [S4]
+
+Example, from the docs' Anthropic pattern. MODEL, anthropic_client and history are your own code. [S4]
+
+import weave
+
+with weave.start_llm(model=MODEL, provider_name="anthropic") as llm:
+    resp = anthropic_client.messages.create(
+        model=MODEL, max_tokens=1024, messages=history,
+    )
+    u = resp.usage
+    llm.output(resp.content[0].text)
+    llm.record(
+        usage=weave.Usage(
+            input_tokens=u.input_tokens
+            + u.cache_read_input_tokens
+            + u.cache_creation_input_tokens,
+            output_tokens=u.output_tokens,
+            cache_read_input_tokens=u.cache_read_input_tokens,
+            cache_creation_input_tokens=u.cache_creation_input_tokens,
+        ),
+        response_id=resp.id,
+        response_model=resp.model,
+    )
+
+Model id for pricing
+
+Cost is a lookup on the model. Weave prefers response_model and falls back to the model you passed to start_llm. [S4]
+An alias such as opus or sonnet isn't priceable and shows Cost -. Pass the concrete id the response returns (resp.model) as response_model. [S4]
+
+Notes for your tool loop
+
+Do this for every messages.create call in the loop. Each call is its own LLM call, so each one needs its own usage record. This is my inference from the one-LLM-call-per-start_llm pattern.
+record(...) applies only the fields you pass. You can set output_messages, response_id and other fields in the same call. [S4]
+The example above is a single LLM call. It isn't a full tool loop, and your message history is still your own responsibility.
