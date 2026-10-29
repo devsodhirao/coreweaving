@@ -8,6 +8,12 @@
 
 Keep [Progress](docs/PROGRESS.md) current after meaningful implementation or validation work: update status and next actions, add a dated evidence-linked entry, and separate completed, proposed and blocked work. Documentation edits alone do not change measured runtime results. Keep personal interview notes outside Git.
 
+Use plain language in the app and public explanations. Explain unfamiliar terms,
+state what a limitation means for the user, and keep technical identifiers in the
+inspection details. Name each metric and its denominator; do not call retrieval
+coverage or a model's self-check "accuracy". Preserve exact API names and the
+meaning of saved results when simplifying wording.
+
 ## Evidence rules
 
 - Preserve the original submission tag, completed result files and prior scores. Current runtime and rubric belong together; a documentation edit does not create a new quality measurement.

@@ -132,10 +132,9 @@ def summarize(calls: list[dict], actions: list[dict]) -> dict:
         },
         "pricing": {"checked_at": PRICE_CHECKED_AT, "source": PRICE_SOURCE, "rates": PRICES},
         "scope": (
-            "Standard Claude API list-price estimate for returned usage, including planning and "
-            "verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, "
-            "taxes, and any usage not returned after failures or SDK/provider retries. "
-            "Calls count application invocations, not every HTTP attempt. This is not an invoice. "
-            "Research counts do not measure factual completeness."
+            "Estimated from Claude's reported usage and published prices. Includes research "
+            "and answer checks. Excludes Weave Signals, separate evaluation runs, hosting, "
+            "taxes and any usage missing after failed requests or retries. We count requests "
+            "made by the app, not every network attempt. Your final bill may differ."
         ),
     }

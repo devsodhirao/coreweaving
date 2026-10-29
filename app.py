@@ -93,7 +93,7 @@ def run_question(corpus, config, client, question, session, events):
     try:
         client.flush()
     except Exception as exc:
-        warning = f"Trace delivery needs checking ({type(exc).__name__})."
+        warning = f"Your answer is ready, but its activity record may not have reached Weave ({type(exc).__name__})."
     return result, warning
 
 
@@ -109,7 +109,7 @@ def show_pending_turn():
         try:
             result, warning = job["future"].result()
         except Exception as exc:
-            st.session_state.turn_warning = f"This turn could not finish ({type(exc).__name__})."
+            st.session_state.turn_warning = f"I couldn't finish this answer. Please try again. Error: {type(exc).__name__}."
         else:
             st.session_state.turns.append((job["question"], result))
             if warning:
@@ -126,10 +126,10 @@ def show_pending_turn():
         elif stage == "source_read":
             job.setdefault("pages", {})[detail["url"]] = detail["title"]
         labels = {
-            "thinking": "Planning the next step",
-            "search_docs": "Finding relevant documentation",
-            "read_page": "Reading source material",
-            "run_python": "Trying the Python example offline",
+            "thinking": "Working on your question",
+            "search_docs": "Searching the docs",
+            "read_page": "Reading a documentation page",
+            "run_python": "Running a small Python example without internet access",
             "submit_answer": "Checking the answer against its sources",
         }
         if stage in labels:
@@ -154,26 +154,26 @@ def show_result(result):
     check_label = (
         "Waiting for your reply"
         if passed and result.get("kind") == "clarification"
-        else "Checked facts · answer incomplete"
+        else "Partial answer · checked against the docs"
         if result.get("task_complete") is False and passed
-        else "Check not run · experimental answer"
+        else "Answer not checked · test mode"
         if status == "not_run"
-        else "Source and coverage checks passed"
+        else "Answer and completeness checked"
         if passed and mode == "support+coverage"
-        else "Sources and requested parts checked"
+        else "Answer checked against the docs"
         if passed and result.get("task_complete") is True
-        else "Source check passed"
+        else "Sources checked"
         if passed
-        else "Check did not pass"
+        else "Couldn't verify the answer"
     )
     failed = not passed and status != "not_run"
     evidence = result.get("all_read_evidence", [])
     passages = [source for source in evidence if source.get("url")]
     if failed and result.get("kind") == "insufficient":
         st.markdown(
-            "I found relevant documentation, but couldn’t finish a checked answer."
+            "I found relevant pages, but couldn't confirm an answer from them."
             if passages
-            else "I couldn’t finish a checked answer to this question."
+            else "I couldn't finish checking an answer to this question."
         )
         pages = {source["url"]: source["title"] for source in passages}
         if pages:
@@ -184,21 +184,21 @@ def show_result(result):
         show_markdown(result["answer"])
     if missing := result.get("missing_outcomes"):
         show_markdown(
-            "**Still unresolved:**\n"
+            "**Still to answer:**\n"
             + "\n".join(
                 f"- {item['description'] if isinstance(item, dict) else item}" for item in missing
             )
         )
     if status == "not_run":
-        st.warning("Verification was disabled for this experimental run.")
+        st.warning("This test response skipped the answer check.")
     source_label = (
-        f"{len(passages)} document passages found · answer unverified"
+        f"{len(passages)} document sections found"
         if failed
         else f"{len(result['sources'])} cited sources"
     )
     st.caption(
         f"{check_label} · {source_label} · {result['elapsed_seconds']:.1f}s",
-        help="These are model judgments about source support and the requested task, not a guarantee of correctness.",
+        help="An AI checks whether the docs support the answer and whether it answers your question. It can still miss mistakes.",
     )
     # Put citation navigation beside the answer. Exact passages and audit details
     # remain in the analysis window, with no extra model request for inspection.
@@ -208,19 +208,19 @@ def show_result(result):
             key="citations_" + result["answer_id"],
             icon=":material/menu_book:",
         ):
-            st.caption("Match the [S] and [C] labels in the answer to its evidence.")
+            st.caption("[S1] points to a document section. [C1] points to a Python run.")
             for source in result["sources"]:
                 if source.get("url"):
                     st.markdown(f"**[{source['source_id']}]** [{source['title']}]({source['url']})")
                     st.caption(source["heading"])
                 else:
-                    st.markdown(f"**[{source['source_id']}]** Offline Python execution")
+                    st.markdown(f"**[{source['source_id']}]** Python run without internet access")
             st.caption("Open Sources & analysis for the exact passages and checks.")
     if st.button(
         "Sources & analysis",
         key="analysis_" + result["answer_id"],
         icon=":material/manage_search:",
-        help="Inspect passages, checks, time, cost and the Weave trace. No new model call.",
+        help="See the docs read, answer checks, time and cost. Opening this does not ask the AI again.",
     ):
         show_analysis(result)
 
@@ -229,79 +229,81 @@ def show_result(result):
 def show_analysis(result):
     """Observable evidence and checks, separate from the conversational answer."""
     verification = result["verification"]
-    st.caption("Documents read, source checks and usage for this answer.")
-    st.link_button("Open this conversation in Weave ↗", result["trace_url"])
+    st.caption("See the documents read, what was checked, and the work behind this answer.")
+    st.link_button("View this conversation's activity in Weave ↗", result["trace_url"])
     st.download_button(
         "Download answer and evidence",
         json.dumps(result, indent=2),
         file_name=f"coreweaving-{result['answer_id']}.json",
         mime="application/json",
-        help="Export this answer, its sources, checks and recorded usage.",
+        help="Save a JSON file containing this answer, sources, checks and model usage.",
     )
     visible_sources = {
         source["source_id"]: source
         for source in result.get("all_read_evidence", []) + result["sources"]
     }
     if visible_sources:
-        with st.expander(f"Sources · {len(visible_sources)} sources"):
+        with st.expander(f"Documents and Python results · {len(visible_sources)} items"):
             st.caption(
-                "All passages read for this turn. Match [S1], [S2], and other citations "
-                "to their source; a read passage is not necessarily cited in the answer."
+                "Evidence consulted for this answer, including earlier sources reused in this conversation. "
+                "Match [S1], [S2] and other labels to the answer. Some items were read but not cited."
             )
             for source in visible_sources.values():
                 if "url" in source:
                     st.markdown(f"**[{source['source_id']}] [{source['title']}]({source['url']})**")
                     st.caption(source["heading"])
                     if source.get("page_context") and source["page_context"] != source["text"]:
-                        st.caption("Page context (including any workflow warnings)")
+                        st.caption("Page introduction and important notes")
                         st.text(source["page_context"])
                     st.text(source["text"])
                 else:
-                    st.markdown(f"**[{source['source_id']}] Python execution**")
+                    st.markdown(f"**[{source['source_id']}] Python run**")
                     st.code(source["code"], language="python")
                     st.text(source.get("output", source.get("error", "")))
     with st.expander("What the check found"):
-        st.caption("The verifier checks source support and requested parts. It can miss mistakes.")
+        st.caption("An AI checks the answer against the documents and your question. It can miss mistakes.")
         for issue in verification["issues"]:
             show_markdown(issue)
         missing_parts = verification.get("missing_parts", [])
         for part in missing_parts:
-            show_markdown(f"**Still unresolved:** {part}")
+            show_markdown(f"**Still to answer:** {part}")
         if not verification["issues"] and not missing_parts:
             st.caption(
-                "No source or completeness problems were reported."
+                "The check found no unsupported claims or missing answers. It can still miss mistakes."
                 if verification["passed"]
-                else "The check did not accept this answer; no detailed reason was returned."
+                else "The answer check failed without explaining why."
             )
     if metrics := result.get("metrics"):
         amount = metrics["estimated_usd"]
         label = (
             f"Estimated model cost · ${amount:.2f}"
             if amount is not None
-            else "Model usage · partial estimate"
+            else "AI usage · cost estimate incomplete"
         )
         with st.expander(label):
             st.write(
-                f"{metrics['model_calls']} model calls · "
-                f"{metrics['total_input_tokens']:,} input tokens · "
-                f"{metrics['tokens']['output_tokens']:,} output tokens"
+                f"{metrics['model_calls']} AI requests · "
+                f"{metrics['total_input_tokens']:,} tokens sent · "
+                f"{metrics['tokens']['output_tokens']:,} tokens generated"
             )
+            st.caption("Tokens are the small pieces of text used to measure AI usage.")
             tokens = metrics["tokens"]
             st.caption(
-                f"Cache reads: {tokens.get('cache_read_input_tokens', 0):,} tokens · "
-                f"Cache writes: {tokens.get('cache_creation_input_tokens', 0):,}. "
-                "This estimate includes research and verification."
+                f"Reused from cache: {tokens.get('cache_read_input_tokens', 0):,} tokens · "
+                f"Saved to cache: {tokens.get('cache_creation_input_tokens', 0):,}. "
+                "Caching reuses repeated input at different rates. The estimate includes research and answer checks."
             )
             if metrics["unpriced_calls"]:
                 st.warning(
-                    f"{metrics['unpriced_calls']} calls lack a complete estimate; they are not counted as free."
+                    f"We couldn't fully price {metrics['unpriced_calls']} AI requests, so the total cost is incomplete."
                 )
             st.caption(metrics["scope"])
             st.caption(
                 f"[Pricing source]({metrics['pricing']['source']}) · checked "
-                f"{metrics['pricing']['checked_at']}. Returned call usage is also recorded in Weave."
+                f"{metrics['pricing']['checked_at']}. Weave also records usage reported by the model provider."
             )
-    with st.expander("Which version made this answer?"):
+    with st.expander("Model and version details"):
+        st.caption("These IDs identify the code, instructions and saved docs used for this answer.")
         st.json(
             {
                 "code_build": result.get("source_sha256", "unknown"),
@@ -313,9 +315,15 @@ def show_analysis(result):
             },
             expanded=False,
         )
-    with st.expander("Research steps"):
+    with st.expander("How the answer was researched"):
+        names = {
+            "search_docs": "Search the docs",
+            "read_page": "Read a section",
+            "run_python": "Run Python",
+            "submit_answer": "Check a proposed answer",
+        }
         for action in result["actions"]:
-            show_markdown(f"**{action['tool']}**")
+            show_markdown(f"**{names.get(action['tool'], action['tool'])}**")
             st.json(action["input"], expanded=False)
             st.json(action["result"], expanded=False)
 
@@ -352,30 +360,32 @@ with st.sidebar:
     st.markdown("**Keep the conversation going.**")
     st.write("Ask a follow-up, such as ‘How would I add that to my agent?’")
     st.caption("The assistant remembers the last six exchanges in this session.")
-    with st.expander("Purpose, permissions & memory"):
-        st.write("Purpose: help you understand and use Weave, with evidence you can inspect.")
+    with st.expander("What it can do and remember"):
+        st.write("Get help using Weave, with links to the documents behind each answer.")
         st.caption(
-            "It can search and read the saved docs, run small offline Python examples, and "
-            "submit an answer for checking. It cannot change your accounts, deploy code, "
+            "It can search saved docs, read pages, and run small Python examples without internet access. "
+            "It checks answers before showing them. It cannot change your accounts, deploy code, "
             "install packages, or read your files."
         )
         st.caption(
-            "Conversation memory keeps six exchanges. New conversation clears that working "
-            "context. Public Weave traces remain; they are not reused as documentation."
+            "It remembers the last six question-and-answer exchanges in this chat. "
+            "New conversation clears that memory. The public activity records in Weave remain."
         )
     with st.expander("About this demo"):
         st.caption(f"{len(corpus.pages)} saved Weave documentation pages")
-        st.caption(f"Snapshot: {corpus.snapshot_id[:12]}")
-        st.caption(f"Answer check: {config.verify_mode}")
+        st.caption("Answers use a saved copy of the docs, not a live website search.")
+        st.caption(f"Saved-docs ID: {corpus.snapshot_id[:12]}")
+        st.caption("Answers are checked against the sources and your question.")
         st.caption(f"Model: {config.agent_model}")
         reference_version = getattr(corpus, "docs_sdk_version", "unknown")
         runtime_version = version("weave")
         if reference_version != "unknown" and reference_version != runtime_version:
             st.warning(
-                f"Python reference source: {reference_version}; installed Weave: {runtime_version}. "
-                "Newer APIs may be covered by guides rather than that reference page."
+                f"The saved Python API reference is labeled version {reference_version}. "
+                f"This app uses Weave {runtime_version}. We haven't tested every generated "
+                "example with that installed version."
             )
-        st.caption("Code examples run in an offline Python container when needed.")
+        st.caption("The Python tool can test basic examples. It cannot run Weave or model-provider libraries.")
         st.caption("New conversations and server restarts clear conversation memory.")
 
 if warning := st.session_state.pop("turn_warning", None):
@@ -386,7 +396,7 @@ st.title("Good answers leave a trail.")
 st.write("Ask about Weave. See the answer, its sources, and how it was checked.")
 st.caption(
     "This demo records conversations in a public Weave project. "
-    "Use public examples and keep credentials out of chat."
+    "Use public examples. Don't enter API keys, passwords or private information."
 )
 if not st.session_state.turns:
     # An inline welcome field avoids the pinned chat layout scrolling a narrow

@@ -118,8 +118,8 @@ def test_each_submission_runs_once_across_inspection_and_reset(monkeypatch):
         assert len(requests) == 3
         assert "multi-turn agent" in requests[-1][0]
         assert requests[-1][1] != requests[0][1]
-        assert any("Check not run" in x.value for x in app.caption)
-        assert any("Verification was disabled" in x.value for x in app.warning)
+        assert any("Answer not checked" in x.value for x in app.caption)
+        assert any("skipped the answer check" in x.value for x in app.warning)
         app.run()
         assert len(requests) == 3
 
@@ -127,7 +127,7 @@ def test_each_submission_runs_once_across_inspection_and_reset(monkeypatch):
         app.chat_input[0].set_value("A question the checker cannot resolve.").run()
         assert not app.exception
         assert len(requests) == 4
-        assert any("1 document passages found" in x.value for x in app.caption)
+        assert any("1 document sections found" in x.value for x in app.caption)
         assert not any("0 sources" in x.value for x in app.caption)
         assert any("[Tracing agents]" in x.value for x in app.markdown)
         assert not any("research limit" in x.value for x in app.markdown)
@@ -139,8 +139,8 @@ def test_each_submission_runs_once_across_inspection_and_reset(monkeypatch):
         next(button for button in app.button if button.label == "New conversation").click().run()
         app.chat_input[0].set_value("Show the part that can be confirmed.").run()
         assert not app.exception
-        assert any("Checked facts · answer incomplete" in x.value for x in app.caption)
-        assert not any("Source check passed" in x.value for x in app.caption)
+        assert any("Partial answer · checked against the docs" in x.value for x in app.caption)
+        assert not any("Answer checked against the docs" in x.value for x in app.caption)
         assert len(requests) == 5
 
         # A batched typed submission and preset click must consume the preset
@@ -158,7 +158,7 @@ def test_each_submission_runs_once_across_inspection_and_reset(monkeypatch):
         assert not app.exception
         assert len(requests) == 7
         assert any("Waiting for your reply" in item.value for item in app.caption)
-        assert not any("Checked facts · answer incomplete" in item.value for item in app.caption)
+        assert not any("Partial answer · checked against the docs" in item.value for item in app.caption)
     finally:
         st.cache_resource.clear()
 
@@ -379,13 +379,13 @@ def test_partial_answer_keeps_unresolved_question_visible_without_new_calls(
         app.session_state["turns"] = [("Explain its role and when it runs.", result)]
         app.run()
         assert not app.exception
-        assert any("Still unresolved:" in item.value for item in app.markdown)
+        assert any("Still to answer:" in item.value for item in app.markdown)
         assert any(description in item.value for item in app.markdown)
-        assert any("Checked facts · answer incomplete" in item.value for item in app.caption)
+        assert any("Partial answer · checked against the docs" in item.value for item in app.caption)
         app.button(key="analysis_task-partial").click().run()
         assert not app.exception
         assert sum(description in item.value for item in app.markdown) == 2
-        assert not any("No source or completeness problems" in item.value for item in app.caption)
+        assert not any("The check found no unsupported claims" in item.value for item in app.caption)
         assert result["missing_outcomes"] == original
     finally:
         st.cache_resource.clear()
@@ -420,8 +420,8 @@ def test_analysis_distinguishes_clean_audit_from_rejection_without_details(monke
             app.run()
             app.button(key=f"analysis_audit-{passed}").click().run()
             assert not app.exception
-            clean = "No source or completeness problems were reported."
-            rejected = "The check did not accept this answer; no detailed reason was returned."
+            clean = "The check found no unsupported claims or missing answers. It can still miss mistakes."
+            rejected = "The answer check failed without explaining why."
             assert any(item.value == clean for item in app.caption) is passed
             assert any(item.value == rejected for item in app.caption) is not passed
     finally:

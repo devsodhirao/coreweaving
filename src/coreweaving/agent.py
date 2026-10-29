@@ -64,7 +64,10 @@ well as the API reference: explain essential effects and required setup, not jus
 the signature. Preserve the documented action, target and conditions. Where a UI
 displays results does not establish what operation produced or scored them.
 
-Lead with a direct answer, then brief bullets or steps. Explain unfamiliar terms.
+Lead with a direct answer, then brief bullets or steps. Use plain language and
+explain unfamiliar terms on first use; keep exact API names where they matter.
+Tell the user what a limitation means for their task, rather than repeating
+internal labels, model diagnostics or evaluation jargon.
 Aim for 150–250 words for an overview. Synthesize relationships from supported
 premises; label an inference once when appropriate. Do not require a verbatim
 combined statement or bury useful explanations in repeated limitations.
@@ -815,7 +818,7 @@ class Agent:
                         if repairs > self.config.max_revisions:
                             break
                     if not released:
-                        answer = "I couldn’t finish a checked answer. The sources I found are available below; try narrowing the question to one part."
+                        answer = "I couldn't confirm an answer from the documents I read. You can inspect those sources below or try asking about one part at a time."
                         if not verdict.issues:
                             verdict = Verification(
                                 passed=False,
@@ -825,7 +828,7 @@ class Agent:
                 except Exception as exc:
                     turn.record_error(safe_exception(exc))
                     error_type, kind = type(exc).__name__, "error"
-                    answer = f"This question couldn’t finish ({error_type}). Please try again."
+                    answer = "Something went wrong while answering. Please try again. The error details are saved with this answer."
                     verdict = Verification(
                         passed=False,
                         mode=self.config.verify_mode,

@@ -11,7 +11,7 @@ from coreweaving.corpus import Corpus
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("question", nargs="?")
-    parser.add_argument("--json", action="store_true", help="Print the full evidence record.")
+    parser.add_argument("--json", action="store_true", help="Print the answer, sources and checks as JSON.")
     args = parser.parse_args()
     client = init_weave()
     agent, session = Agent(Corpus(), settings()), Session()
@@ -22,7 +22,7 @@ def main():
         result = agent.run(question, session)
         print(json.dumps(result, indent=2) if args.json else result["answer"])
         if not args.json:
-            print(f"\nTrace: {result['trace_url']}\n")
+            print(f"\nView the steps behind this answer in Weave: {result['trace_url']}\n")
         client.flush()
         if args.question:
             break
