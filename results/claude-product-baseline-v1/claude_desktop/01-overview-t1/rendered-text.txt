@@ -1,0 +1,53 @@
+Incognito
+Claude
+Use the up and down arrow keys to move between messages.
+You said: Use the Weave documentation at https://docs.wandb.ai/weave to answer this question:
+Use the Weave documentation at 
+https://docs.wandb.ai/weave
+ to answer this question:
+How do tracing, evaluations, and Signals fit together?
+2 minutes ago
+Claude responded: Found the Signals pages.
+Read 4 pages
+Read 4 pages
+Found the Signals pages. Let me read the main Signals guide and the built-in signals monitoring page.
+Read 5 pages
+Read 5 pages
+Tracing is the data layer. Evaluations score your agent against a fixed test set before you ship. Signals score live traffic after you ship. Scoring ties the three together, and the problems Signals flag in production become new test cases for the next round of evaluations. (The docs.wandb.ai/weave link now redirects to CoreWeave’s documentation, which is where this comes from.)
+Tracing comes first.
+ Weave has two ways to capture traces. Agent tracing is built on OpenTelemetry and the GenAI semantic conventions, and spans that follow those conventions show up as conversations, turns, and tool calls in the Agents view. For non-agent code, such as a RAG pipeline, you use Ops and Calls, which record inputs, outputs, cost, token count, and latency for any function you decorate. The two show up in different places: agent traces on the Agents page and 
+weave.op
+ calls on the Traces page. You can use both in one project, but they produce separate traces. Evaluations and Signals both work on these traces. 
+Evaluations are offline testing.
+ An 
+Evaluation
+ object pairs a dataset of test examples with one or more scoring functions, and each call to 
+.evaluate()
+ produces one evaluation run. The examples are often failure cases you want to guard against, much like unit tests. For agents, the docs recommend 
+EvaluationLogger
+: you run the agent inside 
+log_prediction(...)
+, so each traced conversation is linked to its evaluation row. A 
+View spans
+ button then takes you from the evaluation to the linked spans on the Agents page. You can then compare evaluations to see whether a new agent version improved or regressed on your scores, as well as on latency and cost. 
+Signals are production monitoring.
+ In the Agents view, the Signals tab shows tags and ratings for your agent’s conversations, flagging quality and safety problems and pointing you to the traces that need attention. Tags are labels such as “user-frustration” or “nsfw”. Ratings are scores from 0 to 1 that let you track performance over time. There are presets such as User Frustration, Malicious Intent (Jailbreaking), Low Quality Response, and Response Quality. You can also write custom signals, or score turns with an HTTP endpoint you host instead of an LLM judge. Signals run on traces too: their activity appears under Traces, which is where you look when you’re debugging missing matches or scorer errors. 
+One caveat if you trace with Ops rather than agent tracing: there is an older Monitors page with built-in signals such as hallucination and rate-limit errors, but the docs call it a previous approach and point new implementations to Signals under Weave for Agents. In that older setup, results are stored as feedback on the Call object and appear in a Signals column on the Traces page. 
+coreweave
+coreweave
+How the loop closes.
+ The common piece is the scorer. The docs describe scoring production traffic with the same scorers you use in evaluation. The scores and failure analyses that Signals produce help you find weaknesses, which you can then address through model changes, data annotation, or reinforcement learning. Human feedback gathered in production can likewise be turned into better test cases. In practice the cycle is: 
+Trace your agent.
+Evaluate it against a curated set.
+Ship it.
+Let Signals flag bad conversations.
+Add those conversations to your eval dataset.
+Re-evaluate the next version.
+Finally, the Signals workflow is also available in CoreWeave Agent Lens, which uses the same trace data as Weave, so there’s nothing to migrate. 
+coreweave
+2 minutes ago
+No history, memory, or Claude training.
+Opus 5.5
+ 
+Extra
+Claude finished the response

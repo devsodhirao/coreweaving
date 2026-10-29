@@ -1,0 +1,614 @@
+Incognito
+Claude
+Use the up and down arrow keys to move between messages.
+You said: Use the Weave documentation at https://docs.wandb.ai/weave to answer this question:
+Use the Weave documentation at 
+https://docs.wandb.ai/weave
+ to answer this question:
+How do I evaluate my agent using a dataset and an LLM judge?
+1 minute ago
+Claude responded: The Weave docs link now redirects to CoreWeave's site.
+Read 8 pages
+Read 8 pages
+The Weave docs link now redirects to CoreWeave’s site. There’s a dedicated tutorial for your exact question, “Evaluate your AI agent with Weave,” and below is the approach it recommends, followed by the more general 
+weave.Evaluation
+ route.
+Recommended for agents: 
+EvaluationLogger
+ plus an LLM judge
+An agent works toward a goal across turns and tool calls, so you can’t grade it by matching one output string. The docs instead have you judge its behavior across the whole trajectory. Weave stores and organizes the evaluations but doesn’t run or sandbox your agent, so you keep your existing agent runtime. 
+coreweave
+coreweave
+1. Make sure the agent is traced.
+ If you built it with a framework integration such as the Claude Agent SDK or OpenAI Agents, Weave emits the agent spans automatically, so you can leave implicit patching on. If you’re hand-instrumenting a raw provider SDK, wrap each run in 
+weave.conversation
+ (a conversation holds turns, and each turn holds the model call and tool calls) and pass 
+settings={"implicitly_patch_integrations": False}
+ to 
+weave.init
+ so calls aren’t traced twice. 
+coreweave
+coreweave
+2. Build a dataset of tasks.
+ Each row should hold the user request and its success criteria. Publish the dataset once before running evaluations. Otherwise Weave re-imports the raw rows on every run, and publishing also links each prediction to a specific dataset row in the UI. 
+coreweave
+3. Write the judge.
+ The scorer can be any plain function, since Weave doesn’t prescribe its shape. In the tutorial, the judge reads the plain-text trajectory and compares it to the task’s success criteria. It returns a dict with 
+passed
+ and 
+reason
+, and it rewards the correct outcome rather than a polite-sounding reply. The tutorial also recommends grading with a stronger model that is different from the one you’re evaluating. 
+coreweave
+coreweave
+4. Run the loop.
+ Run the agent inside 
+log_prediction(...)
+ so the traced conversation links to that evaluation row. 
+coreweave
+Here’s a condensed sketch. 
+run_my_agent
+ stands in for your own agent loop, returning the final reply and a text transcript of the turns and tool calls:
+python
+import
+ json
+
+
+import
+ weave
+
+
+from
+ anthropic 
+import
+ Anthropic
+
+
+
+
+weave
+.
+init
+(
+"my-team/my-agent-project"
+)
+
+
+client = Anthropic
+()
+
+
+JUDGE_MODEL = 
+"..."
+  
+# pick a stronger model than your agent uses
+
+
+
+
+# Publish the task suite once, then reuse it across runs
+
+
+weave
+.
+publish
+(
+weave
+.
+Dataset
+(
+
+
+    
+name
+=
+"support-refund-tasks"
+,
+
+
+    
+rows
+=
+[
+
+
+        
+{
+"task_id"
+:
+ 
+"eligible"
+,
+ 
+"user_request"
+:
+ 
+"Please refund order A1001."
+,
+
+
+         
+"success_criteria"
+:
+ 
+"Looks up the order and issues the refund."
+},
+
+
+        
+{
+"task_id"
+:
+ 
+"too-late"
+,
+ 
+"user_request"
+:
+ 
+"Refund my order A1002."
+,
+
+
+         
+"success_criteria"
+:
+ 
+"Politely declines (outside 30 days); must not refund."
+},
+
+
+    
+],
+
+
+))
+
+
+dataset = weave
+.
+ref
+(
+"support-refund-tasks"
+).
+get
+()
+
+
+
+
+def
+ 
+judge
+(
+task
+:
+ 
+dict
+,
+ 
+transcript
+:
+ 
+str
+)
+ 
+->
+ 
+dict
+:
+
+
+    prompt = 
+(
+
+
+        
+"Decide whether the agent achieved the outcome described in the success "
+
+
+        
+"criteria. Grade the outcome, not the tone.
+\n
+"
+
+
+        
+f
+"Request: 
+{
+task
+[
+'user_request'
+]
+}\n
+"
+
+
+        
+f
+"Success criteria: 
+{
+task
+[
+'success_criteria'
+]
+}\n
+"
+
+
+        
+f
+"Transcript:
+\n{
+transcript
+}\n
+"
+
+
+        
+'Respond with only JSON: {"passed": true or false, "reason": "<one sentence>"}'
+
+
+    
+)
+
+
+    resp = client
+.
+messages
+.
+create
+(
+model
+=JUDGE_MODEL
+,
+ 
+max_tokens
+=
+512
+,
+
+
+                                  
+messages
+=
+[{
+"role"
+:
+ 
+"user"
+,
+ 
+"content"
+:
+ prompt
+}])
+
+
+    
+return
+ json
+.
+loads
+(
+resp
+.
+content
+[
+0
+].
+text
+)
+
+
+
+
+ev = weave
+.
+EvaluationLogger
+(
+name
+=
+"support-agent-eval"
+,
+ 
+model
+=
+"v1"
+,
+
+
+                            
+dataset
+=
+"support-refund-tasks"
+)
+
+
+for
+ row 
+in
+ dataset
+.
+rows
+:
+
+
+    
+with
+ ev
+.
+log_prediction
+(
+inputs
+=row
+)
+ 
+as
+ pred
+:
+   
+# agent must run inside this block
+
+
+        reply
+,
+ transcript = run_my_agent
+(
+row
+[
+"user_request"
+])
+
+
+        pred
+.
+output = reply
+
+
+        pred
+.
+log_score
+(
+"task_completion"
+,
+ judge
+(
+row
+,
+ transcript
+))
+
+
+ev
+.
+log_summary
+()
+5. View and compare results.
+ In the UI, open the 
+Evals
+ tab and select your run. The 
+Call
+ tab lists each task with a 
+passed
+ column holding the judge’s verdict. The 
+Evaluation
+ tab has a 
+View spans
+ button that jumps to the Agents page with the linked traces. To test a change, such as a new system prompt, tools, or model, rerun the same loop with a new 
+model
+ label like 
+"v2"
+. You can then compare the two evaluations side by side, including latency and cost. 
+coreweave
+coreweave
+Multi-turn agents:
+ each dataset row can hold a fixed conversation history plus the next user message. You seed the agent with the history and judge how it handles that next turn, for example whether it reuses an order ID the user already gave instead of asking again. The docs note that scoring a full session end-to-end, with the agent driving every turn, requires live A/B testing in production. 
+coreweave
+coreweave
+More scores:
+ To build a fuller scorecard, add more 
+pred.log_score(...)
+ calls covering functional checks (tool-call correctness, instruction-following, recovery from tool errors) and non-functional ones (safety, latency, cost, hallucinated tool use). 
+coreweave
+Alternative: the standard 
+weave.Evaluation
+ framework
+If you prefer a more structured setup, you can wrap the agent in a 
+weave.Model
+. You subclass 
+Model
+ and implement a 
+predict
+ function that takes one example and returns the response. Your scorer receives the agent’s result through an 
+output
+ parameter, and Weave matches any other scorer argument names to your dataset columns. If the names don’t line up, you can use 
+column_map
+. 
+coreweave
+coreweave
+python
+import
+ asyncio
+
+
+
+
+class
+ 
+SupportAgent
+(
+weave
+.
+Model
+):
+
+
+    system_prompt
+:
+ 
+str
+
+
+
+
+    
+@
+weave
+.
+op
+
+
+    
+def
+ 
+predict
+(
+self
+,
+ 
+user_request
+:
+ 
+str
+)
+ 
+->
+ 
+dict
+:
+
+
+        reply
+,
+ transcript = run_my_agent
+(
+user_request
+,
+ 
+self
+.
+system_prompt
+)
+
+
+        
+return
+ 
+{
+"reply"
+:
+ reply
+,
+ 
+"transcript"
+:
+ transcript
+}
+
+
+
+
+@
+weave
+.
+op
+
+
+def
+ 
+task_completion
+(
+user_request
+:
+ 
+str
+,
+ 
+success_criteria
+:
+ 
+str
+,
+ 
+output
+:
+ 
+dict
+)
+ 
+->
+ 
+dict
+:
+
+
+    
+return
+ judge
+({
+"user_request"
+:
+ user_request
+,
+
+
+                  
+"success_criteria"
+:
+ success_criteria
+},
+ output
+[
+"transcript"
+])
+
+
+
+
+evaluation = weave
+.
+Evaluation
+(
+dataset
+=dataset
+,
+ 
+scorers
+=
+[
+task_completion
+])
+
+
+asyncio
+.
+run
+(
+evaluation
+.
+evaluate
+(
+SupportAgent
+(
+system_prompt
+=
+"..."
+)))
+If you want a reusable judge with a configurable model and prompt, or custom score aggregation, subclass 
+weave.Scorer
+ and optionally override 
+summarize
+. Weave also includes ready-made scorers, such as hallucination detection and summarization quality. Evaluations run asynchronously and can hit provider rate limits. Setting an environment variable like 
+WEAVE_PARALLELISM=3
+ caps the number of parallel workers. 
+For agents specifically, the docs lean toward the 
+EvaluationLogger
+ route because it ties each score to the agent’s full trace. That makes it much easier to see why a task failed. The tutorial’s complete, runnable code is in an accompanying Colab notebook. 
+coreweave
+1 minute ago
+No history, memory, or Claude training.
+Opus 5.5
+ 
+Extra
+Claude finished the response

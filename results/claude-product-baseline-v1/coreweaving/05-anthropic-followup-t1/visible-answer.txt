@@ -1,0 +1,31 @@
+Structure the loop as one conversation, with one turn for each user message. Inside the turn, record the Anthropic call as an LLM span and each tool execution as a tool span. This is the pattern Weave's agents tutorial uses to hand-instrument a bare provider SDK [S1].
+
+Structure
+
+weave.init(..., settings={"implicitly_patch_integrations": False}). The docs say to turn off implicit patching when you hand-instrument. If you leave it on, the conversation is traced twice, once as your Conversation span and once as a traced Op [S1].
+A conversation contains turns. Each turn contains the model call and any tool calls [S1]. In the Agents view, the model and tool calls appear nested inside the turn [S1].
+Sub-agents are optional. If your loop delegates to another agent, weave.start_subagent nests that agent's LLM and tool spans under the turn [S3].
+
+Sketch (placeholders: convo_id, user_message, anthropic_client, response_tool_calls, run_tool. The ... elements are yours to fill in, as in the docs.)
+
+from weave.conversation import start_conversation, Usage
+
+with start_conversation(agent_name="my-agent", conversation_id=convo_id) as conv:
+    with conv.start_turn(user_message=user_message) as turn:
+        with turn.start_llm(model="<model>", provider_name="anthropic") as llm:
+            response = anthropic_client.messages.create(...)
+            llm.record(input_messages=[...], output_messages=[...],
+                       usage=Usage(input_tokens=..., output_tokens=...))
+        for call in response_tool_calls:
+            with turn.start_tool(name=call.name, arguments=call.arguments) as tool:
+                tool.result = run_tool(call)
+
+This is the single-model-call shape the tutorial shows. The docs I read don't show a repeated model-call loop inside one turn. My suggestion, which is an inference and not something the docs state, is to open another start_llm span each time you send tool results back to Claude. Keep passing the full message history, including the assistant's tool-use message and the matching tool results, to Anthropic. Tracing spans don't replace that history.
+
+Simpler alternative
+
+If you only want ordinary call trees, leave autopatching on. weave.init() captures Anthropic SDK calls, and Weave tracks tool definitions, tool-use requests and tool results [S2].
+You can decorate your own functions with @weave.op(). Ops can track any function, including nested ones [S4]. So a decorated agent function that calls decorated tool functions should give you a tree.
+Don't combine this with the manual conversation spans above, because of the duplicate-tracing warning [S1].
+
+I did not run any of this. I didn't read the full agent notebook that the tutorial references.

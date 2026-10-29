@@ -1,0 +1,32 @@
+Use the agents workflow from the "Evaluate your AI agent with Weave" tutorial. Define a small dataset of tasks, write an LLM-judge scorer function, and run each task through your agent inside weave.EvaluationLogger's log_prediction(...), logging the judge's result as a score [S1][S2].
+
+Prerequisites (from the tutorial): a CoreWeave Forge account, Python 3.10+, pip install weave anthropic, and an ANTHROPIC_API_KEY environment variable [S3]. The judge in the tutorial is an Anthropic model, but the tutorial says the scorer is a plain function and Weave doesn't prescribe its shape [S2].
+
+Steps
+
+Initialize and trace the agent. Call weave.init("[YOUR-TEAM]/[YOUR-PROJECT]", ...). The tutorial hand-instruments the agent with start_conversation, conv.start_turn, turn.start_llm and turn.start_tool. It sets implicitly_patch_integrations to False so conversations aren't traced twice [S4]. If you use a framework integration (Claude Agent SDK, OpenAI Agents), Weave emits these spans automatically, so leave implicit patching on and skip the manual calls [S4].
+
+Define the dataset. The tutorial uses a list of dicts. Each has a task_id, a user_request and success_criteria [S2].
+
+Write the judge. judge_task_completion(task, transcript) prompts a judge model with the request, the success criteria and the agent's plain-text transcript. It asks for a JSON reply and returns {"passed": bool, "reason": str} [S2].
+
+Run the loop and log scores:
+
+ev = weave.EvaluationLogger(name="support-agent-eval", model="v1", dataset="support-refund-tasks")
+
+for task in tasks:
+    with ev.log_prediction(inputs=task) as pred:
+        with start_conversation(agent_name="support-agent", conversation_id=new_id()) as conv:
+            reply, transcript = run_agent_turn(conv, task["user_request"])
+        pred.output = reply
+        pred.log_score("task_completion", judge_task_completion(task, transcript))
+
+ev.log_summary()
+
+run_agent_turn is your own agent loop. It returns the final reply and a transcript for the judge. new_id() is a placeholder for a unique ID such as a UUID [S4]. Running the agent inside log_prediction links the traced conversation to the eval row [S2].
+
+View results. Open the evaluation link and select the Evals tab, then open your run's row. The Call tab shows each task with the judge's passed verdict. The Evaluation tab has a View spans button that opens the traced spans in the Agents page [S2].
+
+Comparing versions: Re-run the same loop with a different model label, such as "v2". Then use Weave's Compare evaluations feature to compare the versions [S5].
+
+I didn't test this code. It needs the Weave SDK and an Anthropic key, which my offline environment doesn't have. The full runnable agent is in the tutorial's accompanying notebook [S4].

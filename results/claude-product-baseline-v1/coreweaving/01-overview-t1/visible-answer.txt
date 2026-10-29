@@ -1,0 +1,25 @@
+Short answer: Tracing records what your application did. Evaluations and Signals both score behavior, but they start differently. An evaluation runs when you call .evaluate() on a test set. A Signal scores agent turns that tracing has recorded. Linking the three this way is my reading of the docs. I didn't find one page that states it.
+
+Tracing
+
+Input: Your running code. For agents, you instrument conversations, turns, LLM calls and tool calls with the Weave SDK [S4]. For individual functions, you trace Ops [S9].
+Trigger: Each time an Op runs, Weave creates a Call [S9]. For agents, every turn, LLM call and tool call emits an OpenTelemetry span [S4].
+Output: Calls capture input arguments, the output value, timing, parent-child relationships and errors [S9]. Agent traces appear in the Agents tab, with a multi-turn timeline that includes nested tool calls, token usage and feedback [S4].
+
+Evaluations
+
+Input: An Evaluation object. It defines a Dataset or list of test examples, one or more scoring functions, and optional preprocessing. You run it against a Model or any function containing your application logic [S3].
+Trigger: Calling .evaluate() starts an evaluation run [S3][S8].
+Output: An evaluation run whose results you can inspect in the Weights & Biases UI. The docs frame this as a way to compare changes over time and identify regressions [S3].
+
+Signals (agent data model)
+
+Input: Agent turns. A signal can score them with an LLM judge or with an HTTP endpoint that you host [S1]. Optional filters and a sample rate restrict which turns are scored [S13].
+Trigger: For a remote scorer signal, it is the end of each turn. The Weave agent scoring worker then sends the turn to your endpoint [S14]. For LLM-judge signals, the pages I read say Weave scores matching turns after you create the signal [S13]. I couldn't establish the exact per-turn trigger for them.
+Output: Tags, or ratings from 0.0 to 1.0, on the Signals tab [S6][S12]. Remote scorer results are recorded as feedback on the turn [S14]. Signal activity also appears under Traces, where you can debug scorer errors [S10].
+
+How they fit together
+
+Tracing is the foundation. Calls provide the data for debugging, analysis and evaluation [S9], and Signals work on the agent turns that tracing captures.
+Evaluations are a deliberate run over repeatable test cases [S3].
+Signals score the agent's own turns and surface quality and safety issues in production [S1].

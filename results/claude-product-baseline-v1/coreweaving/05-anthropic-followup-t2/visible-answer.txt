@@ -1,0 +1,38 @@
+Pass a weave.Usage to llm.record(...) on each Anthropic call's LLM span. Set input_tokens to the total input, which includes cached tokens. Report the cache counts in separate fields as well. Weave derives cost from usage plus the model id [S5].
+
+Rules for cost to appear [S5]
+
+Total input: input_tokens must be the total, including cached tokens. Weave prices cache reads and writes at their own rates and subtracts them from that total.
+Separate cache fields: also pass cache_read_input_tokens and cache_creation_input_tokens. If you leave them out, usage and cost can render as roughly zero.
+Anthropic reports differently: it reports cached tokens separately from input_tokens. You therefore add them back into the total yourself.
+Priceable model id: Weave prefers response_model and falls back to the model you passed to start_llm. An alias such as sonnet shows Cost -. Pass the concrete id from the response (resp.model) as response_model.
+
+Example from the docs' quickstart [S5]
+
+with weave.start_llm(model=MODEL, provider_name="anthropic") as llm:
+    resp = anthropic_client.messages.create(
+        model=MODEL, max_tokens=1024, messages=history,
+    )
+    u = resp.usage
+    llm.output(resp.content[0].text)
+    llm.record(
+        usage=weave.Usage(
+            input_tokens=u.input_tokens
+            + u.cache_read_input_tokens
+            + u.cache_creation_input_tokens,
+            output_tokens=u.output_tokens,
+            cache_read_input_tokens=u.cache_read_input_tokens,
+            cache_creation_input_tokens=u.cache_creation_input_tokens,
+        ),
+        response_id=resp.id,
+        response_model=resp.model,
+    )
+
+Applying it to your loop
+
+Do this inside each LLM span, so every messages.create call in the turn gets its own usage. This is my inference from the single-call example, not something the docs state for loops.
+record(...) applies only the fields you pass [S5].
+This example uses weave.start_llm and weave.Usage. My earlier sketch used the weave.conversation imports and turn.start_llm. The quickstart shows the weave.* form, so follow that one if the two differ in your installed version.
+The quickstart example reads resp.content[0].text. On a tool-use response the first block may not be text, so adapt that line to your content blocks. This is my caution, not from the docs.
+
+I did not run this.
