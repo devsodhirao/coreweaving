@@ -1,0 +1,25 @@
+To evaluate an agent, trace it with Weave's Agents (conversation) workflow, write an LLM-judge scorer, then run every task in your dataset through weave.EvaluationLogger. You judge the agent's whole trajectory, meaning its turns, tool calls and results, because you can't grade an agent by string-matching one output [S1].
+
+Prerequisites: a CoreWeave Forge account, Python 3.10+, pip install weave anthropic, and ANTHROPIC_API_KEY set in your environment. That setup applies if Anthropic is both your agent model and your judge, as in the docs [S3].
+
+Steps
+
+Initialize and trace. Call weave.init("[YOUR-TEAM]/[YOUR-PROJECT]"). Then wrap each agent run in start_conversation(...), which contains turns, model calls (turn.start_llm) and tool calls (turn.start_tool). If you instrument by hand like this, turn off implicit patching. Otherwise, each conversation gets traced twice. If you use a framework integration (Claude Agent SDK, OpenAI Agents), leave patching on and skip the manual start_* calls [S4].
+Define a dataset. Write a list of tasks, each with a user_request and success_criteria [S2].
+Write the judge. A scorer is any plain function. In the example, it prompts a judge model with the request, the success criteria and a plain-text transcript, and returns {"passed": bool, "reason": str} [S2].
+Run and log the evaluation:
+ev = weave.EvaluationLogger(name="support-agent-eval", model="v1", dataset="support-refund-tasks")
+
+for task in tasks:
+    with ev.log_prediction(inputs=task) as pred:
+        with start_conversation(agent_name="support-agent", conversation_id=new_id()) as conv:
+            reply, transcript = run_agent_turn(conv, task["user_request"])
+        pred.output = reply
+        pred.log_score("task_completion", judge_task_completion(task, transcript))
+
+ev.log_summary()
+
+Run the agent inside log_prediction so its traced conversation is linked to that row of the evaluation. In this snippet, run_agent_turn, new_id and judge_task_completion are placeholders for your own code [S2, S4].
+
+Review the results. In the Evals tab, open your run. The Call tab shows each task's passed verdict. View spans opens the linked traces [S2].
+Compare versions. Re-run with a new model label (for example "v2") and compare the scores, latency and cost [S5].

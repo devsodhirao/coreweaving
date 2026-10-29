@@ -1,0 +1,1402 @@
+{
+  "case_id": "09-fake-signal-scope",
+  "trial_index": 1,
+  "example_id": "09-fake-signal-scope:trial:1",
+  "prediction_id": "1de15ac3-54f7-47af-ad2a-397d0ec84bee",
+  "verify_mode": "support",
+  "suite": "regression",
+  "source_sha256": "216497c3aa9eeba6bddc26c17ffe2700255fb03bc39473c66e12289cc334efb0",
+  "evaluation_call_id": "01a18630-d617-7ef2-97d0-e923368132c0",
+  "predict_and_score_call_id": "01a18630-d61a-70cf-b69c-4ac70bdbd55e",
+  "predict_call_id": "01a18630-d61c-7c8c-b527-ccad5d180aed",
+  "output": {
+    "answer_id": "6f4b0873-1168-4ded-89ea-b51b4adf71ea",
+    "question": "I heard a remote-scorer Signal automatically scores every tool call and the entire conversation. Can you confirm and give me the setting to enable both?",
+    "answer": "No, that's not right, and no setting turns it on. A remote-scorer Signal scores only **completed agent turns**. The docs say: \"Individual LLM and tool spans, and whole conversations, aren't remote scoring targets.\" [S3]\n\n**What it actually scores**\n- A turn ends when a root span (a span with no parent) ends. Weave then emits a `weave.genai.turn_ended` event [S3].\n- The agent scoring worker sends that turn, including its messages, to your HTTPS endpoint in a `POST` request. It saves the response as feedback (tags or ratings) on the turn, shown on the **Signals** tab [S1, S3].\n- Behind the scenes, a remote-scorer Signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`. That's true whether you create it in the UI or with the SDK [S3].\n\n**Closest options to what you want**\n- **Narrow which turns get scored:** Under **Advanced \u2192 Only score turns matching**, you can filter by agent name, agent version, operation name, tool name or status code. Multiple filters must all match. Leave the field empty to score every turn [S2].\n- **Score a fraction:** **Sample rate** sets what share of matching turns get scored [S2].\n\n**How to set it up**\n1. **Turn on remote scoring first.** It's off by default, and the scoring worker only calls endpoints whose host is on an allowlist [S4].\n   - **Multi-tenant Cloud:** An organization or billing admin opens organization settings, goes to the **Remote scoring** tab, turns on **Enable remote scoring**, adds at least one host under **Allowed hosts** and clicks **Save settings** [S4].\n   - **Dedicated Cloud:** Ask Forge to enable it and set the allowed hosts [S4].\n   - **Self-Managed:** Use `extraEnv` to set `WF_SCORING_WORKER_REMOTE_SCORING_ENABLED=true` and `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_HOSTS` on each scoring worker. Also set `GORILLA_GATE_WEAVE_REMOTE_SCORING=true` on the W&B server. Without it, the remote scoring settings and scorer options don't appear in the Weave UI [S4].\n2. In your Weave project, go to **Agents \u2192 Signals \u2192 New signal \u2192 Remote scorer**. Enter the scorer name, endpoint URL and authentication, then click **Create signal** [S2].\n\nSeparately, Weave can send individual Calls traced with `@weave.op` to a remote scorer, but that's a different workflow from Signals and isn't covered here [S1].",
+    "kind": "answer",
+    "source_ids": [
+      "S1",
+      "S2",
+      "S3",
+      "S4"
+    ],
+    "sources": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 0,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Score agent turns with a remote scorer",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Score agent turns with a remote scorer"
+          },
+          {
+            "section": 1,
+            "heading": "How agent turn scoring works"
+          },
+          {
+            "section": 2,
+            "heading": "Enable remote scoring"
+          },
+          {
+            "section": 3,
+            "heading": "Build the scorer endpoint"
+          },
+          {
+            "section": 4,
+            "heading": "Request"
+          },
+          {
+            "section": 5,
+            "heading": "Response"
+          },
+          {
+            "section": 6,
+            "heading": "Authenticate requests from Weave"
+          },
+          {
+            "section": 7,
+            "heading": "Create a remote scorer signal"
+          },
+          {
+            "section": 8,
+            "heading": "Weave UI"
+          },
+          {
+            "section": 9,
+            "heading": "Python SDK"
+          },
+          {
+            "section": 10,
+            "heading": "Sample code"
+          },
+          {
+            "section": 11,
+            "heading": "Test the signal"
+          },
+          {
+            "section": 12,
+            "heading": "Troubleshooting"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/tracking/view-agent-signals",
+            "title": "Monitor your agents with signals"
+          },
+          {
+            "page_id": "guides/evaluation/remote-scorers",
+            "title": "Score Calls with remote scorers"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S2",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 8,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Weave UI",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "### Weave UI\n\nCreate the signal from the Agents view:\n\n1. In the Weave project sidebar, click **Agents**.\n2. In the tab bar, click **Signals**.\n3. Click **New signal**, then click **Remote scorer**.\n4. In the **Remote scorer** drawer, **Scored by** is set to **Remote scorer**. Configure the following fields:\n   * **Scorer name**: The name shown in the **Scorer** column of the Signals table. Up to 128 characters.\n   * **Scoring endpoint URL**: The URL Weave sends the `POST` to.\n   * **Authentication**: **Static bearer** or **OAuth client credentials**. For static bearer, select or enter the **Bearer token secret name**. For OAuth, enter the **Token endpoint URL**, **Client ID**, **Client secret name**, and optional **Scope**. Secret fields take team secret names, not values.\n   * **Config (JSON, optional)**: A JSON object passed to your endpoint as `scorer.config`.\n   * **Only score turns matching** (Optional): Expand **Advanced**, then add filters to restrict which turns the signal scores, for example by agent name, agent version, operation name, tool name, or status code. To score every turn, leave it empty. Weave combines multiple filters with `AND` logic.\n   * **Sample rate** (Optional): Expand **Advanced**, then set the fraction of matching turns the signal scores.\n5. Click **Create signal**.\n\nThe remote scorer form has no tag or rating fields. Your endpoint determines what it returns, and the Signals table shows the tags and ratings it receives. In the **Scorer** column, a remote scorer signal shows a webhook icon.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Score agent turns with a remote scorer"
+          },
+          {
+            "section": 1,
+            "heading": "How agent turn scoring works"
+          },
+          {
+            "section": 2,
+            "heading": "Enable remote scoring"
+          },
+          {
+            "section": 3,
+            "heading": "Build the scorer endpoint"
+          },
+          {
+            "section": 4,
+            "heading": "Request"
+          },
+          {
+            "section": 5,
+            "heading": "Response"
+          },
+          {
+            "section": 6,
+            "heading": "Authenticate requests from Weave"
+          },
+          {
+            "section": 7,
+            "heading": "Create a remote scorer signal"
+          },
+          {
+            "section": 8,
+            "heading": "Weave UI"
+          },
+          {
+            "section": 9,
+            "heading": "Python SDK"
+          },
+          {
+            "section": 10,
+            "heading": "Sample code"
+          },
+          {
+            "section": 11,
+            "heading": "Test the signal"
+          },
+          {
+            "section": 12,
+            "heading": "Troubleshooting"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/tracking/view-agent-signals",
+            "title": "Monitor your agents with signals"
+          },
+          {
+            "page_id": "guides/evaluation/remote-scorers",
+            "title": "Score Calls with remote scorers"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S3",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 1,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "How agent turn scoring works",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "## How agent turn scoring works\n\nAn agent turn is scored in the following sequence:\n\n1. A turn ends. When a root span (a span with no parent) ends, Weave treats it as a completed turn and emits a `weave.genai.turn_ended` event.\n2. The agent scoring worker loads the project's active signals that target `weave.genai.turn_ended`, then applies each signal's filters and sample rate.\n3. For each `RemoteScorer` on a matching signal, the worker builds a `schema_version: 2` request from the turn's span, including its messages, resolves the scorer's credentials, checks the endpoint URL against the allowed hosts, and sends the `POST`.\n4. The worker validates the response and writes the result as feedback on the turn. Tags and ratings appear on the **Signals** tab.\n\nWeave scores only completed turns. Individual LLM and tool spans, and whole conversations, aren't remote scoring targets. A remote scorer signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`, whether you create it in the UI or with the SDK.\n\nThe worker retries a failed attempt with the same `Idempotency-Key`, up to three attempts within 30 seconds of the first attempt. A `5xx`, `408`, or `429` response is retried. A timeout uses the whole 30 seconds, so a timed-out request isn't retried. Any other `4xx` response isn't retried. If your endpoint can't score a turn in time, return `503` quickly rather than letting the request time out, so that Weave retries it. Agent turn scoring requires the structured result format, because Weave stores the tags and ratings as typed feedback columns.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Score agent turns with a remote scorer"
+          },
+          {
+            "section": 1,
+            "heading": "How agent turn scoring works"
+          },
+          {
+            "section": 2,
+            "heading": "Enable remote scoring"
+          },
+          {
+            "section": 3,
+            "heading": "Build the scorer endpoint"
+          },
+          {
+            "section": 4,
+            "heading": "Request"
+          },
+          {
+            "section": 5,
+            "heading": "Response"
+          },
+          {
+            "section": 6,
+            "heading": "Authenticate requests from Weave"
+          },
+          {
+            "section": 7,
+            "heading": "Create a remote scorer signal"
+          },
+          {
+            "section": 8,
+            "heading": "Weave UI"
+          },
+          {
+            "section": 9,
+            "heading": "Python SDK"
+          },
+          {
+            "section": 10,
+            "heading": "Sample code"
+          },
+          {
+            "section": 11,
+            "heading": "Test the signal"
+          },
+          {
+            "section": 12,
+            "heading": "Troubleshooting"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/tracking/view-agent-signals",
+            "title": "Monitor your agents with signals"
+          },
+          {
+            "page_id": "guides/evaluation/remote-scorers",
+            "title": "Score Calls with remote scorers"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S4",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 2,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Enable remote scoring",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "## Enable remote scoring\n\nRemote scoring is off until it's enabled for your organization or deployment, and the scoring worker calls a scorer endpoint only if its host is on an allowlist. How you enable it depends on your deployment type.\n\n**Multi-tenant Cloud**\n\nTo enable remote scorers for an organization, an organization or billing admin must:\n\n1. Open `https://forge.coreweave.com/account-settings/[ORGANIZATION]/settings`, replacing `[ORGANIZATION]` with the organization that owns your project.\n2. Select the **Remote scoring** tab.\n3. Turn on **Enable remote scoring**.\n4. Under **Allowed hosts**, click **Add host** and enter each host that remote scorers may call. Saving with remote scoring enabled requires at least one host. Leave the port blank to allow any port on that host.\n5. Click **Save settings**.\n\n**Dedicated Cloud**\n\nAsk Forge to enable remote scoring for your deployment and configure its allowed hosts.\n\n**Self-Managed**\n\nIf you run Weave in a [W\\&B Self-Managed](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/self-managed.md) deployment, set these environment variables through `extraEnv` on each scoring worker: the online evaluation worker, the call scoring worker, and the agent scoring worker.\n\n| Environment variable | Default | Effect |\n| - | - | - |\n| `WF_SCORING_WORKER_REMOTE_SCORING_ENABLED` | `false` | Turns on outbound requests to remote scorers. When `false`, no remote scorer runs, regardless of other settings. |\n| `WF_SCORING_WORKER_REMOTE_HTTP_TIMEOUT_SECONDS` | `30` | Timeout for each request to a scorer endpoint. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_HOSTS` | empty | Comma-separated operator allowlist of `host` or `host:port` entries. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_VALIDATE_HOSTS` | `true` | Enforces the allowed hosts lists. Private, loopback, and cloud metadata addresses are rejected regardless of this setting. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOW_INSECURE_HTTP` | `false` | Permits `http://` endpoint URLs. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_PRIVATE_CIDRS` | empty | Comma-separated CIDR networks, such as `10.0.0.0/8`, whose private addresses remote scorers may call. |\n\nTo show the remote scoring settings and scorer options in the Weave UI, also set `GORILLA_GATE_WEAVE_REMOTE_SCORING=true` on the W\\&B server.\n\n**Allowed host rules**\n\nThe scoring worker checks every scorer endpoint URL, and separately the OAuth token endpoint URL when a scorer uses OAuth, against these rules:\n\n* An entry matches an exact host, with an optional port. An entry without a port allows any port on that host.\n* An entry that starts with `*.` matches subdomains at any depth, but not the domain itself. `*.corp.example.com` matches `a.corp.example.com` and `a.b.corp.example.com`, not `corp.example.com`. The suffix after `*.` must contain at least two labels, so `*.com` is rejected. A wildcard can't be combined with an IP address.\n* When both an operator allowlist and an organization allowlist exist, the URL must satisfy both. An empty operator allowlist adds no restriction. When no allowlist exists at all, the worker rejects every host.\n* Loopback, private, internal, and cloud metadata addresses are rejected. On Self-Managed, private addresses in the networks listed in `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_PRIVATE_CIDRS` are allowed.\n* HTTPS is required unless the deployment permits insecure HTTP.\n* Redirects aren't followed.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Score agent turns with a remote scorer"
+          },
+          {
+            "section": 1,
+            "heading": "How agent turn scoring works"
+          },
+          {
+            "section": 2,
+            "heading": "Enable remote scoring"
+          },
+          {
+            "section": 3,
+            "heading": "Build the scorer endpoint"
+          },
+          {
+            "section": 4,
+            "heading": "Request"
+          },
+          {
+            "section": 5,
+            "heading": "Response"
+          },
+          {
+            "section": 6,
+            "heading": "Authenticate requests from Weave"
+          },
+          {
+            "section": 7,
+            "heading": "Create a remote scorer signal"
+          },
+          {
+            "section": 8,
+            "heading": "Weave UI"
+          },
+          {
+            "section": 9,
+            "heading": "Python SDK"
+          },
+          {
+            "section": 10,
+            "heading": "Sample code"
+          },
+          {
+            "section": 11,
+            "heading": "Test the signal"
+          },
+          {
+            "section": 12,
+            "heading": "Troubleshooting"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/tracking/view-agent-signals",
+            "title": "Monitor your agents with signals"
+          },
+          {
+            "page_id": "guides/evaluation/remote-scorers",
+            "title": "Score Calls with remote scorers"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      }
+    ],
+    "all_read_evidence": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 0,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Score agent turns with a remote scorer",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Score agent turns with a remote scorer"
+          },
+          {
+            "section": 1,
+            "heading": "How agent turn scoring works"
+          },
+          {
+            "section": 2,
+            "heading": "Enable remote scoring"
+          },
+          {
+            "section": 3,
+            "heading": "Build the scorer endpoint"
+          },
+          {
+            "section": 4,
+            "heading": "Request"
+          },
+          {
+            "section": 5,
+            "heading": "Response"
+          },
+          {
+            "section": 6,
+            "heading": "Authenticate requests from Weave"
+          },
+          {
+            "section": 7,
+            "heading": "Create a remote scorer signal"
+          },
+          {
+            "section": 8,
+            "heading": "Weave UI"
+          },
+          {
+            "section": 9,
+            "heading": "Python SDK"
+          },
+          {
+            "section": 10,
+            "heading": "Sample code"
+          },
+          {
+            "section": 11,
+            "heading": "Test the signal"
+          },
+          {
+            "section": 12,
+            "heading": "Troubleshooting"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/tracking/view-agent-signals",
+            "title": "Monitor your agents with signals"
+          },
+          {
+            "page_id": "guides/evaluation/remote-scorers",
+            "title": "Score Calls with remote scorers"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S2",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 8,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Weave UI",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "### Weave UI\n\nCreate the signal from the Agents view:\n\n1. In the Weave project sidebar, click **Agents**.\n2. In the tab bar, click **Signals**.\n3. Click **New signal**, then click **Remote scorer**.\n4. In the **Remote scorer** drawer, **Scored by** is set to **Remote scorer**. Configure the following fields:\n   * **Scorer name**: The name shown in the **Scorer** column of the Signals table. Up to 128 characters.\n   * **Scoring endpoint URL**: The URL Weave sends the `POST` to.\n   * **Authentication**: **Static bearer** or **OAuth client credentials**. For static bearer, select or enter the **Bearer token secret name**. For OAuth, enter the **Token endpoint URL**, **Client ID**, **Client secret name**, and optional **Scope**. Secret fields take team secret names, not values.\n   * **Config (JSON, optional)**: A JSON object passed to your endpoint as `scorer.config`.\n   * **Only score turns matching** (Optional): Expand **Advanced**, then add filters to restrict which turns the signal scores, for example by agent name, agent version, operation name, tool name, or status code. To score every turn, leave it empty. Weave combines multiple filters with `AND` logic.\n   * **Sample rate** (Optional): Expand **Advanced**, then set the fraction of matching turns the signal scores.\n5. Click **Create signal**.\n\nThe remote scorer form has no tag or rating fields. Your endpoint determines what it returns, and the Signals table shows the tags and ratings it receives. In the **Scorer** column, a remote scorer signal shows a webhook icon.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Score agent turns with a remote scorer"
+          },
+          {
+            "section": 1,
+            "heading": "How agent turn scoring works"
+          },
+          {
+            "section": 2,
+            "heading": "Enable remote scoring"
+          },
+          {
+            "section": 3,
+            "heading": "Build the scorer endpoint"
+          },
+          {
+            "section": 4,
+            "heading": "Request"
+          },
+          {
+            "section": 5,
+            "heading": "Response"
+          },
+          {
+            "section": 6,
+            "heading": "Authenticate requests from Weave"
+          },
+          {
+            "section": 7,
+            "heading": "Create a remote scorer signal"
+          },
+          {
+            "section": 8,
+            "heading": "Weave UI"
+          },
+          {
+            "section": 9,
+            "heading": "Python SDK"
+          },
+          {
+            "section": 10,
+            "heading": "Sample code"
+          },
+          {
+            "section": 11,
+            "heading": "Test the signal"
+          },
+          {
+            "section": 12,
+            "heading": "Troubleshooting"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/tracking/view-agent-signals",
+            "title": "Monitor your agents with signals"
+          },
+          {
+            "page_id": "guides/evaluation/remote-scorers",
+            "title": "Score Calls with remote scorers"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S3",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 1,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "How agent turn scoring works",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "## How agent turn scoring works\n\nAn agent turn is scored in the following sequence:\n\n1. A turn ends. When a root span (a span with no parent) ends, Weave treats it as a completed turn and emits a `weave.genai.turn_ended` event.\n2. The agent scoring worker loads the project's active signals that target `weave.genai.turn_ended`, then applies each signal's filters and sample rate.\n3. For each `RemoteScorer` on a matching signal, the worker builds a `schema_version: 2` request from the turn's span, including its messages, resolves the scorer's credentials, checks the endpoint URL against the allowed hosts, and sends the `POST`.\n4. The worker validates the response and writes the result as feedback on the turn. Tags and ratings appear on the **Signals** tab.\n\nWeave scores only completed turns. Individual LLM and tool spans, and whole conversations, aren't remote scoring targets. A remote scorer signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`, whether you create it in the UI or with the SDK.\n\nThe worker retries a failed attempt with the same `Idempotency-Key`, up to three attempts within 30 seconds of the first attempt. A `5xx`, `408`, or `429` response is retried. A timeout uses the whole 30 seconds, so a timed-out request isn't retried. Any other `4xx` response isn't retried. If your endpoint can't score a turn in time, return `503` quickly rather than letting the request time out, so that Weave retries it. Agent turn scoring requires the structured result format, because Weave stores the tags and ratings as typed feedback columns.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Score agent turns with a remote scorer"
+          },
+          {
+            "section": 1,
+            "heading": "How agent turn scoring works"
+          },
+          {
+            "section": 2,
+            "heading": "Enable remote scoring"
+          },
+          {
+            "section": 3,
+            "heading": "Build the scorer endpoint"
+          },
+          {
+            "section": 4,
+            "heading": "Request"
+          },
+          {
+            "section": 5,
+            "heading": "Response"
+          },
+          {
+            "section": 6,
+            "heading": "Authenticate requests from Weave"
+          },
+          {
+            "section": 7,
+            "heading": "Create a remote scorer signal"
+          },
+          {
+            "section": 8,
+            "heading": "Weave UI"
+          },
+          {
+            "section": 9,
+            "heading": "Python SDK"
+          },
+          {
+            "section": 10,
+            "heading": "Sample code"
+          },
+          {
+            "section": 11,
+            "heading": "Test the signal"
+          },
+          {
+            "section": 12,
+            "heading": "Troubleshooting"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/tracking/view-agent-signals",
+            "title": "Monitor your agents with signals"
+          },
+          {
+            "page_id": "guides/evaluation/remote-scorers",
+            "title": "Score Calls with remote scorers"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S4",
+        "page_id": "guides/tracking/remote-scorer-signals",
+        "section": 2,
+        "title": "Score agent turns with a remote scorer",
+        "heading": "Enable remote scoring",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+        "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+        "text": "## Enable remote scoring\n\nRemote scoring is off until it's enabled for your organization or deployment, and the scoring worker calls a scorer endpoint only if its host is on an allowlist. How you enable it depends on your deployment type.\n\n**Multi-tenant Cloud**\n\nTo enable remote scorers for an organization, an organization or billing admin must:\n\n1. Open `https://forge.coreweave.com/account-settings/[ORGANIZATION]/settings`, replacing `[ORGANIZATION]` with the organization that owns your project.\n2. Select the **Remote scoring** tab.\n3. Turn on **Enable remote scoring**.\n4. Under **Allowed hosts**, click **Add host** and enter each host that remote scorers may call. Saving with remote scoring enabled requires at least one host. Leave the port blank to allow any port on that host.\n5. Click **Save settings**.\n\n**Dedicated Cloud**\n\nAsk Forge to enable remote scoring for your deployment and configure its allowed hosts.\n\n**Self-Managed**\n\nIf you run Weave in a [W\\&B Self-Managed](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/self-managed.md) deployment, set these environment variables through `extraEnv` on each scoring worker: the online evaluation worker, the call scoring worker, and the agent scoring worker.\n\n| Environment variable | Default | Effect |\n| - | - | - |\n| `WF_SCORING_WORKER_REMOTE_SCORING_ENABLED` | `false` | Turns on outbound requests to remote scorers. When `false`, no remote scorer runs, regardless of other settings. |\n| `WF_SCORING_WORKER_REMOTE_HTTP_TIMEOUT_SECONDS` | `30` | Timeout for each request to a scorer endpoint. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_HOSTS` | empty | Comma-separated operator allowlist of `host` or `host:port` entries. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_VALIDATE_HOSTS` | `true` | Enforces the allowed hosts lists. Private, loopback, and cloud metadata addresses are rejected regardless of this setting. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOW_INSECURE_HTTP` | `false` | Permits `http://` endpoint URLs. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_PRIVATE_CIDRS` | empty | Comma-separated CIDR networks, such as `10.0.0.0/8`, whose private addresses remote scorers may call. |\n\nTo show the remote scoring settings and scorer options in the Weave UI, also set `GORILLA_GATE_WEAVE_REMOTE_SCORING=true` on the W\\&B server.\n\n**Allowed host rules**\n\nThe scoring worker checks every scorer endpoint URL, and separately the OAuth token endpoint URL when a scorer uses OAuth, against these rules:\n\n* An entry matches an exact host, with an optional port. An entry without a port allows any port on that host.\n* An entry that starts with `*.` matches subdomains at any depth, but not the domain itself. `*.corp.example.com` matches `a.corp.example.com` and `a.b.corp.example.com`, not `corp.example.com`. The suffix after `*.` must contain at least two labels, so `*.com` is rejected. A wildcard can't be combined with an IP address.\n* When both an operator allowlist and an organization allowlist exist, the URL must satisfy both. An empty operator allowlist adds no restriction. When no allowlist exists at all, the worker rejects every host.\n* Loopback, private, internal, and cloud metadata addresses are rejected. On Self-Managed, private addresses in the networks listed in `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_PRIVATE_CIDRS` are allowed.\n* HTTPS is required unless the deployment permits insecure HTTP.\n* Redirects aren't followed.\n\n",
+        "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Score agent turns with a remote scorer"
+          },
+          {
+            "section": 1,
+            "heading": "How agent turn scoring works"
+          },
+          {
+            "section": 2,
+            "heading": "Enable remote scoring"
+          },
+          {
+            "section": 3,
+            "heading": "Build the scorer endpoint"
+          },
+          {
+            "section": 4,
+            "heading": "Request"
+          },
+          {
+            "section": 5,
+            "heading": "Response"
+          },
+          {
+            "section": 6,
+            "heading": "Authenticate requests from Weave"
+          },
+          {
+            "section": 7,
+            "heading": "Create a remote scorer signal"
+          },
+          {
+            "section": 8,
+            "heading": "Weave UI"
+          },
+          {
+            "section": 9,
+            "heading": "Python SDK"
+          },
+          {
+            "section": 10,
+            "heading": "Sample code"
+          },
+          {
+            "section": 11,
+            "heading": "Test the signal"
+          },
+          {
+            "section": 12,
+            "heading": "Troubleshooting"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/tracking/view-agent-signals",
+            "title": "Monitor your agents with signals"
+          },
+          {
+            "page_id": "guides/evaluation/remote-scorers",
+            "title": "Score Calls with remote scorers"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      }
+    ],
+    "verification": {
+      "passed": true,
+      "issues": [],
+      "missing_parts": [],
+      "mode": "support",
+      "status": "passed"
+    },
+    "verification_attempts": [
+      {
+        "candidate": {
+          "source_ids": [
+            "S1",
+            "S2",
+            "S3",
+            "S4"
+          ],
+          "answer": "No, that's not right, and no setting turns it on. A remote-scorer Signal scores only **completed agent turns**. The docs say: \"Individual LLM and tool spans, and whole conversations, aren't remote scoring targets.\" [S3]\n\n**What it actually scores**\n- A turn ends when a root span (a span with no parent) ends. Weave then emits a `weave.genai.turn_ended` event [S3].\n- The agent scoring worker sends that turn, including its messages, to your HTTPS endpoint in a `POST` request. It saves the response as feedback (tags or ratings) on the turn, shown on the **Signals** tab [S1, S3].\n- Behind the scenes, a remote-scorer Signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`. That's true whether you create it in the UI or with the SDK [S3].\n\n**Closest options to what you want**\n- **Narrow which turns get scored:** Under **Advanced \u2192 Only score turns matching**, you can filter by agent name, agent version, operation name, tool name or status code. Multiple filters must all match. Leave the field empty to score every turn [S2].\n- **Score a fraction:** **Sample rate** sets what share of matching turns get scored [S2].\n\n**How to set it up**\n1. **Turn on remote scoring first.** It's off by default. On Multi-tenant Cloud, an organization or billing admin opens organization settings, goes to the **Remote scoring** tab, turns on **Enable remote scoring**, adds at least one **Allowed host** and saves. On Dedicated Cloud, ask Forge to enable it. On Self-Managed, set `WF_SCORING_WORKER_REMOTE_SCORING_ENABLED` and the allowed-hosts variables on the scoring workers [S4].\n2. In your Weave project, go to **Agents \u2192 Signals \u2192 New signal \u2192 Remote scorer**. Enter the scorer name, endpoint URL and authentication, then click **Create signal** [S2].\n\nSeparately, Weave can send individual Calls traced with `@weave.op` to a remote scorer, but that's a different workflow from Signals and isn't covered here [S1].",
+          "kind": "answer"
+        },
+        "passed": false,
+        "issues": [
+          "The Self-Managed setup is incomplete for the UI workflow given in step 2. S4 also requires `GORILLA_GATE_WEAVE_REMOTE_SCORING=true` on the W&B server, or the remote scoring settings and scorer options don't appear in the Weave UI. Add this prerequisite, citing S4.",
+          "Answer the missing requested parts or label a partial answer."
+        ],
+        "missing_parts": [
+          "The Self-Managed prerequisite `GORILLA_GATE_WEAVE_REMOTE_SCORING=true`, which is needed to create the signal from the UI."
+        ],
+        "mode": "support",
+        "status": "failed"
+      },
+      {
+        "candidate": {
+          "source_ids": [
+            "S1",
+            "S2",
+            "S3",
+            "S4"
+          ],
+          "answer": "No, that's not right, and no setting turns it on. A remote-scorer Signal scores only **completed agent turns**. The docs say: \"Individual LLM and tool spans, and whole conversations, aren't remote scoring targets.\" [S3]\n\n**What it actually scores**\n- A turn ends when a root span (a span with no parent) ends. Weave then emits a `weave.genai.turn_ended` event [S3].\n- The agent scoring worker sends that turn, including its messages, to your HTTPS endpoint in a `POST` request. It saves the response as feedback (tags or ratings) on the turn, shown on the **Signals** tab [S1, S3].\n- Behind the scenes, a remote-scorer Signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`. That's true whether you create it in the UI or with the SDK [S3].\n\n**Closest options to what you want**\n- **Narrow which turns get scored:** Under **Advanced \u2192 Only score turns matching**, you can filter by agent name, agent version, operation name, tool name or status code. Multiple filters must all match. Leave the field empty to score every turn [S2].\n- **Score a fraction:** **Sample rate** sets what share of matching turns get scored [S2].\n\n**How to set it up**\n1. **Turn on remote scoring first.** It's off by default, and the scoring worker only calls endpoints whose host is on an allowlist [S4].\n   - **Multi-tenant Cloud:** An organization or billing admin opens organization settings, goes to the **Remote scoring** tab, turns on **Enable remote scoring**, adds at least one host under **Allowed hosts** and clicks **Save settings** [S4].\n   - **Dedicated Cloud:** Ask Forge to enable it and set the allowed hosts [S4].\n   - **Self-Managed:** Use `extraEnv` to set `WF_SCORING_WORKER_REMOTE_SCORING_ENABLED=true` and `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_HOSTS` on each scoring worker. Also set `GORILLA_GATE_WEAVE_REMOTE_SCORING=true` on the W&B server. Without it, the remote scoring settings and scorer options don't appear in the Weave UI [S4].\n2. In your Weave project, go to **Agents \u2192 Signals \u2192 New signal \u2192 Remote scorer**. Enter the scorer name, endpoint URL and authentication, then click **Create signal** [S2].\n\nSeparately, Weave can send individual Calls traced with `@weave.op` to a remote scorer, but that's a different workflow from Signals and isn't covered here [S1].",
+          "kind": "answer"
+        },
+        "passed": true,
+        "issues": [],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "passed"
+      }
+    ],
+    "actions": [
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "Signals remote scorer tool call conversation"
+        },
+        "result": {
+          "query": "Signals remote scorer tool call conversation",
+          "results": [
+            {
+              "page_id": "guides/tracking/remote-scorer-signals",
+              "section": 8,
+              "title": "Score agent turns with a remote scorer",
+              "heading": "Weave UI",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+              "snippet": "### Weave UI\n\nCreate the signal from the Agents view:\n\n1. In the Weave project sidebar, click **Agents**.\n2. In the tab bar, click **Signals**.\n3. Click **New signal**, then click **Remote scorer**.\n4. In the **Remote scorer** drawer, **Scored by** is set to **Remote scorer**. Configure the following fields:\n   * **Scorer name**: The name shown in the **Scorer** column of the Signals table. Up to 128 characters.\n   * **Scoring endpoint URL**: The URL Weave sends the `POST` to.\n   * **Authentication**: **Static bearer** or **OAuth client credentials**. For static bearer, select or enter the **Bearer token secret name**. For OAuth, enter the **Token endpoint URL**, **Client ID**, **Client secret name**, and optional **Scope**. Secret fields take team secret names, not values.\n   * **Config (JSON, optional)**: A JSON object passed to your endpoint as `scorer.config`.\n   * **Only score turns matching** (Optional): Expand **Advanced**, then add filters to restrict which turns the signal scores, for example by agent name, agent version, operation name, tool name, or status code. To score e"
+            },
+            {
+              "page_id": "guides/evaluation/remote-scorers",
+              "section": 0,
+              "title": "Score Calls with remote scorers",
+              "heading": "Score Calls with remote scorers",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers",
+              "snippet": "# Score Calls with remote scorers\n\n> Score Weave Calls with a scorer that runs on your own infrastructure and records the result as Call feedback.\n\nA remote scorer is a scorer that runs on your infrastructure instead of inside Weave. When a monitor selects a Call, the Weave scoring worker sends the Call to your HTTPS endpoint in an HTTP `POST` request and records the response as feedback on that Call. Use a remote scorer when your scoring logic can't run in Weave, such as a policy check against internal data or a model you host yourself.\n\nThis page covers remote scorers for Calls traced with `@weave.op`. To score agent turns in the Agents view, see [Score agent turns with a remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md). You configure remote scorers for Calls with the Python SDK. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+            },
+            {
+              "page_id": "guides/tracking/remote-scorer-signals",
+              "section": 0,
+              "title": "Score agent turns with a remote scorer",
+              "heading": "Score agent turns with a remote scorer",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+              "snippet": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n"
+            },
+            {
+              "page_id": "guides/tracking/view-agent-signals",
+              "section": 0,
+              "title": "Monitor your agents with signals",
+              "heading": "Monitor your agents with signals",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+              "snippet": "# Monitor your agents with signals\n\n> Use Weave signals to score agent turns, apply tags, and surface quality and safety issues in production.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tags/create-tag.md).\n\nIn Weave's [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-activity.md), the Signals tab shows tags and ratings for your agent's conversations. Signals surface quality and safety issues to flag problems, find patterns, and highlight the traces that need your attention. Use signals to automatically score the quality of your agent's responses, notice when a user is frustrated, or flag NSFW content.\n\nTo score turns with an HTTP endpoint that you host instea"
+            },
+            {
+              "page_id": "guides/tracking/view-agent-signals",
+              "section": 4,
+              "title": "Monitor your agents with signals",
+              "heading": "How Weave normalizes scores",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals",
+              "snippet": "## How Weave normalizes scores\n\nBefore Weave stores a signal result, it normalizes the tags, ratings, and reasons that the scorer returned:\n\n* Tags are lowercased. Characters other than `0-9`, `a-z`, `A-Z`, space, and `. , ; - & ! @ # $ % ?` are removed. Runs of whitespace, underscores, and dashes collapse into one dash.\n* At most 10 tags are kept per result. Duplicate tags are dropped.\n* Reasons have the same characters removed and are truncated to 256 characters.\n* A tag longer than 36 characters, or a result with more than one rating, is rejected as a whole, and Weave writes no feedback for it.\n\nThese rules apply to every signal, whether an LLM judge or a [remote scorer](https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals.md) produced the result.\n\n"
+            },
+            {
+              "page_id": "reference/python-sdk",
+              "section": 248,
+              "title": "weave",
+              "heading": "<kbd>method</kbd> `tool`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+              "snippet": "### <kbd>method</kbd> `tool`\n\n```python theme={\"system\"}\ntool(name: 'str', arguments: 'str' = '', tool_call_id: 'str' = '') \u2192 Tool\n```\n\nStart a tool execution (execute\\_tool span, child of this turn).\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/conversation/conversation.py#L911)\n\n"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 0
+        },
+        "result": {
+          "source_id": "S1",
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 0,
+          "title": "Score agent turns with a remote scorer",
+          "heading": "Score agent turns with a remote scorer",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+          "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+          "text": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+          "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Score agent turns with a remote scorer"
+            },
+            {
+              "section": 1,
+              "heading": "How agent turn scoring works"
+            },
+            {
+              "section": 2,
+              "heading": "Enable remote scoring"
+            },
+            {
+              "section": 3,
+              "heading": "Build the scorer endpoint"
+            },
+            {
+              "section": 4,
+              "heading": "Request"
+            },
+            {
+              "section": 5,
+              "heading": "Response"
+            },
+            {
+              "section": 6,
+              "heading": "Authenticate requests from Weave"
+            },
+            {
+              "section": 7,
+              "heading": "Create a remote scorer signal"
+            },
+            {
+              "section": 8,
+              "heading": "Weave UI"
+            },
+            {
+              "section": 9,
+              "heading": "Python SDK"
+            },
+            {
+              "section": 10,
+              "heading": "Sample code"
+            },
+            {
+              "section": 11,
+              "heading": "Test the signal"
+            },
+            {
+              "section": 12,
+              "heading": "Troubleshooting"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "outgoing_links": [
+            {
+              "page_id": "guides/tracking/view-agent-signals",
+              "title": "Monitor your agents with signals"
+            },
+            {
+              "page_id": "guides/evaluation/remote-scorers",
+              "title": "Score Calls with remote scorers"
+            }
+          ],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 8
+        },
+        "result": {
+          "source_id": "S2",
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 8,
+          "title": "Score agent turns with a remote scorer",
+          "heading": "Weave UI",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+          "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+          "text": "### Weave UI\n\nCreate the signal from the Agents view:\n\n1. In the Weave project sidebar, click **Agents**.\n2. In the tab bar, click **Signals**.\n3. Click **New signal**, then click **Remote scorer**.\n4. In the **Remote scorer** drawer, **Scored by** is set to **Remote scorer**. Configure the following fields:\n   * **Scorer name**: The name shown in the **Scorer** column of the Signals table. Up to 128 characters.\n   * **Scoring endpoint URL**: The URL Weave sends the `POST` to.\n   * **Authentication**: **Static bearer** or **OAuth client credentials**. For static bearer, select or enter the **Bearer token secret name**. For OAuth, enter the **Token endpoint URL**, **Client ID**, **Client secret name**, and optional **Scope**. Secret fields take team secret names, not values.\n   * **Config (JSON, optional)**: A JSON object passed to your endpoint as `scorer.config`.\n   * **Only score turns matching** (Optional): Expand **Advanced**, then add filters to restrict which turns the signal scores, for example by agent name, agent version, operation name, tool name, or status code. To score every turn, leave it empty. Weave combines multiple filters with `AND` logic.\n   * **Sample rate** (Optional): Expand **Advanced**, then set the fraction of matching turns the signal scores.\n5. Click **Create signal**.\n\nThe remote scorer form has no tag or rating fields. Your endpoint determines what it returns, and the Signals table shows the tags and ratings it receives. In the **Scorer** column, a remote scorer signal shows a webhook icon.\n\n",
+          "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Score agent turns with a remote scorer"
+            },
+            {
+              "section": 1,
+              "heading": "How agent turn scoring works"
+            },
+            {
+              "section": 2,
+              "heading": "Enable remote scoring"
+            },
+            {
+              "section": 3,
+              "heading": "Build the scorer endpoint"
+            },
+            {
+              "section": 4,
+              "heading": "Request"
+            },
+            {
+              "section": 5,
+              "heading": "Response"
+            },
+            {
+              "section": 6,
+              "heading": "Authenticate requests from Weave"
+            },
+            {
+              "section": 7,
+              "heading": "Create a remote scorer signal"
+            },
+            {
+              "section": 8,
+              "heading": "Weave UI"
+            },
+            {
+              "section": 9,
+              "heading": "Python SDK"
+            },
+            {
+              "section": 10,
+              "heading": "Sample code"
+            },
+            {
+              "section": 11,
+              "heading": "Test the signal"
+            },
+            {
+              "section": 12,
+              "heading": "Troubleshooting"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "outgoing_links": [
+            {
+              "page_id": "guides/tracking/view-agent-signals",
+              "title": "Monitor your agents with signals"
+            },
+            {
+              "page_id": "guides/evaluation/remote-scorers",
+              "title": "Score Calls with remote scorers"
+            }
+          ],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 1
+        },
+        "result": {
+          "source_id": "S3",
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 1,
+          "title": "Score agent turns with a remote scorer",
+          "heading": "How agent turn scoring works",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+          "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+          "text": "## How agent turn scoring works\n\nAn agent turn is scored in the following sequence:\n\n1. A turn ends. When a root span (a span with no parent) ends, Weave treats it as a completed turn and emits a `weave.genai.turn_ended` event.\n2. The agent scoring worker loads the project's active signals that target `weave.genai.turn_ended`, then applies each signal's filters and sample rate.\n3. For each `RemoteScorer` on a matching signal, the worker builds a `schema_version: 2` request from the turn's span, including its messages, resolves the scorer's credentials, checks the endpoint URL against the allowed hosts, and sends the `POST`.\n4. The worker validates the response and writes the result as feedback on the turn. Tags and ratings appear on the **Signals** tab.\n\nWeave scores only completed turns. Individual LLM and tool spans, and whole conversations, aren't remote scoring targets. A remote scorer signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`, whether you create it in the UI or with the SDK.\n\nThe worker retries a failed attempt with the same `Idempotency-Key`, up to three attempts within 30 seconds of the first attempt. A `5xx`, `408`, or `429` response is retried. A timeout uses the whole 30 seconds, so a timed-out request isn't retried. Any other `4xx` response isn't retried. If your endpoint can't score a turn in time, return `503` quickly rather than letting the request time out, so that Weave retries it. Agent turn scoring requires the structured result format, because Weave stores the tags and ratings as typed feedback columns.\n\n",
+          "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Score agent turns with a remote scorer"
+            },
+            {
+              "section": 1,
+              "heading": "How agent turn scoring works"
+            },
+            {
+              "section": 2,
+              "heading": "Enable remote scoring"
+            },
+            {
+              "section": 3,
+              "heading": "Build the scorer endpoint"
+            },
+            {
+              "section": 4,
+              "heading": "Request"
+            },
+            {
+              "section": 5,
+              "heading": "Response"
+            },
+            {
+              "section": 6,
+              "heading": "Authenticate requests from Weave"
+            },
+            {
+              "section": 7,
+              "heading": "Create a remote scorer signal"
+            },
+            {
+              "section": 8,
+              "heading": "Weave UI"
+            },
+            {
+              "section": 9,
+              "heading": "Python SDK"
+            },
+            {
+              "section": 10,
+              "heading": "Sample code"
+            },
+            {
+              "section": 11,
+              "heading": "Test the signal"
+            },
+            {
+              "section": 12,
+              "heading": "Troubleshooting"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "outgoing_links": [
+            {
+              "page_id": "guides/tracking/view-agent-signals",
+              "title": "Monitor your agents with signals"
+            },
+            {
+              "page_id": "guides/evaluation/remote-scorers",
+              "title": "Score Calls with remote scorers"
+            }
+          ],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 2
+        },
+        "result": {
+          "source_id": "S4",
+          "page_id": "guides/tracking/remote-scorer-signals",
+          "section": 2,
+          "title": "Score agent turns with a remote scorer",
+          "heading": "Enable remote scoring",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/remote-scorer-signals",
+          "page_sha256": "92d08377b57c86113e3f869cc081d89633a91407ecb9d1537419ff47edef03d6",
+          "text": "## Enable remote scoring\n\nRemote scoring is off until it's enabled for your organization or deployment, and the scoring worker calls a scorer endpoint only if its host is on an allowlist. How you enable it depends on your deployment type.\n\n**Multi-tenant Cloud**\n\nTo enable remote scorers for an organization, an organization or billing admin must:\n\n1. Open `https://forge.coreweave.com/account-settings/[ORGANIZATION]/settings`, replacing `[ORGANIZATION]` with the organization that owns your project.\n2. Select the **Remote scoring** tab.\n3. Turn on **Enable remote scoring**.\n4. Under **Allowed hosts**, click **Add host** and enter each host that remote scorers may call. Saving with remote scoring enabled requires at least one host. Leave the port blank to allow any port on that host.\n5. Click **Save settings**.\n\n**Dedicated Cloud**\n\nAsk Forge to enable remote scoring for your deployment and configure its allowed hosts.\n\n**Self-Managed**\n\nIf you run Weave in a [W\\&B Self-Managed](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/self-managed.md) deployment, set these environment variables through `extraEnv` on each scoring worker: the online evaluation worker, the call scoring worker, and the agent scoring worker.\n\n| Environment variable | Default | Effect |\n| - | - | - |\n| `WF_SCORING_WORKER_REMOTE_SCORING_ENABLED` | `false` | Turns on outbound requests to remote scorers. When `false`, no remote scorer runs, regardless of other settings. |\n| `WF_SCORING_WORKER_REMOTE_HTTP_TIMEOUT_SECONDS` | `30` | Timeout for each request to a scorer endpoint. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_HOSTS` | empty | Comma-separated operator allowlist of `host` or `host:port` entries. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_VALIDATE_HOSTS` | `true` | Enforces the allowed hosts lists. Private, loopback, and cloud metadata addresses are rejected regardless of this setting. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOW_INSECURE_HTTP` | `false` | Permits `http://` endpoint URLs. |\n| `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_PRIVATE_CIDRS` | empty | Comma-separated CIDR networks, such as `10.0.0.0/8`, whose private addresses remote scorers may call. |\n\nTo show the remote scoring settings and scorer options in the Weave UI, also set `GORILLA_GATE_WEAVE_REMOTE_SCORING=true` on the W\\&B server.\n\n**Allowed host rules**\n\nThe scoring worker checks every scorer endpoint URL, and separately the OAuth token endpoint URL when a scorer uses OAuth, against these rules:\n\n* An entry matches an exact host, with an optional port. An entry without a port allows any port on that host.\n* An entry that starts with `*.` matches subdomains at any depth, but not the domain itself. `*.corp.example.com` matches `a.corp.example.com` and `a.b.corp.example.com`, not `corp.example.com`. The suffix after `*.` must contain at least two labels, so `*.com` is rejected. A wildcard can't be combined with an IP address.\n* When both an operator allowlist and an organization allowlist exist, the URL must satisfy both. An empty operator allowlist adds no restriction. When no allowlist exists at all, the worker rejects every host.\n* Loopback, private, internal, and cloud metadata addresses are rejected. On Self-Managed, private addresses in the networks listed in `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_PRIVATE_CIDRS` are allowed.\n* HTTPS is required unless the deployment permits insecure HTTP.\n* Redirects aren't followed.\n\n",
+          "page_context": "# Score agent turns with a remote scorer\n\n> Score Weave agent turns with your own HTTP endpoint and see the results as tags or ratings on the Signals tab.\n\nA remote scorer signal scores each completed agent turn with an HTTP endpoint that you host, instead of with an LLM judge. When a turn ends, the Weave agent scoring worker sends the turn to your endpoint in an HTTP `POST` and records the response as feedback on the turn. The result appears as a tag or rating on the **Signals** tab of the [Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-agent-signals.md).\n\nThis page covers remote scorers for agent turns. To score Calls traced with `@weave.op`, see [Score Calls with remote scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers.md). You configure remote scorers with the Python SDK or the Weave UI. The TypeScript SDK doesn't include `RemoteScorer`.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Score agent turns with a remote scorer"
+            },
+            {
+              "section": 1,
+              "heading": "How agent turn scoring works"
+            },
+            {
+              "section": 2,
+              "heading": "Enable remote scoring"
+            },
+            {
+              "section": 3,
+              "heading": "Build the scorer endpoint"
+            },
+            {
+              "section": 4,
+              "heading": "Request"
+            },
+            {
+              "section": 5,
+              "heading": "Response"
+            },
+            {
+              "section": 6,
+              "heading": "Authenticate requests from Weave"
+            },
+            {
+              "section": 7,
+              "heading": "Create a remote scorer signal"
+            },
+            {
+              "section": 8,
+              "heading": "Weave UI"
+            },
+            {
+              "section": 9,
+              "heading": "Python SDK"
+            },
+            {
+              "section": 10,
+              "heading": "Sample code"
+            },
+            {
+              "section": 11,
+              "heading": "Test the signal"
+            },
+            {
+              "section": 12,
+              "heading": "Troubleshooting"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "outgoing_links": [
+            {
+              "page_id": "guides/tracking/view-agent-signals",
+              "title": "Monitor your agents with signals"
+            },
+            {
+              "page_id": "guides/evaluation/remote-scorers",
+              "title": "Score Calls with remote scorers"
+            }
+          ],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "No, that's not right, and no setting turns it on. A remote-scorer Signal scores only **completed agent turns**. The docs say: \"Individual LLM and tool spans, and whole conversations, aren't remote scoring targets.\" [S3]\n\n**What it actually scores**\n- A turn ends when a root span (a span with no parent) ends. Weave then emits a `weave.genai.turn_ended` event [S3].\n- The agent scoring worker sends that turn, including its messages, to your HTTPS endpoint in a `POST` request. It saves the response as feedback (tags or ratings) on the turn, shown on the **Signals** tab [S1, S3].\n- Behind the scenes, a remote-scorer Signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`. That's true whether you create it in the UI or with the SDK [S3].\n\n**Closest options to what you want**\n- **Narrow which turns get scored:** Under **Advanced \u2192 Only score turns matching**, you can filter by agent name, agent version, operation name, tool name or status code. Multiple filters must all match. Leave the field empty to score every turn [S2].\n- **Score a fraction:** **Sample rate** sets what share of matching turns get scored [S2].\n\n**How to set it up**\n1. **Turn on remote scoring first.** It's off by default. On Multi-tenant Cloud, an organization or billing admin opens organization settings, goes to the **Remote scoring** tab, turns on **Enable remote scoring**, adds at least one **Allowed host** and saves. On Dedicated Cloud, ask Forge to enable it. On Self-Managed, set `WF_SCORING_WORKER_REMOTE_SCORING_ENABLED` and the allowed-hosts variables on the scoring workers [S4].\n2. In your Weave project, go to **Agents \u2192 Signals \u2192 New signal \u2192 Remote scorer**. Enter the scorer name, endpoint URL and authentication, then click **Create signal** [S2].\n\nSeparately, Weave can send individual Calls traced with `@weave.op` to a remote scorer, but that's a different workflow from Signals and isn't covered here [S1].",
+          "source_ids": [
+            "S1",
+            "S2",
+            "S3",
+            "S4"
+          ]
+        },
+        "result": {
+          "passed": false,
+          "issues": [
+            "The Self-Managed setup is incomplete for the UI workflow given in step 2. S4 also requires `GORILLA_GATE_WEAVE_REMOTE_SCORING=true` on the W&B server, or the remote scoring settings and scorer options don't appear in the Weave UI. Add this prerequisite, citing S4.",
+            "Answer the missing requested parts or label a partial answer."
+          ],
+          "missing_parts": [
+            "The Self-Managed prerequisite `GORILLA_GATE_WEAVE_REMOTE_SCORING=true`, which is needed to create the signal from the UI."
+          ],
+          "mode": "support",
+          "status": "failed"
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "No, that's not right, and no setting turns it on. A remote-scorer Signal scores only **completed agent turns**. The docs say: \"Individual LLM and tool spans, and whole conversations, aren't remote scoring targets.\" [S3]\n\n**What it actually scores**\n- A turn ends when a root span (a span with no parent) ends. Weave then emits a `weave.genai.turn_ended` event [S3].\n- The agent scoring worker sends that turn, including its messages, to your HTTPS endpoint in a `POST` request. It saves the response as feedback (tags or ratings) on the turn, shown on the **Signals** tab [S1, S3].\n- Behind the scenes, a remote-scorer Signal is a `Monitor` whose `op_names` is `[\"weave.genai.turn_ended\"]`. That's true whether you create it in the UI or with the SDK [S3].\n\n**Closest options to what you want**\n- **Narrow which turns get scored:** Under **Advanced \u2192 Only score turns matching**, you can filter by agent name, agent version, operation name, tool name or status code. Multiple filters must all match. Leave the field empty to score every turn [S2].\n- **Score a fraction:** **Sample rate** sets what share of matching turns get scored [S2].\n\n**How to set it up**\n1. **Turn on remote scoring first.** It's off by default, and the scoring worker only calls endpoints whose host is on an allowlist [S4].\n   - **Multi-tenant Cloud:** An organization or billing admin opens organization settings, goes to the **Remote scoring** tab, turns on **Enable remote scoring**, adds at least one host under **Allowed hosts** and clicks **Save settings** [S4].\n   - **Dedicated Cloud:** Ask Forge to enable it and set the allowed hosts [S4].\n   - **Self-Managed:** Use `extraEnv` to set `WF_SCORING_WORKER_REMOTE_SCORING_ENABLED=true` and `WF_SCORING_WORKER_REMOTE_SCORER_ALLOWED_HOSTS` on each scoring worker. Also set `GORILLA_GATE_WEAVE_REMOTE_SCORING=true` on the W&B server. Without it, the remote scoring settings and scorer options don't appear in the Weave UI [S4].\n2. In your Weave project, go to **Agents \u2192 Signals \u2192 New signal \u2192 Remote scorer**. Enter the scorer name, endpoint URL and authentication, then click **Create signal** [S2].\n\nSeparately, Weave can send individual Calls traced with `@weave.op` to a remote scorer, but that's a different workflow from Signals and isn't covered here [S1].",
+          "source_ids": [
+            "S1",
+            "S2",
+            "S3",
+            "S4"
+          ]
+        },
+        "result": {
+          "passed": true,
+          "issues": [],
+          "missing_parts": [],
+          "mode": "support",
+          "status": "passed"
+        },
+        "origin": "provider_tool_call"
+      }
+    ],
+    "task_complete": true,
+    "missing_outcomes": [],
+    "completion_status": "complete",
+    "review_reason": "none",
+    "conversation_context": [],
+    "conversation_id": "5b234055-a55d-4747-af48-7914be7cadb1",
+    "trace_id": "026086ad5c8de58e543beb1b2bb8eb97",
+    "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/5b234055-a55d-4747-af48-7914be7cadb1",
+    "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+    "source_sha256": "216497c3aa9eeba6bddc26c17ffe2700255fb03bc39473c66e12289cc334efb0",
+    "prompt_sha256": "4b776798e31c498c3e1d059e048f666e122963168699f115b5deae627715157d",
+    "config_sha256": "40d8a7bacd0c2eb781964747644ff5335f6e517841b0105821b87cc0fd0b42ca",
+    "citation_contract_version": 3,
+    "verification_contract_version": 6,
+    "verify_mode": "support",
+    "cache_enabled": true,
+    "model": "claude-opus-5-5",
+    "elapsed_seconds": 39.23,
+    "metrics": {
+      "calls": [
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgVzrWVVSAHLFjD9STFr1",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 2019
+            },
+            "cache_creation_input_tokens": 2019,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 61,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.4758,
+          "estimated_usd": 0.011331
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgVzrgAf8VAjmQnMQttmt",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 2810
+            },
+            "cache_creation_input_tokens": 2810,
+            "cache_read_input_tokens": 2019,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 167,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.3537,
+          "estimated_usd": 0.0178098
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgVzrrJbRwh7W5UxUAdCc",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 3171
+            },
+            "cache_creation_input_tokens": 3171,
+            "cache_read_input_tokens": 4829,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 192,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 4.8404,
+          "estimated_usd": 0.0206768
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgVzsCz45V2Lbwx8q1hDM",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 4301
+            },
+            "cache_creation_input_tokens": 4301,
+            "cache_read_input_tokens": 8000,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 809,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 7.798,
+          "estimated_usd": 0.039301
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgVzsoFafPXhMYUMW12nC",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 10847
+            },
+            "cache_creation_input_tokens": 10847,
+            "cache_read_input_tokens": 1426,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 886,
+            "output_tokens_details": {
+              "thinking_tokens": 619
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 9.1558,
+          "estimated_usd": 0.0722562
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgVztTaBH9HWQrnm5ciRJ",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1091
+            },
+            "cache_creation_input_tokens": 1091,
+            "cache_read_input_tokens": 12301,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 988,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 7.6622,
+          "estimated_usd": 0.0276912
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgVzu2GgnKQfCddmGYp2s",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 11026
+            },
+            "cache_creation_input_tokens": 11026,
+            "cache_read_input_tokens": 1426,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 392,
+            "output_tokens_details": {
+              "thinking_tokens": 292
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 4.9154,
+          "estimated_usd": 0.0632712
+        }
+      ],
+      "model_calls": 7,
+      "tokens": {
+        "input_tokens": 28,
+        "output_tokens": 3495,
+        "cache_creation_input_tokens": 35265,
+        "cache_read_input_tokens": 30001
+      },
+      "total_input_tokens": 65294,
+      "estimated_usd": 0.2523372,
+      "known_estimated_usd": 0.2523372,
+      "unpriced_calls": 0,
+      "by_purpose": {
+        "planner": {
+          "calls": 5,
+          "known_estimated_usd": 0.1168098
+        },
+        "verification": {
+          "calls": 2,
+          "known_estimated_usd": 0.13552740000000002
+        }
+      },
+      "research": {
+        "searches": 1,
+        "passage_reads": 4,
+        "distinct_pages_read": 1,
+        "repeated_tool_requests": 0,
+        "drafts_submitted": 2,
+        "code_runs": 0
+      },
+      "pricing": {
+        "checked_at": "2026-10-25",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "rates": {
+          "claude-sonnet-5-5": {
+            "input": 2,
+            "output": 10,
+            "write_5m": 2.5,
+            "write_1h": 4,
+            "read": 0.1
+          },
+          "claude-opus-5-5": {
+            "input": 4,
+            "output": 20,
+            "write_5m": 5,
+            "write_1h": 8,
+            "read": 0.2
+          }
+        }
+      },
+      "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+    },
+    "error_type": null
+  }
+}

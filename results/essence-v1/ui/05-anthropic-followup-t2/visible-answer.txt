@@ -1,0 +1,27 @@
+Inside each start_llm span, call llm.record(...) with a weave.Usage object and response_model=resp.model. Weave works out cost from two things: complete token usage and a model ID it can price. If either is wrong or missing, the trace shows 0 in / 0 out or Cost -, even when everything else looks correct. [S5]
+
+What to record
+
+input_tokens must be the total input, including cached tokens. Weave prices cache reads and cache writes at their own rates and subtracts them from the input total. [S5]
+Anthropic counts cached tokens separately. It reports cache_read_input_tokens and cache_creation_input_tokens outside input_tokens, so add them back in to get the total. Then also pass both cache fields to weave.Usage. If you leave them out, usage and cost can show as roughly zero, because cached tokens are often most of the input. [S5]
+output_tokens: pass it as Anthropic reports it. [S5] weave.Usage also has a reasoning_tokens field. [S6]
+Model ID: Weave uses response_model first and falls back to the model you passed to start_llm. A short alias such as sonnet can't be priced, so pass the exact model ID from resp.model. [S5]
+record(...) only sets the fields you pass. [S5]
+
+In the earlier loop, replace the llm.record(...) call inside with weave.start_llm(...) as llm: with this (the same pattern as the docs' Anthropic example): [S5]
+
+u = resp.usage
+llm.record(
+    usage=weave.Usage(
+        input_tokens=u.input_tokens
+        + u.cache_read_input_tokens
+        + u.cache_creation_input_tokens,
+        output_tokens=u.output_tokens,
+        cache_read_input_tokens=u.cache_read_input_tokens,
+        cache_creation_input_tokens=u.cache_creation_input_tokens,
+    ),
+    response_id=resp.id,
+    response_model=resp.model,
+)
+
+Do this on every chat span, which means every model call in the loop, so each one carries its own usage and model ID. [S5] One caution: I haven't run this code, and the docs don't say whether Anthropic ever returns None for the cache fields. If you see a TypeError when adding them, use (u.cache_read_input_tokens or 0) and the same for the creation field.

@@ -52,3 +52,15 @@ The $12 overall ceiling still applies. If the complete diagnostic cannot fit alo
 - A historical before/after comparison changes source, provider time and possibly cache state, so it describes observed product performance, not an isolated causal effect. The small paired writer diagnostic controls more of these variables but still cannot establish general superiority. No claim of broad Claude parity or a model ranking follows.
 
 Model comparisons are small and reused; latency depends on provider load. The brief requires useful, explainable behavior and honest evidence, not a universal winner. Existing all-Opus regression 13/13 and browser 17/18 describe the prior source only. Measurement rules above were clarified before new model calls; no historical score or rubric was changed.
+
+## Follow-up after the first simplified run — October 29
+
+The first pass used $10.8437213 in returned model usage. Its unchanged regression produced all 13 answers: one initialization answer omitted authentication/agent export; one grade was reservation-denied and then completed once against the unchanged saved output. Independent browser review found a more direct defect: a role overview conflated conversation-level display with the turn-level scoring target. The existing auditor accepted it. These are retained failures, not grounds to edit the rubric.
+
+One targeted prompt repair is permitted: preserve operational subject/action/target/conditions, and read relevant current setup guidance when explaining essential API behavior. No new runtime path, model, retrieval architecture or release gate. Freeze paired negative/corrected-positive controls before changing prompts. Both initialization controls receive the same additional authentic guide passage, explicitly marked synthetic evidence expansion; the original answer never read that passage.
+
+The original browser instrument also captured progress as first answer text and a code placeholder as terminal prose. Preserve those receipts. The next browser instrument must wait for populated code blocks and stable visible answer content, test that logic with unpaid delayed-render fixtures, and distinguish terminal-prose time from full answer render readiness. First useful text remains unmeasured. Historical terminal comparisons retain their timing boundary; do not silently relabel them as full-render measurements.
+
+After the repair: run those four controls once, the same 13-case regression once, then the same six browser tasks/seven turns and separate preset. No answer regeneration within a run; no rubric changes. Record all failures, fixed denominators and remote delivery. The supplemental grading record never overwrites the original Evaluation.
+
+The follow-up budget is at most $7 additional returned-usage spend, with an overall ceiling of $18 for the pass. It replaces the initial $12 planning ceiling after reviewing its results, before any follow-up paid call; it is not an increase to a user-specified billing limit. No new model/retrieval experiments. Stop for reassessment if this allowance is threatened.

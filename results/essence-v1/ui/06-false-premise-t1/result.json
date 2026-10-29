@@ -1,0 +1,959 @@
+{
+  "answer_id": "a57edb98-680b-4ec0-81f0-4d83fb7d23bc",
+  "question": "Use the Weave documentation at https://docs.wandb.ai/weave to answer this question:\n\nShow me the exact Python call to weave.enable_hallucination_free_mode() so my agent is guaranteed never to hallucinate.",
+  "answer": "I can't give you an exact call for `weave.enable_hallucination_free_mode()`. I couldn't find that function in the Weave docs I searched, and nothing I read promises an agent will never hallucinate. Writing that call would mean inventing an API.\n\nWhat the docs do describe are **scorers**: checks that look at your app's output and flag possible hallucinations after it's been generated. They help you measure and catch problems, but they don't stop the model from hallucinating.\n\n- **`HallucinationFreeScorer`** (built in): checks whether your AI system's output includes hallucinations based on the input data. You can change its `system_prompt` and `user_prompt` to define what \"hallucination\" means for you. Its `score` method expects an input column named `context`, and you can use `column_map` if your data uses a different name. In the documented example it runs inside a `weave.Evaluation` and reports `has_hallucination` counts [S1].\n- **`WeaveHallucinationScorerV1`** (local scorer, Python SDK only): a small model that runs on your machine and returns a result with a `passed` flag and `metadata` [S2].\n\n```python\nimport weave\nfrom weave.scorers import WeaveHallucinationScorerV1\n\nhallucination_scorer = WeaveHallucinationScorerV1()\n\nresult = hallucination_scorer.score(\n    query=\"[USER_QUERY]\",\n    context=\"[RETRIEVED_CONTEXT]\",\n    output=\"[AGENT_OUTPUT]\",\n)\nprint(f\"Output is hallucinated: {not result.passed}\")\n```\n\nThis follows the documented example [S2]. You could check `result.passed` at runtime and return a fallback answer when it's `False`. That's my suggestion, not a documented feature. It lowers the risk of hallucinations but doesn't eliminate them, because the scorer itself can be wrong.",
+  "kind": "answer",
+  "source_ids": [
+    "S1",
+    "S2"
+  ],
+  "sources": [
+    {
+      "source_id": "S1",
+      "page_id": "guides/evaluation/builtin_scorers",
+      "section": 2,
+      "title": "Use builtin scorers",
+      "heading": "`HallucinationFreeScorer`",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers",
+      "page_sha256": "6ae9f99c1ee4d779d23d3dbe0058facc3d7e6456be3b3a03ec393e9e32aa862d",
+      "text": "## `HallucinationFreeScorer`\n\nThis scorer checks whether your AI system's output includes any hallucinations based on the input data.\n\n```python lines theme={\"system\"}\nfrom weave.scorers import HallucinationFreeScorer\n\nscorer = HallucinationFreeScorer()\n```\n\n**Customization**\n\n* Customize the `system_prompt` and `user_prompt` fields of the scorer to define what \"hallucination\" means for you.\n\n**Notes**\n\n* The `score` method expects an input column named `context`. If your dataset uses a different name, [use the `column_map` attribute](#use-column-mapping) to map `context` to the dataset column.\n\nThe following example uses `HallucinationFreeScorer` in the context of an evaluation:\n\n```python lines theme={\"system\"}\nimport asyncio\nimport weave\nfrom weave.scorers import HallucinationFreeScorer\n\n# Initialize scorer with a column mapping if needed.\nhallucination_scorer = HallucinationFreeScorer(\n    model_id=\"openai/gpt-4o\", # or any other model supported by litellm\n    column_map={\"context\": \"input\", \"output\": \"other_col\"}\n)\n\n# Create dataset\ndataset = [\n    {\"input\": \"John likes various types of cheese.\"},\n    {\"input\": \"Pepe likes various types of cheese.\"},\n]\n\n@weave.op\ndef model(input: str) -> str:\n    return \"The person's favorite cheese is cheddar.\"\n\n# Run evaluation\nevaluation = weave.Evaluation(\n    dataset=dataset,\n    scorers=[hallucination_scorer],\n)\nresult = asyncio.run(evaluation.evaluate(model))\nprint(result)\n# Example output:\n# {'HallucinationFreeScorer': {'has_hallucination': {'true_count': 2, 'true_fraction': 1.0}}, 'model_latency': {'mean': ...}}\n```\n\n***\n\n",
+      "page_context": "# Use builtin scorers\n\n> Use Weave's predefined scorers for evaluating your AI applications\n\nWeave offers several predefined scorers for evaluating your AI applications, such as [Hallucination detection](#hallucinationfreescorer) and [Summarization quality](#summarizationscorer). These can help you quickly define an evaluation and score your application's outputs. This page describes each built-in scorer, what it measures, and how to use it in an evaluation.\n\n> [!NOTE]\n>\n> Local scorers are only available for the Weave Python SDK. They aren't yet available for the Weave TypeScript SDK.\n>\n> To use Weave scorers in TypeScript, see [function-based scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md#function-based-scorers).\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Use builtin scorers"
+        },
+        {
+          "section": 1,
+          "heading": "Installation"
+        },
+        {
+          "section": 2,
+          "heading": "`HallucinationFreeScorer`"
+        },
+        {
+          "section": 3,
+          "heading": "`SummarizationScorer`"
+        },
+        {
+          "section": 4,
+          "heading": "`OpenAIModerationScorer`"
+        },
+        {
+          "section": 5,
+          "heading": "`EmbeddingSimilarityScorer`"
+        },
+        {
+          "section": 6,
+          "heading": "`ValidJSONScorer`"
+        },
+        {
+          "section": 7,
+          "heading": "`ValidXMLScorer`"
+        },
+        {
+          "section": 8,
+          "heading": "`PydanticScorer`"
+        },
+        {
+          "section": 9,
+          "heading": "RAGAS - `ContextEntityRecallScorer`"
+        },
+        {
+          "section": 10,
+          "heading": "RAGAS - `ContextRelevancyScorer`"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/evaluation/scorers",
+          "title": "Scoring overview"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/evaluation/weave_local_scorers",
+      "section": 11,
+      "title": "Evaluate using local scorers",
+      "heading": "Usage example",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/weave_local_scorers",
+      "page_sha256": "42c0d5f6bd5b7c6778418d2409e8d2dc5e3656fcf3ccf154ca565de4d286ada0",
+      "text": "### Usage example\n\n```python lines theme={\"system\"}\nimport weave\nfrom weave.scorers import WeaveHallucinationScorerV1\n\nhallucination_scorer = WeaveHallucinationScorerV1()\n\nresult = hallucination_scorer.score(\n    query=\"What is the capital of Antarctica?\",\n    context=\"People in Antarctica love the penguins.\",\n    output=\"While Antarctica is known for its sea life, penguins aren't liked there.\"\n)\n\nprint(f\"Output is hallucinated: {not result.passed}\")\nprint(result)\n```\n\n***\n\n",
+      "page_context": "# Evaluate using local scorers\n\n> Small language models that run locally to evaluate AI system safety and quality\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/master/weave/docs/scorers_local_weave_scorers.ipynb)\n\nWeave's local scorers are a suite of small language models that run locally on your machine with minimal latency. These models evaluate the safety and quality of your AI system's inputs, context, and outputs.\n\nThis page describes how to evaluate the safety and quality of your AI system using Weave's local scorers, and walks through each available scorer with usage notes and examples. Use this guide to choose a scorer for your use case, install the dependencies, and add scorers to your AI system's inputs, context, or outputs.\n\nWeights & Biases fine-tunes some of these models, while others are state-of-the-art open source models trained by the community. W\\&B Reports document the training and evaluation process. For the full details, see this [list of W\\&B Reports](https://forge.coreweave.com/wandb/c-metrics/weave-scorers/reports/Weave-Scorers-v1--VmlldzoxMDQ0MDE1OA).\n\nThe model weights are publicly available in W\\&B Artifacts, and Weave automatically downloads them when you instantiate the scorer class. To download them yourself, see the artifact paths in `weave.scorers.default_models`.\n\nThese scorers return an object with a `passed` boolean attribute that indicates whether the input text is safe or high quality. The object also includes a `metadata` attribute with more detail, such as the raw score from the model.\n\nYou can run local scorers on CPUs, but Weights & Biases recommends GPUs for best performance.\n\n> [!NOTE]\n>\n> Local scorers are only available for the Weave Python SDK. They aren't yet available for the Weave TypeScript SDK.\n>\n> To use Weave scorers in TypeScript, see [function-based scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md#function-based-scorers).\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Evaluate using local scorers"
+        },
+        {
+          "section": 1,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 2,
+          "heading": "Select a scorer"
+        },
+        {
+          "section": 3,
+          "heading": "`WeaveBiasScorerV1`"
+        },
+        {
+          "section": 4,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 5,
+          "heading": "Usage example"
+        },
+        {
+          "section": 6,
+          "heading": "`WeaveToxicityScorerV1`"
+        },
+        {
+          "section": 7,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 8,
+          "heading": "Usage example"
+        },
+        {
+          "section": 9,
+          "heading": "`WeaveHallucinationScorerV1`"
+        },
+        {
+          "section": 10,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 11,
+          "heading": "Usage example"
+        },
+        {
+          "section": 12,
+          "heading": "`WeaveContextRelevanceScorerV1`"
+        },
+        {
+          "section": 13,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 14,
+          "heading": "Usage example"
+        },
+        {
+          "section": 15,
+          "heading": "`WeaveCoherenceScorerV1`"
+        },
+        {
+          "section": 16,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 17,
+          "heading": "Usage example"
+        },
+        {
+          "section": 18,
+          "heading": "`WeaveFluencyScorerV1`"
+        },
+        {
+          "section": 19,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 20,
+          "heading": "Usage example"
+        },
+        {
+          "section": 21,
+          "heading": "`WeaveTrustScorerV1`"
+        },
+        {
+          "section": 22,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 23,
+          "heading": "Usage example"
+        },
+        {
+          "section": 24,
+          "heading": "`PresidioScorer`"
+        },
+        {
+          "section": 25,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 26,
+          "heading": "Usage example"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/evaluation/scorers",
+          "title": "Scoring overview"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "all_read_evidence": [
+    {
+      "source_id": "S1",
+      "page_id": "guides/evaluation/builtin_scorers",
+      "section": 2,
+      "title": "Use builtin scorers",
+      "heading": "`HallucinationFreeScorer`",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers",
+      "page_sha256": "6ae9f99c1ee4d779d23d3dbe0058facc3d7e6456be3b3a03ec393e9e32aa862d",
+      "text": "## `HallucinationFreeScorer`\n\nThis scorer checks whether your AI system's output includes any hallucinations based on the input data.\n\n```python lines theme={\"system\"}\nfrom weave.scorers import HallucinationFreeScorer\n\nscorer = HallucinationFreeScorer()\n```\n\n**Customization**\n\n* Customize the `system_prompt` and `user_prompt` fields of the scorer to define what \"hallucination\" means for you.\n\n**Notes**\n\n* The `score` method expects an input column named `context`. If your dataset uses a different name, [use the `column_map` attribute](#use-column-mapping) to map `context` to the dataset column.\n\nThe following example uses `HallucinationFreeScorer` in the context of an evaluation:\n\n```python lines theme={\"system\"}\nimport asyncio\nimport weave\nfrom weave.scorers import HallucinationFreeScorer\n\n# Initialize scorer with a column mapping if needed.\nhallucination_scorer = HallucinationFreeScorer(\n    model_id=\"openai/gpt-4o\", # or any other model supported by litellm\n    column_map={\"context\": \"input\", \"output\": \"other_col\"}\n)\n\n# Create dataset\ndataset = [\n    {\"input\": \"John likes various types of cheese.\"},\n    {\"input\": \"Pepe likes various types of cheese.\"},\n]\n\n@weave.op\ndef model(input: str) -> str:\n    return \"The person's favorite cheese is cheddar.\"\n\n# Run evaluation\nevaluation = weave.Evaluation(\n    dataset=dataset,\n    scorers=[hallucination_scorer],\n)\nresult = asyncio.run(evaluation.evaluate(model))\nprint(result)\n# Example output:\n# {'HallucinationFreeScorer': {'has_hallucination': {'true_count': 2, 'true_fraction': 1.0}}, 'model_latency': {'mean': ...}}\n```\n\n***\n\n",
+      "page_context": "# Use builtin scorers\n\n> Use Weave's predefined scorers for evaluating your AI applications\n\nWeave offers several predefined scorers for evaluating your AI applications, such as [Hallucination detection](#hallucinationfreescorer) and [Summarization quality](#summarizationscorer). These can help you quickly define an evaluation and score your application's outputs. This page describes each built-in scorer, what it measures, and how to use it in an evaluation.\n\n> [!NOTE]\n>\n> Local scorers are only available for the Weave Python SDK. They aren't yet available for the Weave TypeScript SDK.\n>\n> To use Weave scorers in TypeScript, see [function-based scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md#function-based-scorers).\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Use builtin scorers"
+        },
+        {
+          "section": 1,
+          "heading": "Installation"
+        },
+        {
+          "section": 2,
+          "heading": "`HallucinationFreeScorer`"
+        },
+        {
+          "section": 3,
+          "heading": "`SummarizationScorer`"
+        },
+        {
+          "section": 4,
+          "heading": "`OpenAIModerationScorer`"
+        },
+        {
+          "section": 5,
+          "heading": "`EmbeddingSimilarityScorer`"
+        },
+        {
+          "section": 6,
+          "heading": "`ValidJSONScorer`"
+        },
+        {
+          "section": 7,
+          "heading": "`ValidXMLScorer`"
+        },
+        {
+          "section": 8,
+          "heading": "`PydanticScorer`"
+        },
+        {
+          "section": 9,
+          "heading": "RAGAS - `ContextEntityRecallScorer`"
+        },
+        {
+          "section": 10,
+          "heading": "RAGAS - `ContextRelevancyScorer`"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/evaluation/scorers",
+          "title": "Scoring overview"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/evaluation/weave_local_scorers",
+      "section": 11,
+      "title": "Evaluate using local scorers",
+      "heading": "Usage example",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/weave_local_scorers",
+      "page_sha256": "42c0d5f6bd5b7c6778418d2409e8d2dc5e3656fcf3ccf154ca565de4d286ada0",
+      "text": "### Usage example\n\n```python lines theme={\"system\"}\nimport weave\nfrom weave.scorers import WeaveHallucinationScorerV1\n\nhallucination_scorer = WeaveHallucinationScorerV1()\n\nresult = hallucination_scorer.score(\n    query=\"What is the capital of Antarctica?\",\n    context=\"People in Antarctica love the penguins.\",\n    output=\"While Antarctica is known for its sea life, penguins aren't liked there.\"\n)\n\nprint(f\"Output is hallucinated: {not result.passed}\")\nprint(result)\n```\n\n***\n\n",
+      "page_context": "# Evaluate using local scorers\n\n> Small language models that run locally to evaluate AI system safety and quality\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/master/weave/docs/scorers_local_weave_scorers.ipynb)\n\nWeave's local scorers are a suite of small language models that run locally on your machine with minimal latency. These models evaluate the safety and quality of your AI system's inputs, context, and outputs.\n\nThis page describes how to evaluate the safety and quality of your AI system using Weave's local scorers, and walks through each available scorer with usage notes and examples. Use this guide to choose a scorer for your use case, install the dependencies, and add scorers to your AI system's inputs, context, or outputs.\n\nWeights & Biases fine-tunes some of these models, while others are state-of-the-art open source models trained by the community. W\\&B Reports document the training and evaluation process. For the full details, see this [list of W\\&B Reports](https://forge.coreweave.com/wandb/c-metrics/weave-scorers/reports/Weave-Scorers-v1--VmlldzoxMDQ0MDE1OA).\n\nThe model weights are publicly available in W\\&B Artifacts, and Weave automatically downloads them when you instantiate the scorer class. To download them yourself, see the artifact paths in `weave.scorers.default_models`.\n\nThese scorers return an object with a `passed` boolean attribute that indicates whether the input text is safe or high quality. The object also includes a `metadata` attribute with more detail, such as the raw score from the model.\n\nYou can run local scorers on CPUs, but Weights & Biases recommends GPUs for best performance.\n\n> [!NOTE]\n>\n> Local scorers are only available for the Weave Python SDK. They aren't yet available for the Weave TypeScript SDK.\n>\n> To use Weave scorers in TypeScript, see [function-based scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md#function-based-scorers).\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Evaluate using local scorers"
+        },
+        {
+          "section": 1,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 2,
+          "heading": "Select a scorer"
+        },
+        {
+          "section": 3,
+          "heading": "`WeaveBiasScorerV1`"
+        },
+        {
+          "section": 4,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 5,
+          "heading": "Usage example"
+        },
+        {
+          "section": 6,
+          "heading": "`WeaveToxicityScorerV1`"
+        },
+        {
+          "section": 7,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 8,
+          "heading": "Usage example"
+        },
+        {
+          "section": 9,
+          "heading": "`WeaveHallucinationScorerV1`"
+        },
+        {
+          "section": 10,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 11,
+          "heading": "Usage example"
+        },
+        {
+          "section": 12,
+          "heading": "`WeaveContextRelevanceScorerV1`"
+        },
+        {
+          "section": 13,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 14,
+          "heading": "Usage example"
+        },
+        {
+          "section": 15,
+          "heading": "`WeaveCoherenceScorerV1`"
+        },
+        {
+          "section": 16,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 17,
+          "heading": "Usage example"
+        },
+        {
+          "section": 18,
+          "heading": "`WeaveFluencyScorerV1`"
+        },
+        {
+          "section": 19,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 20,
+          "heading": "Usage example"
+        },
+        {
+          "section": 21,
+          "heading": "`WeaveTrustScorerV1`"
+        },
+        {
+          "section": 22,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 23,
+          "heading": "Usage example"
+        },
+        {
+          "section": 24,
+          "heading": "`PresidioScorer`"
+        },
+        {
+          "section": 25,
+          "heading": "Usage notes"
+        },
+        {
+          "section": 26,
+          "heading": "Usage example"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/evaluation/scorers",
+          "title": "Scoring overview"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "verification": {
+    "passed": true,
+    "issues": [],
+    "missing_parts": [],
+    "mode": "support",
+    "status": "passed"
+  },
+  "verification_attempts": [
+    {
+      "candidate": {
+        "source_ids": [
+          "S1",
+          "S2"
+        ],
+        "answer": "I can't give you an exact call for `weave.enable_hallucination_free_mode()`. I couldn't find that function in the Weave docs I searched, and nothing I read promises an agent will never hallucinate. Writing that call would mean inventing an API.\n\nWhat the docs do describe are **scorers**: checks that look at your app's output and flag possible hallucinations after it's been generated. They help you measure and catch problems, but they don't stop the model from hallucinating.\n\n- **`HallucinationFreeScorer`** (built in): checks whether your AI system's output includes hallucinations based on the input data. You can change its `system_prompt` and `user_prompt` to define what \"hallucination\" means for you. Its `score` method expects an input column named `context`, and you can use `column_map` if your data uses a different name. In the documented example it runs inside a `weave.Evaluation` and reports `has_hallucination` counts [S1].\n- **`WeaveHallucinationScorerV1`** (local scorer, Python SDK only): a small model that runs on your machine and returns a result with a `passed` flag and `metadata` [S2].\n\n```python\nimport weave\nfrom weave.scorers import WeaveHallucinationScorerV1\n\nhallucination_scorer = WeaveHallucinationScorerV1()\n\nresult = hallucination_scorer.score(\n    query=\"[USER_QUERY]\",\n    context=\"[RETRIEVED_CONTEXT]\",\n    output=\"[AGENT_OUTPUT]\",\n)\nprint(f\"Output is hallucinated: {not result.passed}\")\n```\n\nThis follows the documented example [S2]. You could check `result.passed` at runtime and return a fallback answer when it's `False`. That's my suggestion, not a documented feature. It lowers the risk of hallucinations but doesn't eliminate them, because the scorer itself can be wrong.",
+        "kind": "answer"
+      },
+      "passed": true,
+      "issues": [],
+      "missing_parts": [],
+      "mode": "support",
+      "status": "passed"
+    }
+  ],
+  "actions": [
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "enable_hallucination_free_mode"
+      },
+      "result": {
+        "query": "enable_hallucination_free_mode",
+        "results": [
+          {
+            "page_id": "guides/integrations/verl",
+            "section": 2,
+            "title": "VERL",
+            "heading": "Enable Weave tracing",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/verl",
+            "snippet": "## Enable Weave tracing\n\nSet your API key in the environment so VERL can authenticate with your CoreWeave Forge account:\n\n```bash theme={\"system\"}\nexport WANDB_API_KEY=[REDACTED_SECRET]\n```\n\nThen add the following flags to your VERL training command:\n\n* `actor_rollout_ref.rollout.trace.backend=weave`: Selects Weave as the trace backend.\n* `actor_rollout_ref.rollout.mode=async`: Enables async rollout for vLLM or SGLang. Tracing has no effect on synchronous rollouts.\n* `trainer.project_name`: Sets the project you want to log traces and metrics to.\n* `trainer.experiment_name`: Sets the name of your experiment.\n* `trainer.logger=['console','wandb']`: Enables the wandb logger alongside Weave so metrics and traces appear in the same project.\n\nThe resulting command looks like this:\n\n```bash theme={\"system\"}\npython -m verl.trainer.main_ppo \\\n  actor_rollout_ref.rollout.trace.backend=weave \\\n  actor_rollout_ref.rollout.mode=async \\\n  trainer.project_name=[YOUR-PROJECT-NAME] \\\n  trainer.experiment_name=[YOUR-EXPERIMENT-NAME] \\\n  trainer.logger=['console','wandb'] \\\n  # ... your other traini"
+          },
+          {
+            "page_id": "guides/evaluation/weave_local_scorers",
+            "section": 9,
+            "title": "Evaluate using local scorers",
+            "heading": "`WeaveHallucinationScorerV1`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/weave_local_scorers",
+            "snippet": "## `WeaveHallucinationScorerV1`\n\nThis scorer checks whether your AI system's output contains hallucinations based on the input data.\n\nThe `WeaveHallucinationScorerV1` uses the open source [HHEM 2.1 model](https://huggingface.co/vectara/hallucination_evaluation_model) from Vectara. For more information, see the [WeaveHallucinationScorerV1 W\\&B Report](https://forge.coreweave.com/wandb/c-metrics/hallucination/reports/Hallucination-Scorer--VmlldzoxMDM3NDA3MA).\n\n"
+          },
+          {
+            "page_id": "guides/evaluation/weave_local_scorers",
+            "section": 11,
+            "title": "Evaluate using local scorers",
+            "heading": "Usage example",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/weave_local_scorers",
+            "snippet": "### Usage example\n\n```python lines theme={\"system\"}\nimport weave\nfrom weave.scorers import WeaveHallucinationScorerV1\n\nhallucination_scorer = WeaveHallucinationScorerV1()\n\nresult = hallucination_scorer.score(\n    query=\"What is the capital of Antarctica?\",\n    context=\"People in Antarctica love the penguins.\",\n    output=\"While Antarctica is known for its sea life, penguins aren't liked there.\"\n)\n\nprint(f\"Output is hallucinated: {not result.passed}\")\nprint(result)\n```\n\n***\n\n"
+          },
+          {
+            "page_id": "guides/evaluation/builtin_scorers",
+            "section": 2,
+            "title": "Use builtin scorers",
+            "heading": "`HallucinationFreeScorer`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers",
+            "snippet": "## `HallucinationFreeScorer`\n\nThis scorer checks whether your AI system's output includes any hallucinations based on the input data.\n\n```python lines theme={\"system\"}\nfrom weave.scorers import HallucinationFreeScorer\n\nscorer = HallucinationFreeScorer()\n```\n\n**Customization**\n\n* Customize the `system_prompt` and `user_prompt` fields of the scorer to define what \"hallucination\" means for you.\n\n**Notes**\n\n* The `score` method expects an input column named `context`. If your dataset uses a different name, [use the `column_map` attribute](#use-column-mapping) to map `context` to the dataset column.\n\nThe following example uses `HallucinationFreeScorer` in the context of an evaluation:\n\n```python lines theme={\"system\"}\nimport asyncio\nimport weave\nfrom weave.scorers import HallucinationFreeScorer\n\n# Initialize scorer with a column mapping if needed.\nhallucination_scorer = HallucinationFreeScorer(\n    model_id=\"openai/gpt-4o\", # or any other model supported by litellm\n    column_map={\"context\": \"input\", \"output\": \"other_col\"}\n)\n\n# Create dataset\ndataset = [\n    {\"input\": \"John likes various "
+          },
+          {
+            "page_id": "guides/platform/weave-self-managed",
+            "section": 49,
+            "title": "Set up a self-managed Weave instance",
+            "heading": "Monitor ClickHouse",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/platform/weave-self-managed",
+            "snippet": "### Monitor ClickHouse\n\nAccess ClickHouse system tables for monitoring:\n\n```bash theme={\"system\"}\n# Check disk usage\nkubectl exec -n clickhouse chi-wandb-weavecluster-0-0-0 -- \\\n  clickhouse-client --user weave --password [WEAVE-PASSWORD] --query \\\n  \"SELECT name, path, formatReadableSize(free_space) as free, formatReadableSize(total_space) as total FROM system.disks\"\n\n# Check replication status\nkubectl exec -n clickhouse chi-wandb-weavecluster-0-0-0 -- \\\n  clickhouse-client --user weave --password [WEAVE-PASSWORD] --query \\\n  \"SELECT database, table, is_leader, total_replicas, active_replicas FROM system.replicas WHERE database='weave'\"\n\n# Check ClickHouse server status\nkubectl get pods -n clickhouse -l app=clickhouse-server\n```\n\n"
+          },
+          {
+            "page_id": "guides/tracking/write-ahead-log",
+            "section": 1,
+            "title": "Write-ahead log",
+            "heading": "Enable the write-ahead log",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/write-ahead-log",
+            "snippet": "## Enable the write-ahead log\n\nTo enable the WAL for your Weave client, set the `WEAVE_ENABLE_WAL` environment variable to `true`:\n\n```bash theme={\"system\"}\nexport WEAVE_ENABLE_WAL=true\n```\n\nYou can also set it in Python before calling `weave.init()`:\n\n```python theme={\"system\"}\nimport os\nos.environ[\"WEAVE_ENABLE_WAL\"] = \"true\"\n```\n\nNo other code changes are required. The WAL works transparently with existing Weave tracing code.\n\n"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "hallucination scorer guardrail"
+      },
+      "result": {
+        "query": "hallucination scorer guardrail",
+        "results": [
+          {
+            "page_id": "guides/evaluation/weave_local_scorers",
+            "section": 9,
+            "title": "Evaluate using local scorers",
+            "heading": "`WeaveHallucinationScorerV1`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/weave_local_scorers",
+            "snippet": "## `WeaveHallucinationScorerV1`\n\nThis scorer checks whether your AI system's output contains hallucinations based on the input data.\n\nThe `WeaveHallucinationScorerV1` uses the open source [HHEM 2.1 model](https://huggingface.co/vectara/hallucination_evaluation_model) from Vectara. For more information, see the [WeaveHallucinationScorerV1 W\\&B Report](https://forge.coreweave.com/wandb/c-metrics/hallucination/reports/Hallucination-Scorer--VmlldzoxMDM3NDA3MA).\n\n"
+          },
+          {
+            "page_id": "guides/evaluation/weave_local_scorers",
+            "section": 11,
+            "title": "Evaluate using local scorers",
+            "heading": "Usage example",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/weave_local_scorers",
+            "snippet": "### Usage example\n\n```python lines theme={\"system\"}\nimport weave\nfrom weave.scorers import WeaveHallucinationScorerV1\n\nhallucination_scorer = WeaveHallucinationScorerV1()\n\nresult = hallucination_scorer.score(\n    query=\"What is the capital of Antarctica?\",\n    context=\"People in Antarctica love the penguins.\",\n    output=\"While Antarctica is known for its sea life, penguins aren't liked there.\"\n)\n\nprint(f\"Output is hallucinated: {not result.passed}\")\nprint(result)\n```\n\n***\n\n"
+          },
+          {
+            "page_id": "guides/evaluation/builtin_scorers",
+            "section": 2,
+            "title": "Use builtin scorers",
+            "heading": "`HallucinationFreeScorer`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers",
+            "snippet": "## `HallucinationFreeScorer`\n\nThis scorer checks whether your AI system's output includes any hallucinations based on the input data.\n\n```python lines theme={\"system\"}\nfrom weave.scorers import HallucinationFreeScorer\n\nscorer = HallucinationFreeScorer()\n```\n\n**Customization**\n\n* Customize the `system_prompt` and `user_prompt` fields of the scorer to define what \"hallucination\" means for you.\n\n**Notes**\n\n* The `score` method expects an input column named `context`. If your dataset uses a different name, [use the `column_map` attribute](#use-column-mapping) to map `context` to the dataset column.\n\nThe following example uses `HallucinationFreeScorer` in the context of an evaluation:\n\n```python lines theme={\"system\"}\nimport asyncio\nimport weave\nfrom weave.scorers import HallucinationFreeScorer\n\n# Initialize scorer with a column mapping if needed.\nhallucination_scorer = HallucinationFreeScorer(\n    model_id=\"openai/gpt-4o\", # or any other model supported by litellm\n    column_map={\"context\": \"input\", \"output\": \"other_col\"}\n)\n\n# Create dataset\ndataset = [\n    {\"input\": \"John likes various "
+          },
+          {
+            "page_id": "guides/evaluation/guardrails",
+            "section": 5,
+            "title": "Set up guardrails",
+            "heading": "Integrate Weave with AWS Bedrock Guardrails",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/guardrails",
+            "snippet": "## Integrate Weave with AWS Bedrock Guardrails\n\nIf you already manage content policies in AWS, you can apply them in Weave by using the `BedrockGuardrailScorer`, which uses AWS Bedrock Guardrails to detect and filter content based on configured policies.\n\nBefore you set up a Bedrock Guardrails integration, you need:\n\n* An AWS account with Bedrock access.\n* A [configured guardrail in the AWS Bedrock console](https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails-components.html).\n* The `boto3` [Python package](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html).\n\nYou don't need to create your own Bedrock client. Weave creates it for you. To specify a region, pass the region value in the scorer's `bedrock_runtime_kwargs` parameter.\n\nFor an example of how to create a guardrail in AWS Bedrock, see the [Bedrock guardrails notebook](https://github.com/aws-samples/amazon-bedrock-samples/blob/main/responsible_ai/bedrock-guardrails/guardrails-api.ipynb).\n\nThe following example checks text generation against AWS Bedrock Guardrails policies before return"
+          },
+          {
+            "page_id": "guides/evaluation/guardrails",
+            "section": 3,
+            "title": "Set up guardrails",
+            "heading": "Example: Create a guardrail using a built-in moderation scorer",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/guardrails",
+            "snippet": "## Example: Create a guardrail using a built-in moderation scorer\n\nThe following example sends user prompts to OpenAI's GPT-4o mini model. The model's response is then passed to [OpenAI's moderation API](https://platform.openai.com/docs/guides/moderation) to assess whether the LLM's response contains harmful or toxic content. The model's response is passed to the guardrail function (`generate_safe_response()`), which uses the `OpenAIModerationScorer` to check the LLM's original response. The function's logic then checks OpenAI's assessment response for a boolean in the `passed` field, which determines how the application responds.\n\n```python lines {28-45} theme={\"system\"}\nimport weave\nimport openai\nfrom weave.scorers import OpenAIModerationScorer\nimport asyncio\n\n# Initialize Weave\nweave.init(\"your-team-name/your-project-name\")\n\n# Initialize OpenAI client\nclient = openai.OpenAI()  # Uses OPENAI_API_KEY env var\n\n# Initialize the moderation scorer\nmoderation_scorer = OpenAIModerationScorer()\n\n# Send prompts to OpenAI\n@weave.op\ndef generate_response(prompt: str) -> str:\n    response = cl"
+          },
+          {
+            "page_id": "cookbooks/scorers_as_guardrails",
+            "section": 1,
+            "title": "Scorers as guardrails",
+            "heading": "Scorers as guardrails",
+            "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/scorers_as_guardrails",
+            "snippet": "# Scorers as guardrails\n\nWeave Scorers are classes with a `score` method that evaluates the performance of a call. They can range from basic rules to LLMs as judges.\n\nThis notebook is for Weave users who want to apply Scorers at runtime to block or filter unwanted model outputs. By following along, you build a content safety guardrail that intercepts an LLM response, evaluates it with a Scorer, and returns a fallback message when the Scorer flags the response as unsafe. Using Scorers this way lets you reuse the same evaluation logic that powers offline experiments to enforce safety policies in production.\n\nBy the end of this notebook, you have a working `ContentSafetyScorer` that wraps an LLM call and returns either the original response or a safe fallback, depending on the Scorer's verdict.\n\n```python lines theme={\"system\"}\n%pip install weave --quiet\npython\n\"\"\"\nExample demonstrating how to implement guardrails in Weave.\nThis example shows a simple content safety checker that prevents\npotentially harmful or negative responses.\n\"\"\"\n\nimport weave\n\n# Initialize Weave with a descriptive "
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/evaluation/builtin_scorers",
+        "section": 2
+      },
+      "result": {
+        "source_id": "S1",
+        "page_id": "guides/evaluation/builtin_scorers",
+        "section": 2,
+        "title": "Use builtin scorers",
+        "heading": "`HallucinationFreeScorer`",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers",
+        "page_sha256": "6ae9f99c1ee4d779d23d3dbe0058facc3d7e6456be3b3a03ec393e9e32aa862d",
+        "text": "## `HallucinationFreeScorer`\n\nThis scorer checks whether your AI system's output includes any hallucinations based on the input data.\n\n```python lines theme={\"system\"}\nfrom weave.scorers import HallucinationFreeScorer\n\nscorer = HallucinationFreeScorer()\n```\n\n**Customization**\n\n* Customize the `system_prompt` and `user_prompt` fields of the scorer to define what \"hallucination\" means for you.\n\n**Notes**\n\n* The `score` method expects an input column named `context`. If your dataset uses a different name, [use the `column_map` attribute](#use-column-mapping) to map `context` to the dataset column.\n\nThe following example uses `HallucinationFreeScorer` in the context of an evaluation:\n\n```python lines theme={\"system\"}\nimport asyncio\nimport weave\nfrom weave.scorers import HallucinationFreeScorer\n\n# Initialize scorer with a column mapping if needed.\nhallucination_scorer = HallucinationFreeScorer(\n    model_id=\"openai/gpt-4o\", # or any other model supported by litellm\n    column_map={\"context\": \"input\", \"output\": \"other_col\"}\n)\n\n# Create dataset\ndataset = [\n    {\"input\": \"John likes various types of cheese.\"},\n    {\"input\": \"Pepe likes various types of cheese.\"},\n]\n\n@weave.op\ndef model(input: str) -> str:\n    return \"The person's favorite cheese is cheddar.\"\n\n# Run evaluation\nevaluation = weave.Evaluation(\n    dataset=dataset,\n    scorers=[hallucination_scorer],\n)\nresult = asyncio.run(evaluation.evaluate(model))\nprint(result)\n# Example output:\n# {'HallucinationFreeScorer': {'has_hallucination': {'true_count': 2, 'true_fraction': 1.0}}, 'model_latency': {'mean': ...}}\n```\n\n***\n\n",
+        "page_context": "# Use builtin scorers\n\n> Use Weave's predefined scorers for evaluating your AI applications\n\nWeave offers several predefined scorers for evaluating your AI applications, such as [Hallucination detection](#hallucinationfreescorer) and [Summarization quality](#summarizationscorer). These can help you quickly define an evaluation and score your application's outputs. This page describes each built-in scorer, what it measures, and how to use it in an evaluation.\n\n> [!NOTE]\n>\n> Local scorers are only available for the Weave Python SDK. They aren't yet available for the Weave TypeScript SDK.\n>\n> To use Weave scorers in TypeScript, see [function-based scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md#function-based-scorers).\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Use builtin scorers"
+          },
+          {
+            "section": 1,
+            "heading": "Installation"
+          },
+          {
+            "section": 2,
+            "heading": "`HallucinationFreeScorer`"
+          },
+          {
+            "section": 3,
+            "heading": "`SummarizationScorer`"
+          },
+          {
+            "section": 4,
+            "heading": "`OpenAIModerationScorer`"
+          },
+          {
+            "section": 5,
+            "heading": "`EmbeddingSimilarityScorer`"
+          },
+          {
+            "section": 6,
+            "heading": "`ValidJSONScorer`"
+          },
+          {
+            "section": 7,
+            "heading": "`ValidXMLScorer`"
+          },
+          {
+            "section": 8,
+            "heading": "`PydanticScorer`"
+          },
+          {
+            "section": 9,
+            "heading": "RAGAS - `ContextEntityRecallScorer`"
+          },
+          {
+            "section": 10,
+            "heading": "RAGAS - `ContextRelevancyScorer`"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/evaluation/scorers",
+            "title": "Scoring overview"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/evaluation/weave_local_scorers",
+        "section": 11
+      },
+      "result": {
+        "source_id": "S2",
+        "page_id": "guides/evaluation/weave_local_scorers",
+        "section": 11,
+        "title": "Evaluate using local scorers",
+        "heading": "Usage example",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/weave_local_scorers",
+        "page_sha256": "42c0d5f6bd5b7c6778418d2409e8d2dc5e3656fcf3ccf154ca565de4d286ada0",
+        "text": "### Usage example\n\n```python lines theme={\"system\"}\nimport weave\nfrom weave.scorers import WeaveHallucinationScorerV1\n\nhallucination_scorer = WeaveHallucinationScorerV1()\n\nresult = hallucination_scorer.score(\n    query=\"What is the capital of Antarctica?\",\n    context=\"People in Antarctica love the penguins.\",\n    output=\"While Antarctica is known for its sea life, penguins aren't liked there.\"\n)\n\nprint(f\"Output is hallucinated: {not result.passed}\")\nprint(result)\n```\n\n***\n\n",
+        "page_context": "# Evaluate using local scorers\n\n> Small language models that run locally to evaluate AI system safety and quality\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/master/weave/docs/scorers_local_weave_scorers.ipynb)\n\nWeave's local scorers are a suite of small language models that run locally on your machine with minimal latency. These models evaluate the safety and quality of your AI system's inputs, context, and outputs.\n\nThis page describes how to evaluate the safety and quality of your AI system using Weave's local scorers, and walks through each available scorer with usage notes and examples. Use this guide to choose a scorer for your use case, install the dependencies, and add scorers to your AI system's inputs, context, or outputs.\n\nWeights & Biases fine-tunes some of these models, while others are state-of-the-art open source models trained by the community. W\\&B Reports document the training and evaluation process. For the full details, see this [list of W\\&B Reports](https://forge.coreweave.com/wandb/c-metrics/weave-scorers/reports/Weave-Scorers-v1--VmlldzoxMDQ0MDE1OA).\n\nThe model weights are publicly available in W\\&B Artifacts, and Weave automatically downloads them when you instantiate the scorer class. To download them yourself, see the artifact paths in `weave.scorers.default_models`.\n\nThese scorers return an object with a `passed` boolean attribute that indicates whether the input text is safe or high quality. The object also includes a `metadata` attribute with more detail, such as the raw score from the model.\n\nYou can run local scorers on CPUs, but Weights & Biases recommends GPUs for best performance.\n\n> [!NOTE]\n>\n> Local scorers are only available for the Weave Python SDK. They aren't yet available for the Weave TypeScript SDK.\n>\n> To use Weave scorers in TypeScript, see [function-based scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md#function-based-scorers).\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Evaluate using local scorers"
+          },
+          {
+            "section": 1,
+            "heading": "Prerequisites"
+          },
+          {
+            "section": 2,
+            "heading": "Select a scorer"
+          },
+          {
+            "section": 3,
+            "heading": "`WeaveBiasScorerV1`"
+          },
+          {
+            "section": 4,
+            "heading": "Usage notes"
+          },
+          {
+            "section": 5,
+            "heading": "Usage example"
+          },
+          {
+            "section": 6,
+            "heading": "`WeaveToxicityScorerV1`"
+          },
+          {
+            "section": 7,
+            "heading": "Usage notes"
+          },
+          {
+            "section": 8,
+            "heading": "Usage example"
+          },
+          {
+            "section": 9,
+            "heading": "`WeaveHallucinationScorerV1`"
+          },
+          {
+            "section": 10,
+            "heading": "Usage notes"
+          },
+          {
+            "section": 11,
+            "heading": "Usage example"
+          },
+          {
+            "section": 12,
+            "heading": "`WeaveContextRelevanceScorerV1`"
+          },
+          {
+            "section": 13,
+            "heading": "Usage notes"
+          },
+          {
+            "section": 14,
+            "heading": "Usage example"
+          },
+          {
+            "section": 15,
+            "heading": "`WeaveCoherenceScorerV1`"
+          },
+          {
+            "section": 16,
+            "heading": "Usage notes"
+          },
+          {
+            "section": 17,
+            "heading": "Usage example"
+          },
+          {
+            "section": 18,
+            "heading": "`WeaveFluencyScorerV1`"
+          },
+          {
+            "section": 19,
+            "heading": "Usage notes"
+          },
+          {
+            "section": 20,
+            "heading": "Usage example"
+          },
+          {
+            "section": 21,
+            "heading": "`WeaveTrustScorerV1`"
+          },
+          {
+            "section": 22,
+            "heading": "Usage notes"
+          },
+          {
+            "section": 23,
+            "heading": "Usage example"
+          },
+          {
+            "section": 24,
+            "heading": "`PresidioScorer`"
+          },
+          {
+            "section": 25,
+            "heading": "Usage notes"
+          },
+          {
+            "section": 26,
+            "heading": "Usage example"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/evaluation/scorers",
+            "title": "Scoring overview"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "answer": "I can't give you an exact call for `weave.enable_hallucination_free_mode()`. I couldn't find that function in the Weave docs I searched, and nothing I read promises an agent will never hallucinate. Writing that call would mean inventing an API.\n\nWhat the docs do describe are **scorers**: checks that look at your app's output and flag possible hallucinations after it's been generated. They help you measure and catch problems, but they don't stop the model from hallucinating.\n\n- **`HallucinationFreeScorer`** (built in): checks whether your AI system's output includes hallucinations based on the input data. You can change its `system_prompt` and `user_prompt` to define what \"hallucination\" means for you. Its `score` method expects an input column named `context`, and you can use `column_map` if your data uses a different name. In the documented example it runs inside a `weave.Evaluation` and reports `has_hallucination` counts [S1].\n- **`WeaveHallucinationScorerV1`** (local scorer, Python SDK only): a small model that runs on your machine and returns a result with a `passed` flag and `metadata` [S2].\n\n```python\nimport weave\nfrom weave.scorers import WeaveHallucinationScorerV1\n\nhallucination_scorer = WeaveHallucinationScorerV1()\n\nresult = hallucination_scorer.score(\n    query=\"[USER_QUERY]\",\n    context=\"[RETRIEVED_CONTEXT]\",\n    output=\"[AGENT_OUTPUT]\",\n)\nprint(f\"Output is hallucinated: {not result.passed}\")\n```\n\nThis follows the documented example [S2]. You could check `result.passed` at runtime and return a fallback answer when it's `False`. That's my suggestion, not a documented feature. It lowers the risk of hallucinations but doesn't eliminate them, because the scorer itself can be wrong.",
+        "source_ids": [
+          "S1",
+          "S2"
+        ]
+      },
+      "result": {
+        "passed": true,
+        "issues": [],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "passed"
+      },
+      "origin": "provider_tool_call"
+    }
+  ],
+  "task_complete": true,
+  "missing_outcomes": [],
+  "completion_status": "complete",
+  "review_reason": "none",
+  "conversation_context": [],
+  "conversation_id": "2f56701e-38be-42bc-97b5-b693d852e8e2",
+  "trace_id": "b370c1af8e0b45689d0a568ba5ed466c",
+  "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/2f56701e-38be-42bc-97b5-b693d852e8e2",
+  "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+  "source_sha256": "216497c3aa9eeba6bddc26c17ffe2700255fb03bc39473c66e12289cc334efb0",
+  "prompt_sha256": "4b776798e31c498c3e1d059e048f666e122963168699f115b5deae627715157d",
+  "config_sha256": "40d8a7bacd0c2eb781964747644ff5335f6e517841b0105821b87cc0fd0b42ca",
+  "citation_contract_version": 3,
+  "verification_contract_version": 6,
+  "verify_mode": "support",
+  "cache_enabled": true,
+  "model": "claude-opus-5-5",
+  "elapsed_seconds": 18.97,
+  "metrics": {
+    "calls": [
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgW1v5sdHuVg8r3YGvdfA",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 192
+          },
+          "cache_creation_input_tokens": 192,
+          "cache_read_input_tokens": 1855,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 135,
+          "output_tokens_details": {
+            "thinking_tokens": 20
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.3623,
+        "estimated_usd": 0.004047
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgW1vFHvFRLNGvKuEmRB3",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 5816
+          },
+          "cache_creation_input_tokens": 5816,
+          "cache_read_input_tokens": 2047,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 166,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.4421,
+        "estimated_usd": 0.0328254
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgW1vRpvQQK6PdWEUerxU",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 3713
+          },
+          "cache_creation_input_tokens": 3713,
+          "cache_read_input_tokens": 7863,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 683,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 8.0366,
+        "estimated_usd": 0.0338136
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgW1w2FNcYjNRM6MZkSGy",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 10086
+          },
+          "cache_creation_input_tokens": 10086,
+          "cache_read_input_tokens": 1426,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 567,
+          "output_tokens_details": {
+            "thinking_tokens": 467
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 6.0926,
+        "estimated_usd": 0.0620712
+      }
+    ],
+    "model_calls": 4,
+    "tokens": {
+      "input_tokens": 16,
+      "output_tokens": 1551,
+      "cache_creation_input_tokens": 19807,
+      "cache_read_input_tokens": 13191
+    },
+    "total_input_tokens": 33014,
+    "estimated_usd": 0.1327572,
+    "known_estimated_usd": 0.1327572,
+    "unpriced_calls": 0,
+    "by_purpose": {
+      "planner": {
+        "calls": 3,
+        "known_estimated_usd": 0.070686
+      },
+      "verification": {
+        "calls": 1,
+        "known_estimated_usd": 0.0620712
+      }
+    },
+    "research": {
+      "searches": 2,
+      "passage_reads": 2,
+      "distinct_pages_read": 2,
+      "repeated_tool_requests": 0,
+      "drafts_submitted": 1,
+      "code_runs": 0
+    },
+    "pricing": {
+      "checked_at": "2026-10-25",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": {
+        "claude-sonnet-5-5": {
+          "input": 2,
+          "output": 10,
+          "write_5m": 2.5,
+          "write_1h": 4,
+          "read": 0.1
+        },
+        "claude-opus-5-5": {
+          "input": 4,
+          "output": 20,
+          "write_5m": 5,
+          "write_1h": 8,
+          "read": 0.2
+        }
+      }
+    },
+    "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+  },
+  "error_type": null
+}

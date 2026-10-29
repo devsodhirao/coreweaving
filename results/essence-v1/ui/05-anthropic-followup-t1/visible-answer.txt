@@ -1,0 +1,52 @@
+Since you call Anthropic directly and have no framework, instrument the loop by hand with Weave's agent tracing helpers. Each piece of your loop maps to one helper: the session is a conversation, each user request is a turn, each messages.create call is an LLM span, and each tool you run is a tool span. A span is one timed step in the trace. [S1, S2]
+
+How to set it up
+
+Turn off autopatching. When you call weave.init, pass settings={"implicitly_patch_integrations": False}. Otherwise Weave also logs each Anthropic call on its own, and every model call appears twice. [S1]
+Nest the spans. start_conversation groups turns. start_turn creates an invoke_agent span, start_llm creates a chat span, and start_tool creates an execute_tool span. In Python, all of these work as with blocks, which close the span and save its data even if an exception is raised. [S2]
+One span per step. Open a separate start_llm for every model call in the loop, and a start_tool for every tool call the model asks for. On LLM spans, use record(...) to save token usage, the response ID and the model name. On tool spans, set tool.result. [S1, S4]
+Keep your own message history. You still have to send tool results back to Claude yourself, as the docs' loop does. [S4] Tracing only groups the spans; it doesn't give the model any memory.
+import json
+import anthropic
+import weave
+
+weave.init("[YOUR-TEAM]/[YOUR-PROJECT]",
+           settings={"implicitly_patch_integrations": False})
+client = anthropic.Anthropic()
+MODEL = "[YOUR-CLAUDE-MODEL]"
+TOOLS = []  # your Anthropic tool schemas
+
+def run_tool(name, args):
+    return "[YOUR TOOL RESULT]"
+
+def run_turn(history, user_message):
+    history.append({"role": "user", "content": user_message})
+    with weave.start_turn(user_message=user_message, model=MODEL):
+        while True:
+            with weave.start_llm(model=MODEL, provider_name="anthropic") as llm:
+                resp = client.messages.create(
+                    model=MODEL, max_tokens=1024, messages=history, tools=TOOLS)
+                text = "".join(b.text for b in resp.content if b.type == "text")
+                llm.output(text)
+                llm.record(
+                    usage=weave.Usage(input_tokens=resp.usage.input_tokens,
+                                      output_tokens=resp.usage.output_tokens),
+                    response_id=resp.id, response_model=resp.model)
+            history.append({"role": "assistant", "content": resp.content})
+            tool_uses = [b for b in resp.content if b.type == "tool_use"]
+            if not tool_uses:
+                return text
+            results = []
+            for b in tool_uses:
+                with weave.start_tool(name=b.name, arguments=json.dumps(b.input),
+                                      tool_call_id=b.id) as tool:
+                    tool.result = run_tool(b.name, b.input)
+                results.append({"type": "tool_result", "tool_use_id": b.id,
+                                "content": tool.result})
+            history.append({"role": "user", "content": results})
+
+with weave.start_conversation(agent_name="[YOUR-AGENT-NAME]"):
+    history = []
+    print(run_turn(history, "[USER QUESTION]"))
+
+The Weave calls follow the docs. [S1, S4] The Anthropic parts (tool_use and tool_result blocks, the while loop) are my adaptation of the docs' OpenAI example, and I haven't run this code. When it runs, each turn should appear in the Agents view with its model calls and tool calls nested inside it. [S1]
