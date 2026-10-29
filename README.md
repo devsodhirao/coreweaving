@@ -2,7 +2,7 @@
 
 A conversational assistant for complex Weave documentation questions. It chooses when to search, read another page, run a small Python example or propose an answer; remembers follow-ups; and checks the answer against its sources and the original question. The assignment’s **agent tracing, online Signals and `weave.Evaluation` with 13 varied cases and an LLM judge** are implemented.
 
-[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving) · [Code map](docs/CODE_MAP.md) · [Evaluation design](docs/EVALUATION_DESIGN.md) · [Evidence index](results/README.md)
+[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving) · [Progress](docs/PROGRESS.md) · [Code map](docs/CODE_MAP.md) · [Evaluation design](docs/EVALUATION_DESIGN.md) · [Evidence index](results/README.md)
 
 ![The local assistant](docs/images/app-start.png)
 

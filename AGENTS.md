@@ -6,6 +6,8 @@
 4. [Evidence index](results/README.md): choose records by runtime and instrument identity.
 5. [Behavior contract](docs/BEHAVIOR_CONTRACT.md) and [versioning](docs/VERSIONING.md): permissions, memory and change boundaries.
 
+Keep [Progress](docs/PROGRESS.md) current after meaningful implementation or validation work: update status and next actions, add a dated evidence-linked entry, and separate completed, proposed and blocked work. Documentation edits alone do not change measured runtime results. Keep personal interview notes outside Git.
+
 ## Evidence rules
 
 - Preserve the original submission tag, completed result files and prior scores. Current runtime and rubric belong together; a documentation edit does not create a new quality measurement.
