@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "checked_at": "2026-10-29T07:36:03.123546+00:00",
+  "scope": "Read-only audit of implementation, tests, saved local turns and one existing Weave conversation. No model calls, tracing initialization, feedback, telemetry replay, or remote writes.",
+  "local_scan": {
+    "unique_turn_receipts_scanned": 434,
+    "essence_unique_turn_receipts_scanned_at_start": 58,
+    "method": "Deduplicate trace_id or answer_id across actual answer+metrics records, including output.turns. Threshold counts only selected candidates; they do not themselves prove the branch.",
+    "essence_candidates_reaching_default_10_planner_calls_or_18_research_dispatches": 0,
+    "historical_candidates": 2,
+    "limitation": "This is a search of locally retained receipts, not every historical execution; subsequent current regression receipts may have arrived while the review was running."
+  },
+  "implementation": {
+    "source": "src/coreweaving/agent.py:635-665",
+    "condition": "remaining planning calls <= 1 or research_count >= max_tools",
+    "effect": "The next planner request exposes only submit_answer; deterministic dispatch guards also reject research.",
+    "introduced_commit": "f4c761876f7c04cd5706aff486f53d70c9460beb",
+    "fake_tests": [
+      "tests/test_agent.py:977",
+      "tests/test_agent.py:1017"
+    ],
+    "test_scope": "Fake-model tests assert the exact tools list and accepted/rejected outcomes; they do not prove live-model behavior."
+  },
+  "remote_read": {
+    "query": {
+      "conversation_id": "1af70807-aad1-403e-bcce-11a7228f10cf",
+      "returned": 33,
+      "total_count": 33,
+      "complete": true
+    },
+    "trace_id": "a5c289fc3c86a76954e2208ead35de22",
+    "conversation_id": "1af70807-aad1-403e-bcce-11a7228f10cf",
+    "planner_span_id": "a6ab2f3f811b7a79",
+    "matching_planner_spans": 1,
+    "response_id": "msg_011CgVmD3naiCWWdGRQhPeZo",
+    "runtime_commit": "fe4b7b5ea5fe1b661945a7129cc9d8a29f6565ba",
+    "source_sha256": "860e9ee6c1134ca44ed04ac9dd22103e2c8acfe5f64fe40a0969941034af53ff",
+    "branch_evidence": [
+      {
+        "field": "input_messages",
+        "container_sha256": "7b4bb3a2d172b229f8d843a6365d80bf06ed8bbdd2c3566f5d4831f3044ed682",
+        "recorded_budget": {
+          "planning_calls_including_this": 3,
+          "research_dispatches": 0,
+          "draft_attempts": 2,
+          "research_open": false
+        },
+        "normalized_excerpt": "Application-owned remaining budget: {\"planning_calls_including_this\": 3, \"research_dispatches\": 0, \"draft_attempts\": 2, \"research_open\": false}",
+        "normalization": "Values read from the final application-owned input message; JSON transport escaping removed for readability."
+      },
+      {
+        "field": "raw_span_dump",
+        "container_sha256": "f90ccac5cca9eb8961d8090119faf5e382ab07f708aeb8c5f33a589763f7804a",
+        "recorded_budget": {
+          "planning_calls_including_this": 3,
+          "research_dispatches": 0,
+          "draft_attempts": 2,
+          "research_open": false
+        },
+        "normalized_excerpt": "Application-owned remaining budget: {\"planning_calls_including_this\": 3, \"research_dispatches\": 0, \"draft_attempts\": 2, \"research_open\": false}",
+        "normalization": "Values read from the final application-owned input message; JSON transport escaping removed for readability."
+      }
+    ],
+    "prior_delivery_check": "results/claude-product-baseline-v1/backend-readback.json: matching provider response IDs, saved answer hash, native usage, tool origins/arguments and completed spans all passed for this trace."
+  },
+  "saved_result": {
+    "path": "results/claude-product-baseline-v1/coreweaving/01-overview-t1/result.json",
+    "sha256": "c8681dac1783021d831545479dacbca893e8a3cfe07176ae1e3a04a3a17054fa",
+    "completion_status": "complete",
+    "verification_passed": true,
+    "recovery_attempted": false,
+    "full_recheck_attempted": false,
+    "review": "results/claude-product-baseline-v1/reviews/review-overview.json",
+    "review_outcome": "Useful supported overview; 2/3 frozen outcomes. Explicitly left LLM-judge Signal timing unresolved, so not a full benchmark pass.",
+    "last_action": {
+      "tool": "submit_answer",
+      "origin": "provider_tool_call",
+      "verification_passed": true
+    }
+  },
+  "interpretation": {
+    "real_reduced_tool_branch": "Confirmed by recorded planner input research_open=false, research_dispatches=0 and the frozen fe4b7b5 source selecting only submit_answer in that branch. This was the research-budget branch, with 3 planner calls left, not the last-planner-slot branch.",
+    "provider_tool_payload_directly_recorded": false,
+    "causal_benefit": "Untested. No same-question matched run with the switch disabled; completion after a switch does not establish that the switch rescued or improved the answer.",
+    "current_runtime": "Unit-tested implementation retained; no branch-reaching current essence receipt found in the bounded local scan.",
+    "final_planner_slot_specifically": "Not established by this historical example or the bounded current receipt scan."
+  },
+  "limitations": [
+    "The LLM span records input/output messages, response ID and usage, but does not explicitly store the supplied tool schemas. Branch activation can be inferred from the exact recorded control hint plus the frozen source; this is not a captured provider HTTP request.",
+    "The reviewed historical answer remains incomplete against its frozen timing criterion.",
+    "A second earlier candidate on f4c7618 (trace 5d38636825c8d635811a7e6275738e9a) was reviewed 3/3 but its raw planner input was not queried in this bounded read."
+  ]
+}

@@ -2,7 +2,7 @@
 
 The [13 questions](../evals/cases.json) test useful documentation tasks: setup, multi-page synthesis, ambiguity, follow-ups, execution and false premises. The [48 assertions](../evals/regression-assertions.json) define required outcomes against the frozen [documentation manifest](../data/docs/manifest.json). References go to the offline judge, not the agent.
 
-**Current validation:** runtime `522c320`, verification contract 6. The unchanged regression records 11 passes, an initialization omission and a case blocked by exhausted API credit; 44/48 planned assertions passed, one failed and three were ungraded. After funding resumed, the browser replay passed 17/18 frozen checks; all six literal requests were fulfilled in review. The [current packet](../results/essence-v2/README.md) separates this from the first simplified pass and earlier successful runs.
+**Current runtime:** `522c320`, verification contract 6. [Progress](PROGRESS.md) tracks completed work and remaining gaps; the [validation packet](../results/essence-v2/README.md) separates original runs, the operational retry and independent review.
 
 **Historical result: 13/13 cases, 48/48 assertions** on runtime `3a49a50`, rubric `2.3-task-aligned-assertions`. This is a reused development suite: its failures informed repairs. A green run demonstrates those recorded outcomes, not general reliability or superiority over another assistant. The later runtime `dfdb6bd` also reached 13/13 and scored 17/18 frozen browser criteria. Neither result describes contract 6. [Original run](../results/brief-final-regression-v1/summary.json) · [Manual answer audit](../results/brief-e2e-v1/final-answer-review.json) · [Later historical packet](../results/product-final-v1/README.md)
 
@@ -50,7 +50,7 @@ These judgments compare the questions with the frozen sources. Required behavior
 | Case | Valid expectation and qualification |
 | --- | --- |
 | 01 — Initialize Weave | Explain authentication, project routing and initialization order. |
-| 02 — Calls versus Agents | Explain the conversation → turn → LLM/tool relationship. The historical `3a49a50` review found generous grading of implicit nesting; that pass remains visible alongside the disagreement. Current `522c320` case 02 is billing-blocked, with quality unassessed. |
+| 02 — Calls versus Agents | Explain the conversation → turn → LLM/tool relationship. The historical `3a49a50` review found generous grading of implicit nesting; that pass remains visible alongside the disagreement. The `522c320` retry answers the literal question usefully, but its judge again accepts implicit LLM/tool nesting. [Independent review](../results/essence-v2/regression-resumption-review.json) disputes that assertion pass; the recorded grade stays unchanged. |
 | 03 — Trace and add a Signal | Include conversation identity, turn instrumentation and required Signal fields. Two optional demands were corrected below. |
 | 04 — Map dataset columns | Address model-input preprocessing and scorer mappings; accept equivalent adapters. |
 | 05 — Evaluation versus monitoring | Explain why both help and how to restrict Signal scoring; this question explicitly requests those controls. |
