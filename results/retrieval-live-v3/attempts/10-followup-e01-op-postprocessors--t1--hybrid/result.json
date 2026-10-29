@@ -1,0 +1,4362 @@
+{
+  "answer_id": "6631998d-716a-4f24-9b9a-3eeedb8ab5e8",
+  "question": "I am adding postprocess_inputs and postprocess_output to a Python @weave.op. What types go into and out of each hook, and which representation is saved in the trace?",
+  "answer": "`postprocess_inputs` takes a dict of the call's arguments and returns a dict. `postprocess_output` takes whatever your function returns and returns a changed version of that value. The trace saves the changed versions, not the raw ones.\n\n**`postprocess_inputs`**\n- **Receives:** a dict mapping each argument name to its value (`dict[str, Any]`) [S1].\n- **Returns:** a dict of the changed inputs, for example with a sensitive argument removed [S1].\n\n**`postprocess_output`**\n- **Receives:** whatever your function would normally return. The docs example uses a dataclass called `CustomObject` [S1].\n- **Returns:** the changed output. The example returns a new `CustomObject` with `secret_password=\"REDACTED\"`, so the type stays the same [S1].\n\n**What the trace saves**\n- Both hooks change the inputs and output \"before logging\" [S2]. They let you change what Weave logs without editing the original function, for example to hide sensitive data [S1]. So the trace stores what the hooks return.\n- My reading (the docs don't say this outright): because the hooks only affect logging, your function still receives the original arguments, and callers still get the original return value.\n- If you also pass `postprocess_inputs` / `postprocess_output` to `weave.init`, those apply to every op that client traces. They run after each op's own hooks, so the saved trace reflects both steps in that order [S3].\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: Any) -> Any:\n    return \"REDACTED\"  # replace with your own transformation\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature is Python-only for now. It isn't available in TypeScript yet [S1].",
+  "kind": "answer",
+  "source_ids": [
+    "S1",
+    "S2",
+    "S3"
+  ],
+  "sources": [
+    {
+      "source_id": "S1",
+      "page_id": "guides/tracking/ops",
+      "section": 3,
+      "title": "Customize Ops",
+      "heading": "Customize logged inputs and outputs",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+      "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+      "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: str\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=hide_me)\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+      "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Customize Ops"
+        },
+        {
+          "section": 1,
+          "heading": "Customize display names"
+        },
+        {
+          "section": 2,
+          "heading": "Apply kinds and colors"
+        },
+        {
+          "section": 3,
+          "heading": "Customize logged inputs and outputs"
+        },
+        {
+          "section": 4,
+          "heading": "Control sampling rate"
+        },
+        {
+          "section": 5,
+          "heading": "Control Call link output"
+        },
+        {
+          "section": 6,
+          "heading": "Delete an Op"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "reference/python-sdk/trace/op",
+      "section": 19,
+      "title": "op",
+      "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+      "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+      "page_sha256": "4677e9143e450d3790b2b1ef6604722e653fa4109522da4875ac8a93beedc5d8",
+      "text": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than batched.  Useful for long-running operations like evaluations that should  be visible in the UI immediately.\n\n**Args:**\n\n* **`d`**: Optional existing WeaveKwargs dict to update.\n* **`op`**: Op to extract kind and color from.\n\n**Returns:**\nWeaveKwargs dict with attributes, display\\_name, and optionally kind/color set.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L422)\n\n",
+      "page_context": "# op\n\n> Python SDK reference for weave.trace.op\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "op"
+        },
+        {
+          "section": 1,
+          "heading": "API Overview"
+        },
+        {
+          "section": 2,
+          "heading": "<kbd>class</kbd> `DisplayNameFuncError`"
+        },
+        {
+          "section": 3,
+          "heading": "<kbd>class</kbd> `OpCallError`"
+        },
+        {
+          "section": 4,
+          "heading": "<kbd>class</kbd> `OpKwargs`"
+        },
+        {
+          "section": 5,
+          "heading": "<kbd>class</kbd> `Sentinel`"
+        },
+        {
+          "section": 6,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 7,
+          "heading": "<kbd>class</kbd> `WeaveKwargs`"
+        },
+        {
+          "section": 8,
+          "heading": "<kbd>function</kbd> `as_op`"
+        },
+        {
+          "section": 9,
+          "heading": "<kbd>function</kbd> `call`"
+        },
+        {
+          "section": 10,
+          "heading": "<kbd>function</kbd> `calls`"
+        },
+        {
+          "section": 11,
+          "heading": "<kbd>function</kbd> `get_captured_code`"
+        },
+        {
+          "section": 12,
+          "heading": "<kbd>function</kbd> `is_op`"
+        },
+        {
+          "section": 13,
+          "heading": "<kbd>function</kbd> `is_placeholder_call`"
+        },
+        {
+          "section": 14,
+          "heading": "<kbd>function</kbd> `is_tracing_setting_disabled`"
+        },
+        {
+          "section": 15,
+          "heading": "<kbd>function</kbd> `maybe_bind_method`"
+        },
+        {
+          "section": 16,
+          "heading": "<kbd>function</kbd> `maybe_unbind_method`"
+        },
+        {
+          "section": 17,
+          "heading": "<kbd>function</kbd> `op`"
+        },
+        {
+          "section": 18,
+          "heading": "<kbd>function</kbd> `placeholder_call`"
+        },
+        {
+          "section": 19,
+          "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`"
+        },
+        {
+          "section": 20,
+          "heading": "<kbd>function</kbd> `should_skip_tracing_for_op`"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "reference/python-sdk",
+      "section": 269,
+      "title": "weave",
+      "heading": "<kbd>function</kbd> `init`",
+      "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+      "page_sha256": "458bbcdb9cd103df8921fe985c50079ed7db53b5fad7a5077de2ab9f2c667d2d",
+      "text": "### <kbd>function</kbd> `init`\n\n```python theme={\"system\"}\ninit(\n    project_name: 'str',\n    settings: 'UserSettings | dict[str, Any] | None' = None,\n    autopatch_settings: 'AutopatchSettings | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    global_postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    global_postprocess_output: 'PostprocessOutputFunc | None' = None,\n    global_attributes: 'dict[str, Any] | None' = None\n) \u2192 WeaveClient\n```\n\nInitialize weave tracking, logging to a wandb project.\n\nLogging is initialized globally, so you do not need to keep a reference to the return value of init.\n\nFollowing init, calls of weave.op decorated functions will be logged to the specified project.\n\n**Args:**\n\nNOTE: Client-level postprocessing runs after each op's own postprocessing. The order is always: 1. Op-specific postprocessing 2. Client-level postprocessing\n\n* **`project_name`**: The name of the Weights & Biases team and project to log to. If you don't  specify a team, your default entity is used. To find or update your default entity, refer to [User settings](https://docs.coreweave.com/products/wandb/platform/app/settings-page/user-settings.md#default-team) in the W\\&B documentation.\n* **`settings`**: Configuration for the Weave client generally. Can be a UserSettings instance or a dict  with any of the following keys (all optional). All settings can also be configured  via environment variables using the prefix WEAVE\\_ (e.g., WEAVE\\_DISABLED=true).  Available settings: - `disabled` (bool): Disables traces on all functions. Default: `False` - `print_call_link` (bool): Prints links in terminal to Weave UI for ops. Default: `True` - `log_level` (str): Sets what type of information to log (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). Default: `INFO` - `display_viewer` (str): Controls how Weave displays objects in the console (`auto`, `rich`, `print`). Default: `auto` - `capture_code` (bool): Captures code of traced ops to your Weave project. Default: `True` - `implicitly_patch_integrations` (bool): Auto-patches supported libraries. Default: `True` - `redact_pii` (bool): Scans all trace data for sensitive information,  like emails, phone numbers, and credit cards, and replaces them with placeholder values  before sending to the server. Requires presidio-analyzer and presidio-anonymizer packages.\n* **`Default`**: `False` - `redact_pii_fields` (list\\[str]): Specifies which PII entity types to redact when `redact_pii` is True. If empty, uses Presidio's default set. Examples  \\['EMAIL','PHONE\\_NUMBER','CREDIT\\_CARD','US\\_SSN']. See full list at  [https://microsoft.github.io/presidio/supported\\_entities/](https://microsoft.github.io/presidio/supported_entities/)\n* **`Default`**: `[]` - `redact_pii_exclude_fields` (list\\[str]): PII entity types to exclude. Default: `[]` - `capture_client_info` (bool): Captures Python/SDK version info. Default: `True` - `capture_system_info` (bool): Captures OS information. Default: `True` - `client_parallelism` (int): Number of workers for background ops. Default: `auto` - `use_server_cache` (bool): Enables local disk caching of server responses. - `server_cache_size_limit` (int): Cache size limit in bytes. Default: `1_000_000_000` - `server_cache_dir` (str): Directory for server cache. Default: `temporary` - `scorers_dir` (str): Directory for scorer model checkpoints. Default: `~/.cache/wandb/weave-scorers` - `max_calls_queue_size` (int): Maximum queue size (0 = unbounded). Default: `100_000` - `retry_max_interval` (float): Maximum retry interval in seconds. Default: `300` - `retry_max_attempts` (int): Maximum number of retries. Default: `3` - `enable_disk_fallback` (bool): Writes dropped items to disk. Default: `True` - `use_parallel_table_upload` (bool): Enables parallel chunked upload for large tables. If False, tables are uploaded sequentially in smaller chunks.\n* **`Default`**: `True` - `http_timeout` (float): Maximum time in seconds to wait for HTTP requests to complete. This includes connection time, data transfer, and server processing. Increase for slow networks or when working with large payloads.\n* **`Default`**: `30.0` - `use_stainless_server` (bool): Uses the Stainless-generated HTTP client which provides better type safety, automatic retries, and improved error handling. This is experimental and may become the default in future versions.\n* **`Default`**: `False` - `use_calls_complete` (bool): Uses an optimized write path that batches complete call data (start and end) into a single request instead of separate start/end requests. This reduces server load and improves performance, especially for short-lived ops.\n* **`Default`**: `True` - `use_otel_v2`: (bool): Routes OTel-capable integrations through their OTel variant.\n* **`Default`**: `True`\n* **`autopatch_settings`**: (Deprecated) Configuration for autopatch integrations. Use explicit patching instead.\n* **`postprocess_inputs`**: A function applied to the inputs of every op traced by this client.\n* **`postprocess_output`**: A function applied to the output of every op traced by this client.\n* **`attributes`**: A dictionary of attributes applied to every trace produced by this client.\n\n**Returns:**\nA Weave client.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/api.py#L409)\n\n",
+      "page_context": "# weave\n\n> Python SDK reference for weave\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "weave"
+        },
+        {
+          "section": 1,
+          "heading": "API Overview"
+        },
+        {
+          "section": 2,
+          "heading": "<kbd>class</kbd> `Agent`"
+        },
+        {
+          "section": 3,
+          "heading": "<kbd>method</kbd> `step`"
+        },
+        {
+          "section": 4,
+          "heading": "<kbd>class</kbd> `AgentState`"
+        },
+        {
+          "section": 5,
+          "heading": "<kbd>class</kbd> `AnnotationSpec`"
+        },
+        {
+          "section": 6,
+          "heading": "<kbd>classmethod</kbd> `preprocess_field_schema`"
+        },
+        {
+          "section": 7,
+          "heading": "<kbd>classmethod</kbd> `validate_field_schema`"
+        },
+        {
+          "section": 8,
+          "heading": "<kbd>method</kbd> `value_is_valid`"
+        },
+        {
+          "section": 9,
+          "heading": "<kbd>class</kbd> `Audio`"
+        },
+        {
+          "section": 10,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 11,
+          "heading": "<kbd>method</kbd> `export`"
+        },
+        {
+          "section": 12,
+          "heading": "<kbd>classmethod</kbd> `from_data`"
+        },
+        {
+          "section": 13,
+          "heading": "<kbd>classmethod</kbd> `from_path`"
+        },
+        {
+          "section": 14,
+          "heading": "<kbd>class</kbd> `ClassifierMonitor`"
+        },
+        {
+          "section": 15,
+          "heading": "<kbd>method</kbd> `activate`"
+        },
+        {
+          "section": 16,
+          "heading": "<kbd>method</kbd> `deactivate`"
+        },
+        {
+          "section": 17,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 18,
+          "heading": "<kbd>method</kbd> `get_prompt_footer`"
+        },
+        {
+          "section": 19,
+          "heading": "<kbd>method</kbd> `get_prompt_header`"
+        },
+        {
+          "section": 20,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 21,
+          "heading": "<kbd>class</kbd> `Content`"
+        },
+        {
+          "section": 22,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 23,
+          "heading": "<kbd>property</kbd> art"
+        },
+        {
+          "section": 24,
+          "heading": "<kbd>property</kbd> ref"
+        },
+        {
+          "section": 25,
+          "heading": "<kbd>method</kbd> `as_string`"
+        },
+        {
+          "section": 26,
+          "heading": "<kbd>classmethod</kbd> `from_base64`"
+        },
+        {
+          "section": 27,
+          "heading": "<kbd>classmethod</kbd> `from_bytes`"
+        },
+        {
+          "section": 28,
+          "heading": "<kbd>classmethod</kbd> `from_data_url`"
+        },
+        {
+          "section": 29,
+          "heading": "<kbd>classmethod</kbd> `from_path`"
+        },
+        {
+          "section": 30,
+          "heading": "<kbd>classmethod</kbd> `from_text`"
+        },
+        {
+          "section": 31,
+          "heading": "<kbd>classmethod</kbd> `from_url`"
+        },
+        {
+          "section": 32,
+          "heading": "<kbd>classmethod</kbd> `model_validate`"
+        },
+        {
+          "section": 33,
+          "heading": "<kbd>classmethod</kbd> `model_validate_json`"
+        },
+        {
+          "section": 34,
+          "heading": "<kbd>method</kbd> `open`"
+        },
+        {
+          "section": 35,
+          "heading": "<kbd>method</kbd> `save`"
+        },
+        {
+          "section": 36,
+          "heading": "<kbd>method</kbd> `serialize_data`"
+        },
+        {
+          "section": 37,
+          "heading": "<kbd>method</kbd> `to_data_url`"
+        },
+        {
+          "section": 38,
+          "heading": "<kbd>class</kbd> `Conversation`"
+        },
+        {
+          "section": 39,
+          "heading": "<kbd>method</kbd> `end`"
+        },
+        {
+          "section": 40,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 41,
+          "heading": "<kbd>method</kbd> `start_turn`"
+        },
+        {
+          "section": 42,
+          "heading": "<kbd>class</kbd> `Dataset`"
+        },
+        {
+          "section": 43,
+          "heading": "<kbd>method</kbd> `add_rows`"
+        },
+        {
+          "section": 44,
+          "heading": "<kbd>classmethod</kbd> `convert_to_table`"
+        },
+        {
+          "section": 45,
+          "heading": "<kbd>classmethod</kbd> `from_calls`"
+        },
+        {
+          "section": 46,
+          "heading": "<kbd>classmethod</kbd> `from_hf`"
+        },
+        {
+          "section": 47,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 48,
+          "heading": "<kbd>classmethod</kbd> `from_pandas`"
+        },
+        {
+          "section": 49,
+          "heading": "<kbd>method</kbd> `select`"
+        },
+        {
+          "section": 50,
+          "heading": "<kbd>method</kbd> `to_hf`"
+        },
+        {
+          "section": 51,
+          "heading": "<kbd>method</kbd> `to_pandas`"
+        },
+        {
+          "section": 52,
+          "heading": "<kbd>class</kbd> `EasyPrompt`"
+        },
+        {
+          "section": 53,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 54,
+          "heading": "<kbd>property</kbd> as\\_str"
+        },
+        {
+          "section": 55,
+          "heading": "<kbd>property</kbd> is\\_bound"
+        },
+        {
+          "section": 56,
+          "heading": "<kbd>property</kbd> messages"
+        },
+        {
+          "section": 57,
+          "heading": "<kbd>property</kbd> placeholders"
+        },
+        {
+          "section": 58,
+          "heading": "<kbd>property</kbd> system\\_message"
+        },
+        {
+          "section": 59,
+          "heading": "<kbd>property</kbd> system\\_prompt"
+        },
+        {
+          "section": 60,
+          "heading": "<kbd>property</kbd> unbound\\_placeholders"
+        },
+        {
+          "section": 61,
+          "heading": "<kbd>method</kbd> `append`"
+        },
+        {
+          "section": 62,
+          "heading": "<kbd>method</kbd> `as_dict`"
+        },
+        {
+          "section": 63,
+          "heading": "<kbd>method</kbd> `as_pydantic_dict`"
+        },
+        {
+          "section": 64,
+          "heading": "<kbd>method</kbd> `bind`"
+        },
+        {
+          "section": 65,
+          "heading": "<kbd>method</kbd> `bind_rows`"
+        },
+        {
+          "section": 66,
+          "heading": "<kbd>method</kbd> `config_table`"
+        },
+        {
+          "section": 67,
+          "heading": "<kbd>method</kbd> `configure`"
+        },
+        {
+          "section": 68,
+          "heading": "<kbd>method</kbd> `dump`"
+        },
+        {
+          "section": 69,
+          "heading": "<kbd>method</kbd> `dump_file`"
+        },
+        {
+          "section": 70,
+          "heading": "<kbd>method</kbd> `format`"
+        },
+        {
+          "section": 71,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 72,
+          "heading": "<kbd>classmethod</kbd> `load`"
+        },
+        {
+          "section": 73,
+          "heading": "<kbd>classmethod</kbd> `load_file`"
+        },
+        {
+          "section": 74,
+          "heading": "<kbd>method</kbd> `messages_table`"
+        },
+        {
+          "section": 75,
+          "heading": "<kbd>method</kbd> `print`"
+        },
+        {
+          "section": 76,
+          "heading": "<kbd>method</kbd> `publish`"
+        },
+        {
+          "section": 77,
+          "heading": "<kbd>method</kbd> `require`"
+        },
+        {
+          "section": 78,
+          "heading": "<kbd>method</kbd> `run`"
+        },
+        {
+          "section": 79,
+          "heading": "<kbd>method</kbd> `validate_requirement`"
+        },
+        {
+          "section": 80,
+          "heading": "<kbd>method</kbd> `validate_requirements`"
+        },
+        {
+          "section": 81,
+          "heading": "<kbd>method</kbd> `values_table`"
+        },
+        {
+          "section": 82,
+          "heading": "<kbd>class</kbd> `Evaluation`"
+        },
+        {
+          "section": 83,
+          "heading": "<kbd>method</kbd> `evaluate`"
+        },
+        {
+          "section": 84,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 85,
+          "heading": "<kbd>method</kbd> `get_eval_results`"
+        },
+        {
+          "section": 86,
+          "heading": "<kbd>method</kbd> `get_evaluate_calls`"
+        },
+        {
+          "section": 87,
+          "heading": "<kbd>method</kbd> `get_score_calls`"
+        },
+        {
+          "section": 88,
+          "heading": "<kbd>method</kbd> `get_scores`"
+        },
+        {
+          "section": 89,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 90,
+          "heading": "<kbd>method</kbd> `predict_and_score`"
+        },
+        {
+          "section": 91,
+          "heading": "<kbd>method</kbd> `summarize`"
+        },
+        {
+          "section": 92,
+          "heading": "<kbd>class</kbd> `EvaluationLogger`"
+        },
+        {
+          "section": 93,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 94,
+          "heading": "<kbd>property</kbd> attributes"
+        },
+        {
+          "section": 95,
+          "heading": "<kbd>property</kbd> ui\\_url"
+        },
+        {
+          "section": 96,
+          "heading": "<kbd>method</kbd> `fail`"
+        },
+        {
+          "section": 97,
+          "heading": "<kbd>method</kbd> `finish`"
+        },
+        {
+          "section": 98,
+          "heading": "<kbd>method</kbd> `log_example`"
+        },
+        {
+          "section": 99,
+          "heading": "<kbd>method</kbd> `log_prediction`"
+        },
+        {
+          "section": 100,
+          "heading": "<kbd>method</kbd> `log_summary`"
+        },
+        {
+          "section": 101,
+          "heading": "<kbd>method</kbd> `set_view`"
+        },
+        {
+          "section": 102,
+          "heading": "<kbd>class</kbd> `File`"
+        },
+        {
+          "section": 103,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 104,
+          "heading": "<kbd>property</kbd> filename"
+        },
+        {
+          "section": 105,
+          "heading": "<kbd>method</kbd> `open`"
+        },
+        {
+          "section": 106,
+          "heading": "<kbd>method</kbd> `save`"
+        },
+        {
+          "section": 107,
+          "heading": "<kbd>class</kbd> `LLM`"
+        },
+        {
+          "section": 108,
+          "heading": "<kbd>method</kbd> `add_event`"
+        },
+        {
+          "section": 109,
+          "heading": "<kbd>method</kbd> `attach_media`"
+        },
+        {
+          "section": 110,
+          "heading": "<kbd>method</kbd> `attach_media_url`"
+        },
+        {
+          "section": 111,
+          "heading": "<kbd>method</kbd> `end`"
+        },
+        {
+          "section": 112,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 113,
+          "heading": "<kbd>method</kbd> `output`"
+        },
+        {
+          "section": 114,
+          "heading": "<kbd>method</kbd> `record`"
+        },
+        {
+          "section": 115,
+          "heading": "<kbd>method</kbd> `set_attributes`"
+        },
+        {
+          "section": 116,
+          "heading": "<kbd>method</kbd> `think`"
+        },
+        {
+          "section": 117,
+          "heading": "<kbd>class</kbd> `LogResult`"
+        },
+        {
+          "section": 118,
+          "heading": "<kbd>class</kbd> `Markdown`"
+        },
+        {
+          "section": 119,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 120,
+          "heading": "<kbd>class</kbd> `MediaAttachment`"
+        },
+        {
+          "section": 121,
+          "heading": "<kbd>class</kbd> `Message`"
+        },
+        {
+          "section": 122,
+          "heading": "<kbd>classmethod</kbd> `assistant`"
+        },
+        {
+          "section": 123,
+          "heading": "<kbd>classmethod</kbd> `system`"
+        },
+        {
+          "section": 124,
+          "heading": "<kbd>classmethod</kbd> `tool_result`"
+        },
+        {
+          "section": 125,
+          "heading": "<kbd>classmethod</kbd> `user`"
+        },
+        {
+          "section": 126,
+          "heading": "<kbd>class</kbd> `MessagesPrompt`"
+        },
+        {
+          "section": 127,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 128,
+          "heading": "<kbd>method</kbd> `format`"
+        },
+        {
+          "section": 129,
+          "heading": "<kbd>method</kbd> `format_message`"
+        },
+        {
+          "section": 130,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 131,
+          "heading": "<kbd>class</kbd> `Model`"
+        },
+        {
+          "section": 132,
+          "heading": "<kbd>method</kbd> `get_infer_method`"
+        },
+        {
+          "section": 133,
+          "heading": "<kbd>class</kbd> `Monitor`"
+        },
+        {
+          "section": 134,
+          "heading": "<kbd>method</kbd> `activate`"
+        },
+        {
+          "section": 135,
+          "heading": "<kbd>method</kbd> `deactivate`"
+        },
+        {
+          "section": 136,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 137,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 138,
+          "heading": "<kbd>class</kbd> `Object`"
+        },
+        {
+          "section": 139,
+          "heading": "<kbd>classmethod</kbd> `from_uri`"
+        },
+        {
+          "section": 140,
+          "heading": "<kbd>classmethod</kbd> `handle_relocatable_object`"
+        },
+        {
+          "section": 141,
+          "heading": "<kbd>classmethod</kbd> `strip_weave_serialization_metadata`"
+        },
+        {
+          "section": 142,
+          "heading": "<kbd>class</kbd> `ObjectRef`"
+        },
+        {
+          "section": 143,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 144,
+          "heading": "<kbd>property</kbd> digest"
+        },
+        {
+          "section": 145,
+          "heading": "<kbd>property</kbd> extra"
+        },
+        {
+          "section": 146,
+          "heading": "<kbd>property</kbd> is\\_digest\\_resolved"
+        },
+        {
+          "section": 147,
+          "heading": "<kbd>method</kbd> `as_param_dict`"
+        },
+        {
+          "section": 148,
+          "heading": "<kbd>method</kbd> `delete`"
+        },
+        {
+          "section": 149,
+          "heading": "<kbd>method</kbd> `get`"
+        },
+        {
+          "section": 150,
+          "heading": "<kbd>method</kbd> `is_descended_from`"
+        },
+        {
+          "section": 151,
+          "heading": "<kbd>method</kbd> `maybe_parse_uri`"
+        },
+        {
+          "section": 152,
+          "heading": "<kbd>method</kbd> `parse_uri`"
+        },
+        {
+          "section": 153,
+          "heading": "<kbd>method</kbd> `with_attr`"
+        },
+        {
+          "section": 154,
+          "heading": "<kbd>method</kbd> `with_extra`"
+        },
+        {
+          "section": 155,
+          "heading": "<kbd>method</kbd> `with_index`"
+        },
+        {
+          "section": 156,
+          "heading": "<kbd>method</kbd> `with_item`"
+        },
+        {
+          "section": 157,
+          "heading": "<kbd>method</kbd> `with_key`"
+        },
+        {
+          "section": 158,
+          "heading": "<kbd>class</kbd> `Prompt`"
+        },
+        {
+          "section": 159,
+          "heading": "<kbd>method</kbd> `format`"
+        },
+        {
+          "section": 160,
+          "heading": "<kbd>class</kbd> `SavedView`"
+        },
+        {
+          "section": 161,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 162,
+          "heading": "<kbd>property</kbd> entity"
+        },
+        {
+          "section": 163,
+          "heading": "<kbd>property</kbd> label"
+        },
+        {
+          "section": 164,
+          "heading": "<kbd>property</kbd> project"
+        },
+        {
+          "section": 165,
+          "heading": "<kbd>property</kbd> view\\_type"
+        },
+        {
+          "section": 166,
+          "heading": "<kbd>method</kbd> `add_column`"
+        },
+        {
+          "section": 167,
+          "heading": "<kbd>method</kbd> `add_columns`"
+        },
+        {
+          "section": 168,
+          "heading": "<kbd>method</kbd> `add_filter`"
+        },
+        {
+          "section": 169,
+          "heading": "<kbd>method</kbd> `add_sort`"
+        },
+        {
+          "section": 170,
+          "heading": "<kbd>method</kbd> `column_index`"
+        },
+        {
+          "section": 171,
+          "heading": "<kbd>method</kbd> `filter_op`"
+        },
+        {
+          "section": 172,
+          "heading": "<kbd>method</kbd> `get_calls`"
+        },
+        {
+          "section": 173,
+          "heading": "<kbd>method</kbd> `get_known_columns`"
+        },
+        {
+          "section": 174,
+          "heading": "<kbd>method</kbd> `get_table_columns`"
+        },
+        {
+          "section": 175,
+          "heading": "<kbd>method</kbd> `hide_column`"
+        },
+        {
+          "section": 176,
+          "heading": "<kbd>method</kbd> `insert_column`"
+        },
+        {
+          "section": 177,
+          "heading": "<kbd>classmethod</kbd> `load`"
+        },
+        {
+          "section": 178,
+          "heading": "<kbd>method</kbd> `page_size`"
+        },
+        {
+          "section": 179,
+          "heading": "<kbd>method</kbd> `pin_column_left`"
+        },
+        {
+          "section": 180,
+          "heading": "<kbd>method</kbd> `pin_column_right`"
+        },
+        {
+          "section": 181,
+          "heading": "<kbd>method</kbd> `remove_column`"
+        },
+        {
+          "section": 182,
+          "heading": "<kbd>method</kbd> `remove_columns`"
+        },
+        {
+          "section": 183,
+          "heading": "<kbd>method</kbd> `remove_filter`"
+        },
+        {
+          "section": 184,
+          "heading": "<kbd>method</kbd> `remove_filters`"
+        },
+        {
+          "section": 185,
+          "heading": "<kbd>method</kbd> `rename`"
+        },
+        {
+          "section": 186,
+          "heading": "<kbd>method</kbd> `rename_column`"
+        },
+        {
+          "section": 187,
+          "heading": "<kbd>method</kbd> `save`"
+        },
+        {
+          "section": 188,
+          "heading": "<kbd>method</kbd> `set_columns`"
+        },
+        {
+          "section": 189,
+          "heading": "<kbd>method</kbd> `show_column`"
+        },
+        {
+          "section": 190,
+          "heading": "<kbd>method</kbd> `sort_by`"
+        },
+        {
+          "section": 191,
+          "heading": "<kbd>method</kbd> `to_grid`"
+        },
+        {
+          "section": 192,
+          "heading": "<kbd>method</kbd> `to_rich_table_str`"
+        },
+        {
+          "section": 193,
+          "heading": "<kbd>method</kbd> `ui_url`"
+        },
+        {
+          "section": 194,
+          "heading": "<kbd>method</kbd> `unpin_column`"
+        },
+        {
+          "section": 195,
+          "heading": "<kbd>class</kbd> `Scorer`"
+        },
+        {
+          "section": 196,
+          "heading": "<kbd>property</kbd> display\\_name"
+        },
+        {
+          "section": 197,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 198,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 199,
+          "heading": "<kbd>method</kbd> `score`"
+        },
+        {
+          "section": 200,
+          "heading": "<kbd>method</kbd> `summarize`"
+        },
+        {
+          "section": 201,
+          "heading": "<kbd>class</kbd> `Session`"
+        },
+        {
+          "section": 202,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 203,
+          "heading": "<kbd>property</kbd> session\\_id"
+        },
+        {
+          "section": 204,
+          "heading": "<kbd>property</kbd> session\\_name"
+        },
+        {
+          "section": 205,
+          "heading": "<kbd>class</kbd> `StringPrompt`"
+        },
+        {
+          "section": 206,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 207,
+          "heading": "<kbd>method</kbd> `format`"
+        },
+        {
+          "section": 208,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 209,
+          "heading": "<kbd>class</kbd> `SubAgent`"
+        },
+        {
+          "section": 210,
+          "heading": "<kbd>method</kbd> `add_event`"
+        },
+        {
+          "section": 211,
+          "heading": "<kbd>method</kbd> `end`"
+        },
+        {
+          "section": 212,
+          "heading": "<kbd>method</kbd> `llm`"
+        },
+        {
+          "section": 213,
+          "heading": "<kbd>method</kbd> `record`"
+        },
+        {
+          "section": 214,
+          "heading": "<kbd>method</kbd> `set_attributes`"
+        },
+        {
+          "section": 215,
+          "heading": "<kbd>method</kbd> `tool`"
+        },
+        {
+          "section": 216,
+          "heading": "<kbd>class</kbd> `Table`"
+        },
+        {
+          "section": 217,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 218,
+          "heading": "<kbd>property</kbd> rows"
+        },
+        {
+          "section": 219,
+          "heading": "<kbd>method</kbd> `append`"
+        },
+        {
+          "section": 220,
+          "heading": "<kbd>method</kbd> `pop`"
+        },
+        {
+          "section": 221,
+          "heading": "<kbd>class</kbd> `ContextAwareThread`"
+        },
+        {
+          "section": 222,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 223,
+          "heading": "<kbd>property</kbd> daemon"
+        },
+        {
+          "section": 224,
+          "heading": "<kbd>property</kbd> ident"
+        },
+        {
+          "section": 225,
+          "heading": "<kbd>property</kbd> name"
+        },
+        {
+          "section": 226,
+          "heading": "<kbd>property</kbd> native\\_id"
+        },
+        {
+          "section": 227,
+          "heading": "<kbd>method</kbd> `run`"
+        },
+        {
+          "section": 228,
+          "heading": "<kbd>class</kbd> `ThreadContext`"
+        },
+        {
+          "section": 229,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 230,
+          "heading": "<kbd>property</kbd> thread\\_id"
+        },
+        {
+          "section": 231,
+          "heading": "<kbd>property</kbd> turn\\_id"
+        },
+        {
+          "section": 232,
+          "heading": "<kbd>class</kbd> `ContextAwareThreadPoolExecutor`"
+        },
+        {
+          "section": 233,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 234,
+          "heading": "<kbd>method</kbd> `map`"
+        },
+        {
+          "section": 235,
+          "heading": "<kbd>method</kbd> `submit`"
+        },
+        {
+          "section": 236,
+          "heading": "<kbd>class</kbd> `Tool`"
+        },
+        {
+          "section": 237,
+          "heading": "<kbd>method</kbd> `add_event`"
+        },
+        {
+          "section": 238,
+          "heading": "<kbd>method</kbd> `end`"
+        },
+        {
+          "section": 239,
+          "heading": "<kbd>method</kbd> `set_attributes`"
+        },
+        {
+          "section": 240,
+          "heading": "<kbd>class</kbd> `Turn`"
+        },
+        {
+          "section": 241,
+          "heading": "<kbd>method</kbd> `add_event`"
+        },
+        {
+          "section": 242,
+          "heading": "<kbd>method</kbd> `end`"
+        },
+        {
+          "section": 243,
+          "heading": "<kbd>method</kbd> `llm`"
+        },
+        {
+          "section": 244,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 245,
+          "heading": "<kbd>method</kbd> `record`"
+        },
+        {
+          "section": 246,
+          "heading": "<kbd>method</kbd> `set_attributes`"
+        },
+        {
+          "section": 247,
+          "heading": "<kbd>method</kbd> `subagent`"
+        },
+        {
+          "section": 248,
+          "heading": "<kbd>method</kbd> `tool`"
+        },
+        {
+          "section": 249,
+          "heading": "<kbd>method</kbd> `user`"
+        },
+        {
+          "section": 250,
+          "heading": "<kbd>class</kbd> `Usage`"
+        },
+        {
+          "section": 251,
+          "heading": "<kbd>function</kbd> `add_tags`"
+        },
+        {
+          "section": 252,
+          "heading": "<kbd>function</kbd> `as_op`"
+        },
+        {
+          "section": 253,
+          "heading": "<kbd>function</kbd> `attributes`"
+        },
+        {
+          "section": 254,
+          "heading": "<kbd>function</kbd> `end_conversation`"
+        },
+        {
+          "section": 255,
+          "heading": "<kbd>function</kbd> `end_llm`"
+        },
+        {
+          "section": 256,
+          "heading": "<kbd>function</kbd> `end_session`"
+        },
+        {
+          "section": 257,
+          "heading": "<kbd>function</kbd> `end_turn`"
+        },
+        {
+          "section": 258,
+          "heading": "<kbd>function</kbd> `finish`"
+        },
+        {
+          "section": 259,
+          "heading": "<kbd>function</kbd> `get`"
+        },
+        {
+          "section": 260,
+          "heading": "<kbd>function</kbd> `get_aliases`"
+        },
+        {
+          "section": 261,
+          "heading": "<kbd>function</kbd> `get_client`"
+        },
+        {
+          "section": 262,
+          "heading": "<kbd>function</kbd> `get_current_call`"
+        },
+        {
+          "section": 263,
+          "heading": "<kbd>function</kbd> `get_current_conversation`"
+        },
+        {
+          "section": 264,
+          "heading": "<kbd>function</kbd> `get_current_llm`"
+        },
+        {
+          "section": 265,
+          "heading": "<kbd>function</kbd> `get_current_session`"
+        },
+        {
+          "section": 266,
+          "heading": "<kbd>function</kbd> `get_current_turn`"
+        },
+        {
+          "section": 267,
+          "heading": "<kbd>function</kbd> `get_tags`"
+        },
+        {
+          "section": 268,
+          "heading": "<kbd>function</kbd> `get_tags_and_aliases`"
+        },
+        {
+          "section": 269,
+          "heading": "<kbd>function</kbd> `init`"
+        },
+        {
+          "section": 270,
+          "heading": "<kbd>function</kbd> `link_prompt_to_registry`"
+        },
+        {
+          "section": 271,
+          "heading": "<kbd>function</kbd> `list_aliases`"
+        },
+        {
+          "section": 272,
+          "heading": "<kbd>function</kbd> `list_tags`"
+        },
+        {
+          "section": 273,
+          "heading": "<kbd>function</kbd> `log_call`"
+        },
+        {
+          "section": 274,
+          "heading": "<kbd>function</kbd> `log_conversation`"
+        },
+        {
+          "section": 275,
+          "heading": "<kbd>function</kbd> `log_session`"
+        },
+        {
+          "section": 276,
+          "heading": "<kbd>function</kbd> `log_turn`"
+        },
+        {
+          "section": 277,
+          "heading": "<kbd>function</kbd> `op`"
+        },
+        {
+          "section": 278,
+          "heading": "<kbd>function</kbd> `otel_traces_endpoint`"
+        },
+        {
+          "section": 279,
+          "heading": "<kbd>function</kbd> `publish`"
+        },
+        {
+          "section": 280,
+          "heading": "<kbd>function</kbd> `ref`"
+        },
+        {
+          "section": 281,
+          "heading": "<kbd>function</kbd> `remove_aliases`"
+        },
+        {
+          "section": 282,
+          "heading": "<kbd>function</kbd> `remove_tags`"
+        },
+        {
+          "section": 283,
+          "heading": "<kbd>function</kbd> `require_current_call`"
+        },
+        {
+          "section": 284,
+          "heading": "<kbd>function</kbd> `set_aliases`"
+        },
+        {
+          "section": 285,
+          "heading": "<kbd>function</kbd> `set_view`"
+        },
+        {
+          "section": 286,
+          "heading": "<kbd>function</kbd> `start_conversation`"
+        },
+        {
+          "section": 287,
+          "heading": "<kbd>function</kbd> `start_llm`"
+        },
+        {
+          "section": 288,
+          "heading": "<kbd>function</kbd> `start_session`"
+        },
+        {
+          "section": 289,
+          "heading": "<kbd>function</kbd> `start_subagent`"
+        },
+        {
+          "section": 290,
+          "heading": "<kbd>function</kbd> `start_tool`"
+        },
+        {
+          "section": 291,
+          "heading": "<kbd>function</kbd> `start_turn`"
+        },
+        {
+          "section": 292,
+          "heading": "<kbd>function</kbd> `thread`"
+        },
+        {
+          "section": 293,
+          "heading": "<kbd>function</kbd> `wandb_init_hook`"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "all_read_evidence": [
+    {
+      "source_id": "S1",
+      "page_id": "guides/tracking/ops",
+      "section": 3,
+      "title": "Customize Ops",
+      "heading": "Customize logged inputs and outputs",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+      "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+      "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: str\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=hide_me)\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+      "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Customize Ops"
+        },
+        {
+          "section": 1,
+          "heading": "Customize display names"
+        },
+        {
+          "section": 2,
+          "heading": "Apply kinds and colors"
+        },
+        {
+          "section": 3,
+          "heading": "Customize logged inputs and outputs"
+        },
+        {
+          "section": 4,
+          "heading": "Control sampling rate"
+        },
+        {
+          "section": 5,
+          "heading": "Control Call link output"
+        },
+        {
+          "section": 6,
+          "heading": "Delete an Op"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "reference/python-sdk/trace/op",
+      "section": 19,
+      "title": "op",
+      "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+      "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+      "page_sha256": "4677e9143e450d3790b2b1ef6604722e653fa4109522da4875ac8a93beedc5d8",
+      "text": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than batched.  Useful for long-running operations like evaluations that should  be visible in the UI immediately.\n\n**Args:**\n\n* **`d`**: Optional existing WeaveKwargs dict to update.\n* **`op`**: Op to extract kind and color from.\n\n**Returns:**\nWeaveKwargs dict with attributes, display\\_name, and optionally kind/color set.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L422)\n\n",
+      "page_context": "# op\n\n> Python SDK reference for weave.trace.op\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "op"
+        },
+        {
+          "section": 1,
+          "heading": "API Overview"
+        },
+        {
+          "section": 2,
+          "heading": "<kbd>class</kbd> `DisplayNameFuncError`"
+        },
+        {
+          "section": 3,
+          "heading": "<kbd>class</kbd> `OpCallError`"
+        },
+        {
+          "section": 4,
+          "heading": "<kbd>class</kbd> `OpKwargs`"
+        },
+        {
+          "section": 5,
+          "heading": "<kbd>class</kbd> `Sentinel`"
+        },
+        {
+          "section": 6,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 7,
+          "heading": "<kbd>class</kbd> `WeaveKwargs`"
+        },
+        {
+          "section": 8,
+          "heading": "<kbd>function</kbd> `as_op`"
+        },
+        {
+          "section": 9,
+          "heading": "<kbd>function</kbd> `call`"
+        },
+        {
+          "section": 10,
+          "heading": "<kbd>function</kbd> `calls`"
+        },
+        {
+          "section": 11,
+          "heading": "<kbd>function</kbd> `get_captured_code`"
+        },
+        {
+          "section": 12,
+          "heading": "<kbd>function</kbd> `is_op`"
+        },
+        {
+          "section": 13,
+          "heading": "<kbd>function</kbd> `is_placeholder_call`"
+        },
+        {
+          "section": 14,
+          "heading": "<kbd>function</kbd> `is_tracing_setting_disabled`"
+        },
+        {
+          "section": 15,
+          "heading": "<kbd>function</kbd> `maybe_bind_method`"
+        },
+        {
+          "section": 16,
+          "heading": "<kbd>function</kbd> `maybe_unbind_method`"
+        },
+        {
+          "section": 17,
+          "heading": "<kbd>function</kbd> `op`"
+        },
+        {
+          "section": 18,
+          "heading": "<kbd>function</kbd> `placeholder_call`"
+        },
+        {
+          "section": 19,
+          "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`"
+        },
+        {
+          "section": 20,
+          "heading": "<kbd>function</kbd> `should_skip_tracing_for_op`"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "reference/python-sdk",
+      "section": 269,
+      "title": "weave",
+      "heading": "<kbd>function</kbd> `init`",
+      "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+      "page_sha256": "458bbcdb9cd103df8921fe985c50079ed7db53b5fad7a5077de2ab9f2c667d2d",
+      "text": "### <kbd>function</kbd> `init`\n\n```python theme={\"system\"}\ninit(\n    project_name: 'str',\n    settings: 'UserSettings | dict[str, Any] | None' = None,\n    autopatch_settings: 'AutopatchSettings | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    global_postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    global_postprocess_output: 'PostprocessOutputFunc | None' = None,\n    global_attributes: 'dict[str, Any] | None' = None\n) \u2192 WeaveClient\n```\n\nInitialize weave tracking, logging to a wandb project.\n\nLogging is initialized globally, so you do not need to keep a reference to the return value of init.\n\nFollowing init, calls of weave.op decorated functions will be logged to the specified project.\n\n**Args:**\n\nNOTE: Client-level postprocessing runs after each op's own postprocessing. The order is always: 1. Op-specific postprocessing 2. Client-level postprocessing\n\n* **`project_name`**: The name of the Weights & Biases team and project to log to. If you don't  specify a team, your default entity is used. To find or update your default entity, refer to [User settings](https://docs.coreweave.com/products/wandb/platform/app/settings-page/user-settings.md#default-team) in the W\\&B documentation.\n* **`settings`**: Configuration for the Weave client generally. Can be a UserSettings instance or a dict  with any of the following keys (all optional). All settings can also be configured  via environment variables using the prefix WEAVE\\_ (e.g., WEAVE\\_DISABLED=true).  Available settings: - `disabled` (bool): Disables traces on all functions. Default: `False` - `print_call_link` (bool): Prints links in terminal to Weave UI for ops. Default: `True` - `log_level` (str): Sets what type of information to log (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). Default: `INFO` - `display_viewer` (str): Controls how Weave displays objects in the console (`auto`, `rich`, `print`). Default: `auto` - `capture_code` (bool): Captures code of traced ops to your Weave project. Default: `True` - `implicitly_patch_integrations` (bool): Auto-patches supported libraries. Default: `True` - `redact_pii` (bool): Scans all trace data for sensitive information,  like emails, phone numbers, and credit cards, and replaces them with placeholder values  before sending to the server. Requires presidio-analyzer and presidio-anonymizer packages.\n* **`Default`**: `False` - `redact_pii_fields` (list\\[str]): Specifies which PII entity types to redact when `redact_pii` is True. If empty, uses Presidio's default set. Examples  \\['EMAIL','PHONE\\_NUMBER','CREDIT\\_CARD','US\\_SSN']. See full list at  [https://microsoft.github.io/presidio/supported\\_entities/](https://microsoft.github.io/presidio/supported_entities/)\n* **`Default`**: `[]` - `redact_pii_exclude_fields` (list\\[str]): PII entity types to exclude. Default: `[]` - `capture_client_info` (bool): Captures Python/SDK version info. Default: `True` - `capture_system_info` (bool): Captures OS information. Default: `True` - `client_parallelism` (int): Number of workers for background ops. Default: `auto` - `use_server_cache` (bool): Enables local disk caching of server responses. - `server_cache_size_limit` (int): Cache size limit in bytes. Default: `1_000_000_000` - `server_cache_dir` (str): Directory for server cache. Default: `temporary` - `scorers_dir` (str): Directory for scorer model checkpoints. Default: `~/.cache/wandb/weave-scorers` - `max_calls_queue_size` (int): Maximum queue size (0 = unbounded). Default: `100_000` - `retry_max_interval` (float): Maximum retry interval in seconds. Default: `300` - `retry_max_attempts` (int): Maximum number of retries. Default: `3` - `enable_disk_fallback` (bool): Writes dropped items to disk. Default: `True` - `use_parallel_table_upload` (bool): Enables parallel chunked upload for large tables. If False, tables are uploaded sequentially in smaller chunks.\n* **`Default`**: `True` - `http_timeout` (float): Maximum time in seconds to wait for HTTP requests to complete. This includes connection time, data transfer, and server processing. Increase for slow networks or when working with large payloads.\n* **`Default`**: `30.0` - `use_stainless_server` (bool): Uses the Stainless-generated HTTP client which provides better type safety, automatic retries, and improved error handling. This is experimental and may become the default in future versions.\n* **`Default`**: `False` - `use_calls_complete` (bool): Uses an optimized write path that batches complete call data (start and end) into a single request instead of separate start/end requests. This reduces server load and improves performance, especially for short-lived ops.\n* **`Default`**: `True` - `use_otel_v2`: (bool): Routes OTel-capable integrations through their OTel variant.\n* **`Default`**: `True`\n* **`autopatch_settings`**: (Deprecated) Configuration for autopatch integrations. Use explicit patching instead.\n* **`postprocess_inputs`**: A function applied to the inputs of every op traced by this client.\n* **`postprocess_output`**: A function applied to the output of every op traced by this client.\n* **`attributes`**: A dictionary of attributes applied to every trace produced by this client.\n\n**Returns:**\nA Weave client.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/api.py#L409)\n\n",
+      "page_context": "# weave\n\n> Python SDK reference for weave\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "weave"
+        },
+        {
+          "section": 1,
+          "heading": "API Overview"
+        },
+        {
+          "section": 2,
+          "heading": "<kbd>class</kbd> `Agent`"
+        },
+        {
+          "section": 3,
+          "heading": "<kbd>method</kbd> `step`"
+        },
+        {
+          "section": 4,
+          "heading": "<kbd>class</kbd> `AgentState`"
+        },
+        {
+          "section": 5,
+          "heading": "<kbd>class</kbd> `AnnotationSpec`"
+        },
+        {
+          "section": 6,
+          "heading": "<kbd>classmethod</kbd> `preprocess_field_schema`"
+        },
+        {
+          "section": 7,
+          "heading": "<kbd>classmethod</kbd> `validate_field_schema`"
+        },
+        {
+          "section": 8,
+          "heading": "<kbd>method</kbd> `value_is_valid`"
+        },
+        {
+          "section": 9,
+          "heading": "<kbd>class</kbd> `Audio`"
+        },
+        {
+          "section": 10,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 11,
+          "heading": "<kbd>method</kbd> `export`"
+        },
+        {
+          "section": 12,
+          "heading": "<kbd>classmethod</kbd> `from_data`"
+        },
+        {
+          "section": 13,
+          "heading": "<kbd>classmethod</kbd> `from_path`"
+        },
+        {
+          "section": 14,
+          "heading": "<kbd>class</kbd> `ClassifierMonitor`"
+        },
+        {
+          "section": 15,
+          "heading": "<kbd>method</kbd> `activate`"
+        },
+        {
+          "section": 16,
+          "heading": "<kbd>method</kbd> `deactivate`"
+        },
+        {
+          "section": 17,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 18,
+          "heading": "<kbd>method</kbd> `get_prompt_footer`"
+        },
+        {
+          "section": 19,
+          "heading": "<kbd>method</kbd> `get_prompt_header`"
+        },
+        {
+          "section": 20,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 21,
+          "heading": "<kbd>class</kbd> `Content`"
+        },
+        {
+          "section": 22,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 23,
+          "heading": "<kbd>property</kbd> art"
+        },
+        {
+          "section": 24,
+          "heading": "<kbd>property</kbd> ref"
+        },
+        {
+          "section": 25,
+          "heading": "<kbd>method</kbd> `as_string`"
+        },
+        {
+          "section": 26,
+          "heading": "<kbd>classmethod</kbd> `from_base64`"
+        },
+        {
+          "section": 27,
+          "heading": "<kbd>classmethod</kbd> `from_bytes`"
+        },
+        {
+          "section": 28,
+          "heading": "<kbd>classmethod</kbd> `from_data_url`"
+        },
+        {
+          "section": 29,
+          "heading": "<kbd>classmethod</kbd> `from_path`"
+        },
+        {
+          "section": 30,
+          "heading": "<kbd>classmethod</kbd> `from_text`"
+        },
+        {
+          "section": 31,
+          "heading": "<kbd>classmethod</kbd> `from_url`"
+        },
+        {
+          "section": 32,
+          "heading": "<kbd>classmethod</kbd> `model_validate`"
+        },
+        {
+          "section": 33,
+          "heading": "<kbd>classmethod</kbd> `model_validate_json`"
+        },
+        {
+          "section": 34,
+          "heading": "<kbd>method</kbd> `open`"
+        },
+        {
+          "section": 35,
+          "heading": "<kbd>method</kbd> `save`"
+        },
+        {
+          "section": 36,
+          "heading": "<kbd>method</kbd> `serialize_data`"
+        },
+        {
+          "section": 37,
+          "heading": "<kbd>method</kbd> `to_data_url`"
+        },
+        {
+          "section": 38,
+          "heading": "<kbd>class</kbd> `Conversation`"
+        },
+        {
+          "section": 39,
+          "heading": "<kbd>method</kbd> `end`"
+        },
+        {
+          "section": 40,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 41,
+          "heading": "<kbd>method</kbd> `start_turn`"
+        },
+        {
+          "section": 42,
+          "heading": "<kbd>class</kbd> `Dataset`"
+        },
+        {
+          "section": 43,
+          "heading": "<kbd>method</kbd> `add_rows`"
+        },
+        {
+          "section": 44,
+          "heading": "<kbd>classmethod</kbd> `convert_to_table`"
+        },
+        {
+          "section": 45,
+          "heading": "<kbd>classmethod</kbd> `from_calls`"
+        },
+        {
+          "section": 46,
+          "heading": "<kbd>classmethod</kbd> `from_hf`"
+        },
+        {
+          "section": 47,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 48,
+          "heading": "<kbd>classmethod</kbd> `from_pandas`"
+        },
+        {
+          "section": 49,
+          "heading": "<kbd>method</kbd> `select`"
+        },
+        {
+          "section": 50,
+          "heading": "<kbd>method</kbd> `to_hf`"
+        },
+        {
+          "section": 51,
+          "heading": "<kbd>method</kbd> `to_pandas`"
+        },
+        {
+          "section": 52,
+          "heading": "<kbd>class</kbd> `EasyPrompt`"
+        },
+        {
+          "section": 53,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 54,
+          "heading": "<kbd>property</kbd> as\\_str"
+        },
+        {
+          "section": 55,
+          "heading": "<kbd>property</kbd> is\\_bound"
+        },
+        {
+          "section": 56,
+          "heading": "<kbd>property</kbd> messages"
+        },
+        {
+          "section": 57,
+          "heading": "<kbd>property</kbd> placeholders"
+        },
+        {
+          "section": 58,
+          "heading": "<kbd>property</kbd> system\\_message"
+        },
+        {
+          "section": 59,
+          "heading": "<kbd>property</kbd> system\\_prompt"
+        },
+        {
+          "section": 60,
+          "heading": "<kbd>property</kbd> unbound\\_placeholders"
+        },
+        {
+          "section": 61,
+          "heading": "<kbd>method</kbd> `append`"
+        },
+        {
+          "section": 62,
+          "heading": "<kbd>method</kbd> `as_dict`"
+        },
+        {
+          "section": 63,
+          "heading": "<kbd>method</kbd> `as_pydantic_dict`"
+        },
+        {
+          "section": 64,
+          "heading": "<kbd>method</kbd> `bind`"
+        },
+        {
+          "section": 65,
+          "heading": "<kbd>method</kbd> `bind_rows`"
+        },
+        {
+          "section": 66,
+          "heading": "<kbd>method</kbd> `config_table`"
+        },
+        {
+          "section": 67,
+          "heading": "<kbd>method</kbd> `configure`"
+        },
+        {
+          "section": 68,
+          "heading": "<kbd>method</kbd> `dump`"
+        },
+        {
+          "section": 69,
+          "heading": "<kbd>method</kbd> `dump_file`"
+        },
+        {
+          "section": 70,
+          "heading": "<kbd>method</kbd> `format`"
+        },
+        {
+          "section": 71,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 72,
+          "heading": "<kbd>classmethod</kbd> `load`"
+        },
+        {
+          "section": 73,
+          "heading": "<kbd>classmethod</kbd> `load_file`"
+        },
+        {
+          "section": 74,
+          "heading": "<kbd>method</kbd> `messages_table`"
+        },
+        {
+          "section": 75,
+          "heading": "<kbd>method</kbd> `print`"
+        },
+        {
+          "section": 76,
+          "heading": "<kbd>method</kbd> `publish`"
+        },
+        {
+          "section": 77,
+          "heading": "<kbd>method</kbd> `require`"
+        },
+        {
+          "section": 78,
+          "heading": "<kbd>method</kbd> `run`"
+        },
+        {
+          "section": 79,
+          "heading": "<kbd>method</kbd> `validate_requirement`"
+        },
+        {
+          "section": 80,
+          "heading": "<kbd>method</kbd> `validate_requirements`"
+        },
+        {
+          "section": 81,
+          "heading": "<kbd>method</kbd> `values_table`"
+        },
+        {
+          "section": 82,
+          "heading": "<kbd>class</kbd> `Evaluation`"
+        },
+        {
+          "section": 83,
+          "heading": "<kbd>method</kbd> `evaluate`"
+        },
+        {
+          "section": 84,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 85,
+          "heading": "<kbd>method</kbd> `get_eval_results`"
+        },
+        {
+          "section": 86,
+          "heading": "<kbd>method</kbd> `get_evaluate_calls`"
+        },
+        {
+          "section": 87,
+          "heading": "<kbd>method</kbd> `get_score_calls`"
+        },
+        {
+          "section": 88,
+          "heading": "<kbd>method</kbd> `get_scores`"
+        },
+        {
+          "section": 89,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 90,
+          "heading": "<kbd>method</kbd> `predict_and_score`"
+        },
+        {
+          "section": 91,
+          "heading": "<kbd>method</kbd> `summarize`"
+        },
+        {
+          "section": 92,
+          "heading": "<kbd>class</kbd> `EvaluationLogger`"
+        },
+        {
+          "section": 93,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 94,
+          "heading": "<kbd>property</kbd> attributes"
+        },
+        {
+          "section": 95,
+          "heading": "<kbd>property</kbd> ui\\_url"
+        },
+        {
+          "section": 96,
+          "heading": "<kbd>method</kbd> `fail`"
+        },
+        {
+          "section": 97,
+          "heading": "<kbd>method</kbd> `finish`"
+        },
+        {
+          "section": 98,
+          "heading": "<kbd>method</kbd> `log_example`"
+        },
+        {
+          "section": 99,
+          "heading": "<kbd>method</kbd> `log_prediction`"
+        },
+        {
+          "section": 100,
+          "heading": "<kbd>method</kbd> `log_summary`"
+        },
+        {
+          "section": 101,
+          "heading": "<kbd>method</kbd> `set_view`"
+        },
+        {
+          "section": 102,
+          "heading": "<kbd>class</kbd> `File`"
+        },
+        {
+          "section": 103,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 104,
+          "heading": "<kbd>property</kbd> filename"
+        },
+        {
+          "section": 105,
+          "heading": "<kbd>method</kbd> `open`"
+        },
+        {
+          "section": 106,
+          "heading": "<kbd>method</kbd> `save`"
+        },
+        {
+          "section": 107,
+          "heading": "<kbd>class</kbd> `LLM`"
+        },
+        {
+          "section": 108,
+          "heading": "<kbd>method</kbd> `add_event`"
+        },
+        {
+          "section": 109,
+          "heading": "<kbd>method</kbd> `attach_media`"
+        },
+        {
+          "section": 110,
+          "heading": "<kbd>method</kbd> `attach_media_url`"
+        },
+        {
+          "section": 111,
+          "heading": "<kbd>method</kbd> `end`"
+        },
+        {
+          "section": 112,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 113,
+          "heading": "<kbd>method</kbd> `output`"
+        },
+        {
+          "section": 114,
+          "heading": "<kbd>method</kbd> `record`"
+        },
+        {
+          "section": 115,
+          "heading": "<kbd>method</kbd> `set_attributes`"
+        },
+        {
+          "section": 116,
+          "heading": "<kbd>method</kbd> `think`"
+        },
+        {
+          "section": 117,
+          "heading": "<kbd>class</kbd> `LogResult`"
+        },
+        {
+          "section": 118,
+          "heading": "<kbd>class</kbd> `Markdown`"
+        },
+        {
+          "section": 119,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 120,
+          "heading": "<kbd>class</kbd> `MediaAttachment`"
+        },
+        {
+          "section": 121,
+          "heading": "<kbd>class</kbd> `Message`"
+        },
+        {
+          "section": 122,
+          "heading": "<kbd>classmethod</kbd> `assistant`"
+        },
+        {
+          "section": 123,
+          "heading": "<kbd>classmethod</kbd> `system`"
+        },
+        {
+          "section": 124,
+          "heading": "<kbd>classmethod</kbd> `tool_result`"
+        },
+        {
+          "section": 125,
+          "heading": "<kbd>classmethod</kbd> `user`"
+        },
+        {
+          "section": 126,
+          "heading": "<kbd>class</kbd> `MessagesPrompt`"
+        },
+        {
+          "section": 127,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 128,
+          "heading": "<kbd>method</kbd> `format`"
+        },
+        {
+          "section": 129,
+          "heading": "<kbd>method</kbd> `format_message`"
+        },
+        {
+          "section": 130,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 131,
+          "heading": "<kbd>class</kbd> `Model`"
+        },
+        {
+          "section": 132,
+          "heading": "<kbd>method</kbd> `get_infer_method`"
+        },
+        {
+          "section": 133,
+          "heading": "<kbd>class</kbd> `Monitor`"
+        },
+        {
+          "section": 134,
+          "heading": "<kbd>method</kbd> `activate`"
+        },
+        {
+          "section": 135,
+          "heading": "<kbd>method</kbd> `deactivate`"
+        },
+        {
+          "section": 136,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 137,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 138,
+          "heading": "<kbd>class</kbd> `Object`"
+        },
+        {
+          "section": 139,
+          "heading": "<kbd>classmethod</kbd> `from_uri`"
+        },
+        {
+          "section": 140,
+          "heading": "<kbd>classmethod</kbd> `handle_relocatable_object`"
+        },
+        {
+          "section": 141,
+          "heading": "<kbd>classmethod</kbd> `strip_weave_serialization_metadata`"
+        },
+        {
+          "section": 142,
+          "heading": "<kbd>class</kbd> `ObjectRef`"
+        },
+        {
+          "section": 143,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 144,
+          "heading": "<kbd>property</kbd> digest"
+        },
+        {
+          "section": 145,
+          "heading": "<kbd>property</kbd> extra"
+        },
+        {
+          "section": 146,
+          "heading": "<kbd>property</kbd> is\\_digest\\_resolved"
+        },
+        {
+          "section": 147,
+          "heading": "<kbd>method</kbd> `as_param_dict`"
+        },
+        {
+          "section": 148,
+          "heading": "<kbd>method</kbd> `delete`"
+        },
+        {
+          "section": 149,
+          "heading": "<kbd>method</kbd> `get`"
+        },
+        {
+          "section": 150,
+          "heading": "<kbd>method</kbd> `is_descended_from`"
+        },
+        {
+          "section": 151,
+          "heading": "<kbd>method</kbd> `maybe_parse_uri`"
+        },
+        {
+          "section": 152,
+          "heading": "<kbd>method</kbd> `parse_uri`"
+        },
+        {
+          "section": 153,
+          "heading": "<kbd>method</kbd> `with_attr`"
+        },
+        {
+          "section": 154,
+          "heading": "<kbd>method</kbd> `with_extra`"
+        },
+        {
+          "section": 155,
+          "heading": "<kbd>method</kbd> `with_index`"
+        },
+        {
+          "section": 156,
+          "heading": "<kbd>method</kbd> `with_item`"
+        },
+        {
+          "section": 157,
+          "heading": "<kbd>method</kbd> `with_key`"
+        },
+        {
+          "section": 158,
+          "heading": "<kbd>class</kbd> `Prompt`"
+        },
+        {
+          "section": 159,
+          "heading": "<kbd>method</kbd> `format`"
+        },
+        {
+          "section": 160,
+          "heading": "<kbd>class</kbd> `SavedView`"
+        },
+        {
+          "section": 161,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 162,
+          "heading": "<kbd>property</kbd> entity"
+        },
+        {
+          "section": 163,
+          "heading": "<kbd>property</kbd> label"
+        },
+        {
+          "section": 164,
+          "heading": "<kbd>property</kbd> project"
+        },
+        {
+          "section": 165,
+          "heading": "<kbd>property</kbd> view\\_type"
+        },
+        {
+          "section": 166,
+          "heading": "<kbd>method</kbd> `add_column`"
+        },
+        {
+          "section": 167,
+          "heading": "<kbd>method</kbd> `add_columns`"
+        },
+        {
+          "section": 168,
+          "heading": "<kbd>method</kbd> `add_filter`"
+        },
+        {
+          "section": 169,
+          "heading": "<kbd>method</kbd> `add_sort`"
+        },
+        {
+          "section": 170,
+          "heading": "<kbd>method</kbd> `column_index`"
+        },
+        {
+          "section": 171,
+          "heading": "<kbd>method</kbd> `filter_op`"
+        },
+        {
+          "section": 172,
+          "heading": "<kbd>method</kbd> `get_calls`"
+        },
+        {
+          "section": 173,
+          "heading": "<kbd>method</kbd> `get_known_columns`"
+        },
+        {
+          "section": 174,
+          "heading": "<kbd>method</kbd> `get_table_columns`"
+        },
+        {
+          "section": 175,
+          "heading": "<kbd>method</kbd> `hide_column`"
+        },
+        {
+          "section": 176,
+          "heading": "<kbd>method</kbd> `insert_column`"
+        },
+        {
+          "section": 177,
+          "heading": "<kbd>classmethod</kbd> `load`"
+        },
+        {
+          "section": 178,
+          "heading": "<kbd>method</kbd> `page_size`"
+        },
+        {
+          "section": 179,
+          "heading": "<kbd>method</kbd> `pin_column_left`"
+        },
+        {
+          "section": 180,
+          "heading": "<kbd>method</kbd> `pin_column_right`"
+        },
+        {
+          "section": 181,
+          "heading": "<kbd>method</kbd> `remove_column`"
+        },
+        {
+          "section": 182,
+          "heading": "<kbd>method</kbd> `remove_columns`"
+        },
+        {
+          "section": 183,
+          "heading": "<kbd>method</kbd> `remove_filter`"
+        },
+        {
+          "section": 184,
+          "heading": "<kbd>method</kbd> `remove_filters`"
+        },
+        {
+          "section": 185,
+          "heading": "<kbd>method</kbd> `rename`"
+        },
+        {
+          "section": 186,
+          "heading": "<kbd>method</kbd> `rename_column`"
+        },
+        {
+          "section": 187,
+          "heading": "<kbd>method</kbd> `save`"
+        },
+        {
+          "section": 188,
+          "heading": "<kbd>method</kbd> `set_columns`"
+        },
+        {
+          "section": 189,
+          "heading": "<kbd>method</kbd> `show_column`"
+        },
+        {
+          "section": 190,
+          "heading": "<kbd>method</kbd> `sort_by`"
+        },
+        {
+          "section": 191,
+          "heading": "<kbd>method</kbd> `to_grid`"
+        },
+        {
+          "section": 192,
+          "heading": "<kbd>method</kbd> `to_rich_table_str`"
+        },
+        {
+          "section": 193,
+          "heading": "<kbd>method</kbd> `ui_url`"
+        },
+        {
+          "section": 194,
+          "heading": "<kbd>method</kbd> `unpin_column`"
+        },
+        {
+          "section": 195,
+          "heading": "<kbd>class</kbd> `Scorer`"
+        },
+        {
+          "section": 196,
+          "heading": "<kbd>property</kbd> display\\_name"
+        },
+        {
+          "section": 197,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 198,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 199,
+          "heading": "<kbd>method</kbd> `score`"
+        },
+        {
+          "section": 200,
+          "heading": "<kbd>method</kbd> `summarize`"
+        },
+        {
+          "section": 201,
+          "heading": "<kbd>class</kbd> `Session`"
+        },
+        {
+          "section": 202,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 203,
+          "heading": "<kbd>property</kbd> session\\_id"
+        },
+        {
+          "section": 204,
+          "heading": "<kbd>property</kbd> session\\_name"
+        },
+        {
+          "section": 205,
+          "heading": "<kbd>class</kbd> `StringPrompt`"
+        },
+        {
+          "section": 206,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 207,
+          "heading": "<kbd>method</kbd> `format`"
+        },
+        {
+          "section": 208,
+          "heading": "<kbd>classmethod</kbd> `from_obj`"
+        },
+        {
+          "section": 209,
+          "heading": "<kbd>class</kbd> `SubAgent`"
+        },
+        {
+          "section": 210,
+          "heading": "<kbd>method</kbd> `add_event`"
+        },
+        {
+          "section": 211,
+          "heading": "<kbd>method</kbd> `end`"
+        },
+        {
+          "section": 212,
+          "heading": "<kbd>method</kbd> `llm`"
+        },
+        {
+          "section": 213,
+          "heading": "<kbd>method</kbd> `record`"
+        },
+        {
+          "section": 214,
+          "heading": "<kbd>method</kbd> `set_attributes`"
+        },
+        {
+          "section": 215,
+          "heading": "<kbd>method</kbd> `tool`"
+        },
+        {
+          "section": 216,
+          "heading": "<kbd>class</kbd> `Table`"
+        },
+        {
+          "section": 217,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 218,
+          "heading": "<kbd>property</kbd> rows"
+        },
+        {
+          "section": 219,
+          "heading": "<kbd>method</kbd> `append`"
+        },
+        {
+          "section": 220,
+          "heading": "<kbd>method</kbd> `pop`"
+        },
+        {
+          "section": 221,
+          "heading": "<kbd>class</kbd> `ContextAwareThread`"
+        },
+        {
+          "section": 222,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 223,
+          "heading": "<kbd>property</kbd> daemon"
+        },
+        {
+          "section": 224,
+          "heading": "<kbd>property</kbd> ident"
+        },
+        {
+          "section": 225,
+          "heading": "<kbd>property</kbd> name"
+        },
+        {
+          "section": 226,
+          "heading": "<kbd>property</kbd> native\\_id"
+        },
+        {
+          "section": 227,
+          "heading": "<kbd>method</kbd> `run`"
+        },
+        {
+          "section": 228,
+          "heading": "<kbd>class</kbd> `ThreadContext`"
+        },
+        {
+          "section": 229,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 230,
+          "heading": "<kbd>property</kbd> thread\\_id"
+        },
+        {
+          "section": 231,
+          "heading": "<kbd>property</kbd> turn\\_id"
+        },
+        {
+          "section": 232,
+          "heading": "<kbd>class</kbd> `ContextAwareThreadPoolExecutor`"
+        },
+        {
+          "section": 233,
+          "heading": "<kbd>method</kbd> `__init__`"
+        },
+        {
+          "section": 234,
+          "heading": "<kbd>method</kbd> `map`"
+        },
+        {
+          "section": 235,
+          "heading": "<kbd>method</kbd> `submit`"
+        },
+        {
+          "section": 236,
+          "heading": "<kbd>class</kbd> `Tool`"
+        },
+        {
+          "section": 237,
+          "heading": "<kbd>method</kbd> `add_event`"
+        },
+        {
+          "section": 238,
+          "heading": "<kbd>method</kbd> `end`"
+        },
+        {
+          "section": 239,
+          "heading": "<kbd>method</kbd> `set_attributes`"
+        },
+        {
+          "section": 240,
+          "heading": "<kbd>class</kbd> `Turn`"
+        },
+        {
+          "section": 241,
+          "heading": "<kbd>method</kbd> `add_event`"
+        },
+        {
+          "section": 242,
+          "heading": "<kbd>method</kbd> `end`"
+        },
+        {
+          "section": 243,
+          "heading": "<kbd>method</kbd> `llm`"
+        },
+        {
+          "section": 244,
+          "heading": "<kbd>method</kbd> `model_post_init`"
+        },
+        {
+          "section": 245,
+          "heading": "<kbd>method</kbd> `record`"
+        },
+        {
+          "section": 246,
+          "heading": "<kbd>method</kbd> `set_attributes`"
+        },
+        {
+          "section": 247,
+          "heading": "<kbd>method</kbd> `subagent`"
+        },
+        {
+          "section": 248,
+          "heading": "<kbd>method</kbd> `tool`"
+        },
+        {
+          "section": 249,
+          "heading": "<kbd>method</kbd> `user`"
+        },
+        {
+          "section": 250,
+          "heading": "<kbd>class</kbd> `Usage`"
+        },
+        {
+          "section": 251,
+          "heading": "<kbd>function</kbd> `add_tags`"
+        },
+        {
+          "section": 252,
+          "heading": "<kbd>function</kbd> `as_op`"
+        },
+        {
+          "section": 253,
+          "heading": "<kbd>function</kbd> `attributes`"
+        },
+        {
+          "section": 254,
+          "heading": "<kbd>function</kbd> `end_conversation`"
+        },
+        {
+          "section": 255,
+          "heading": "<kbd>function</kbd> `end_llm`"
+        },
+        {
+          "section": 256,
+          "heading": "<kbd>function</kbd> `end_session`"
+        },
+        {
+          "section": 257,
+          "heading": "<kbd>function</kbd> `end_turn`"
+        },
+        {
+          "section": 258,
+          "heading": "<kbd>function</kbd> `finish`"
+        },
+        {
+          "section": 259,
+          "heading": "<kbd>function</kbd> `get`"
+        },
+        {
+          "section": 260,
+          "heading": "<kbd>function</kbd> `get_aliases`"
+        },
+        {
+          "section": 261,
+          "heading": "<kbd>function</kbd> `get_client`"
+        },
+        {
+          "section": 262,
+          "heading": "<kbd>function</kbd> `get_current_call`"
+        },
+        {
+          "section": 263,
+          "heading": "<kbd>function</kbd> `get_current_conversation`"
+        },
+        {
+          "section": 264,
+          "heading": "<kbd>function</kbd> `get_current_llm`"
+        },
+        {
+          "section": 265,
+          "heading": "<kbd>function</kbd> `get_current_session`"
+        },
+        {
+          "section": 266,
+          "heading": "<kbd>function</kbd> `get_current_turn`"
+        },
+        {
+          "section": 267,
+          "heading": "<kbd>function</kbd> `get_tags`"
+        },
+        {
+          "section": 268,
+          "heading": "<kbd>function</kbd> `get_tags_and_aliases`"
+        },
+        {
+          "section": 269,
+          "heading": "<kbd>function</kbd> `init`"
+        },
+        {
+          "section": 270,
+          "heading": "<kbd>function</kbd> `link_prompt_to_registry`"
+        },
+        {
+          "section": 271,
+          "heading": "<kbd>function</kbd> `list_aliases`"
+        },
+        {
+          "section": 272,
+          "heading": "<kbd>function</kbd> `list_tags`"
+        },
+        {
+          "section": 273,
+          "heading": "<kbd>function</kbd> `log_call`"
+        },
+        {
+          "section": 274,
+          "heading": "<kbd>function</kbd> `log_conversation`"
+        },
+        {
+          "section": 275,
+          "heading": "<kbd>function</kbd> `log_session`"
+        },
+        {
+          "section": 276,
+          "heading": "<kbd>function</kbd> `log_turn`"
+        },
+        {
+          "section": 277,
+          "heading": "<kbd>function</kbd> `op`"
+        },
+        {
+          "section": 278,
+          "heading": "<kbd>function</kbd> `otel_traces_endpoint`"
+        },
+        {
+          "section": 279,
+          "heading": "<kbd>function</kbd> `publish`"
+        },
+        {
+          "section": 280,
+          "heading": "<kbd>function</kbd> `ref`"
+        },
+        {
+          "section": 281,
+          "heading": "<kbd>function</kbd> `remove_aliases`"
+        },
+        {
+          "section": 282,
+          "heading": "<kbd>function</kbd> `remove_tags`"
+        },
+        {
+          "section": 283,
+          "heading": "<kbd>function</kbd> `require_current_call`"
+        },
+        {
+          "section": 284,
+          "heading": "<kbd>function</kbd> `set_aliases`"
+        },
+        {
+          "section": 285,
+          "heading": "<kbd>function</kbd> `set_view`"
+        },
+        {
+          "section": 286,
+          "heading": "<kbd>function</kbd> `start_conversation`"
+        },
+        {
+          "section": 287,
+          "heading": "<kbd>function</kbd> `start_llm`"
+        },
+        {
+          "section": 288,
+          "heading": "<kbd>function</kbd> `start_session`"
+        },
+        {
+          "section": 289,
+          "heading": "<kbd>function</kbd> `start_subagent`"
+        },
+        {
+          "section": 290,
+          "heading": "<kbd>function</kbd> `start_tool`"
+        },
+        {
+          "section": 291,
+          "heading": "<kbd>function</kbd> `start_turn`"
+        },
+        {
+          "section": 292,
+          "heading": "<kbd>function</kbd> `thread`"
+        },
+        {
+          "section": 293,
+          "heading": "<kbd>function</kbd> `wandb_init_hook`"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "verification": {
+    "passed": true,
+    "issues": [],
+    "missing_parts": [],
+    "mode": "support",
+    "status": "passed"
+  },
+  "verification_attempts": [
+    {
+      "candidate": {
+        "source_ids": [
+          "S1",
+          "S2",
+          "S3"
+        ],
+        "answer": "`postprocess_inputs` takes a dict of the call's arguments and returns a dict. `postprocess_output` takes whatever your function returns and returns a changed version of that value. The trace saves the changed versions, not the raw ones.\n\n**`postprocess_inputs`**\n- **Receives:** a dict mapping each argument name to its value (`dict[str, Any]`) [S1].\n- **Returns:** a dict of the changed inputs, for example with a sensitive argument removed [S1].\n\n**`postprocess_output`**\n- **Receives:** whatever your function would normally return. The docs example uses a dataclass called `CustomObject` [S1].\n- **Returns:** the changed output. The example returns a new `CustomObject` with `secret_password=\"REDACTED\"`, so the type stays the same [S1].\n\n**What the trace saves**\n- Both hooks change the inputs and output \"before logging\" [S2]. They let you change what Weave logs without editing the original function, for example to hide sensitive data [S1]. So the trace stores what the hooks return.\n- My reading (the docs don't say this outright): because the hooks only affect logging, your function still receives the original arguments, and callers still get the original return value.\n- If you also pass `postprocess_inputs` / `postprocess_output` to `weave.init`, those apply to every op that client traces. They run after each op's own hooks, so the saved trace reflects both steps in that order [S3].\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: Any) -> Any:\n    return \"REDACTED\"  # replace with your own transformation\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature is Python-only for now. It isn't available in TypeScript yet [S1].",
+        "kind": "answer"
+      },
+      "passed": true,
+      "issues": [],
+      "missing_parts": [],
+      "mode": "support",
+      "status": "passed"
+    }
+  ],
+  "actions": [
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "postprocess_inputs postprocess_output op"
+      },
+      "result": {
+        "query": "postprocess_inputs postprocess_output op",
+        "results": [
+          {
+            "page_id": "guides/tracking/ops",
+            "section": 3,
+            "title": "Customize Ops",
+            "heading": "Customize logged inputs and outputs",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+            "snippet": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: str\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return C"
+          },
+          {
+            "page_id": "reference/python-sdk/trace/op",
+            "section": 17,
+            "title": "op",
+            "heading": "<kbd>function</kbd> `op`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+            "snippet": "### <kbd>function</kbd> `op`\n\n```python theme={\"system\"}\nop(\n    func: 'Callable[P, R] | None' = None,\n    name: 'str | None' = None,\n    call_display_name: 'str | CallDisplayNameFunc | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    tracing_sample_rate: 'float' = 1.0,\n    enable_code_capture: 'bool' = True,\n    accumulator: 'Callable[[Any | None, Any], Any] | None' = None,\n    kind: 'OpKind | None' = None,\n    color: 'OpColor | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    eager_call_start: 'bool' = False\n) \u2192 Callable[[Callable[P, R]], Op[P, R]] | Op[P, R]\n```\n\nA decorator to weave op-ify a function or method. Works for both sync and async. Automatically detects iterator functions and applies appropriate behavior.\n\n**Args:**\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L436)\n\n"
+          },
+          {
+            "page_id": "cookbooks/pii",
+            "section": 2,
+            "title": "PII Data Handling",
+            "heading": "Customize input and output logging using `weave.op`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/pii",
+            "snippet": "### Customize input and output logging using `weave.op`\n\nWeave Ops let you define input and output postprocessing functions. With these functions, you can modify the data that is passed to your LLM call or logged to Weave.\n\nThe following example defines two postprocessing functions and passes them as arguments to `weave.op()`.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\n\nimport weave\n\n# Inputs Wrapper Class\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\n# First, define functions for input and output postprocessing:\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n# Then, when you use the `@weave.op` decorator, pass these processing functions as arguments to the decorator:\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef some_llm_call(a: int, hide_me: str) -> Cus"
+          },
+          {
+            "page_id": "reference/python-sdk",
+            "section": 277,
+            "title": "weave",
+            "heading": "<kbd>function</kbd> `op`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+            "snippet": "### <kbd>function</kbd> `op`\n\n```python theme={\"system\"}\nop(\n    func: 'Callable[P, R] | None' = None,\n    name: 'str | None' = None,\n    call_display_name: 'str | CallDisplayNameFunc | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    tracing_sample_rate: 'float' = 1.0,\n    enable_code_capture: 'bool' = True,\n    accumulator: 'Callable[[Any | None, Any], Any] | None' = None,\n    kind: 'OpKind | None' = None,\n    color: 'OpColor | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    eager_call_start: 'bool' = False\n) \u2192 Callable[[Callable[P, R]], Op[P, R]] | Op[P, R]\n```\n\nA decorator to weave op-ify a function or method. Works for both sync and async. Automatically detects iterator functions and applies appropriate behavior.\n\n**Args:**\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/urls.py#L14)\n\n"
+          },
+          {
+            "page_id": "reference/python-sdk/trace/op",
+            "section": 19,
+            "title": "op",
+            "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+            "snippet": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than"
+          },
+          {
+            "page_id": "reference/python-sdk",
+            "section": 269,
+            "title": "weave",
+            "heading": "<kbd>function</kbd> `init`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+            "snippet": "### <kbd>function</kbd> `init`\n\n```python theme={\"system\"}\ninit(\n    project_name: 'str',\n    settings: 'UserSettings | dict[str, Any] | None' = None,\n    autopatch_settings: 'AutopatchSettings | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    global_postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    global_postprocess_output: 'PostprocessOutputFunc | None' = None,\n    global_attributes: 'dict[str, Any] | None' = None\n) \u2192 WeaveClient\n```\n\nInitialize weave tracking, logging to a wandb project.\n\nLogging is initialized globally, so you do not need to keep a reference to the return value of init.\n\nFollowing init, calls of weave.op decorated functions will be logged to the specified project.\n\n**Args:**\n\nNOTE: Client-level postprocessing runs after each op's own postprocessing. The order is always: 1. Op-specific postprocessing 2. Client-level postprocessing\n\n* **`project_name`**: The name of the Weights & Biases team and project to log"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/ops",
+        "section": 3
+      },
+      "result": {
+        "source_id": "S1",
+        "page_id": "guides/tracking/ops",
+        "section": 3,
+        "title": "Customize Ops",
+        "heading": "Customize logged inputs and outputs",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+        "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+        "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: str\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=hide_me)\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+        "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Customize Ops"
+          },
+          {
+            "section": 1,
+            "heading": "Customize display names"
+          },
+          {
+            "section": 2,
+            "heading": "Apply kinds and colors"
+          },
+          {
+            "section": 3,
+            "heading": "Customize logged inputs and outputs"
+          },
+          {
+            "section": 4,
+            "heading": "Control sampling rate"
+          },
+          {
+            "section": 5,
+            "heading": "Control Call link output"
+          },
+          {
+            "section": 6,
+            "heading": "Delete an Op"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "reference/python-sdk/trace/op",
+        "section": 19
+      },
+      "result": {
+        "source_id": "S2",
+        "page_id": "reference/python-sdk/trace/op",
+        "section": 19,
+        "title": "op",
+        "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+        "page_sha256": "4677e9143e450d3790b2b1ef6604722e653fa4109522da4875ac8a93beedc5d8",
+        "text": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than batched.  Useful for long-running operations like evaluations that should  be visible in the UI immediately.\n\n**Args:**\n\n* **`d`**: Optional existing WeaveKwargs dict to update.\n* **`op`**: Op to extract kind and color from.\n\n**Returns:**\nWeaveKwargs dict with attributes, display\\_name, and optionally kind/color set.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L422)\n\n",
+        "page_context": "# op\n\n> Python SDK reference for weave.trace.op\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "op"
+          },
+          {
+            "section": 1,
+            "heading": "API Overview"
+          },
+          {
+            "section": 2,
+            "heading": "<kbd>class</kbd> `DisplayNameFuncError`"
+          },
+          {
+            "section": 3,
+            "heading": "<kbd>class</kbd> `OpCallError`"
+          },
+          {
+            "section": 4,
+            "heading": "<kbd>class</kbd> `OpKwargs`"
+          },
+          {
+            "section": 5,
+            "heading": "<kbd>class</kbd> `Sentinel`"
+          },
+          {
+            "section": 6,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 7,
+            "heading": "<kbd>class</kbd> `WeaveKwargs`"
+          },
+          {
+            "section": 8,
+            "heading": "<kbd>function</kbd> `as_op`"
+          },
+          {
+            "section": 9,
+            "heading": "<kbd>function</kbd> `call`"
+          },
+          {
+            "section": 10,
+            "heading": "<kbd>function</kbd> `calls`"
+          },
+          {
+            "section": 11,
+            "heading": "<kbd>function</kbd> `get_captured_code`"
+          },
+          {
+            "section": 12,
+            "heading": "<kbd>function</kbd> `is_op`"
+          },
+          {
+            "section": 13,
+            "heading": "<kbd>function</kbd> `is_placeholder_call`"
+          },
+          {
+            "section": 14,
+            "heading": "<kbd>function</kbd> `is_tracing_setting_disabled`"
+          },
+          {
+            "section": 15,
+            "heading": "<kbd>function</kbd> `maybe_bind_method`"
+          },
+          {
+            "section": 16,
+            "heading": "<kbd>function</kbd> `maybe_unbind_method`"
+          },
+          {
+            "section": 17,
+            "heading": "<kbd>function</kbd> `op`"
+          },
+          {
+            "section": 18,
+            "heading": "<kbd>function</kbd> `placeholder_call`"
+          },
+          {
+            "section": 19,
+            "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`"
+          },
+          {
+            "section": 20,
+            "heading": "<kbd>function</kbd> `should_skip_tracing_for_op`"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "reference/python-sdk",
+        "section": 269
+      },
+      "result": {
+        "source_id": "S3",
+        "page_id": "reference/python-sdk",
+        "section": 269,
+        "title": "weave",
+        "heading": "<kbd>function</kbd> `init`",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+        "page_sha256": "458bbcdb9cd103df8921fe985c50079ed7db53b5fad7a5077de2ab9f2c667d2d",
+        "text": "### <kbd>function</kbd> `init`\n\n```python theme={\"system\"}\ninit(\n    project_name: 'str',\n    settings: 'UserSettings | dict[str, Any] | None' = None,\n    autopatch_settings: 'AutopatchSettings | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    global_postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    global_postprocess_output: 'PostprocessOutputFunc | None' = None,\n    global_attributes: 'dict[str, Any] | None' = None\n) \u2192 WeaveClient\n```\n\nInitialize weave tracking, logging to a wandb project.\n\nLogging is initialized globally, so you do not need to keep a reference to the return value of init.\n\nFollowing init, calls of weave.op decorated functions will be logged to the specified project.\n\n**Args:**\n\nNOTE: Client-level postprocessing runs after each op's own postprocessing. The order is always: 1. Op-specific postprocessing 2. Client-level postprocessing\n\n* **`project_name`**: The name of the Weights & Biases team and project to log to. If you don't  specify a team, your default entity is used. To find or update your default entity, refer to [User settings](https://docs.coreweave.com/products/wandb/platform/app/settings-page/user-settings.md#default-team) in the W\\&B documentation.\n* **`settings`**: Configuration for the Weave client generally. Can be a UserSettings instance or a dict  with any of the following keys (all optional). All settings can also be configured  via environment variables using the prefix WEAVE\\_ (e.g., WEAVE\\_DISABLED=true).  Available settings: - `disabled` (bool): Disables traces on all functions. Default: `False` - `print_call_link` (bool): Prints links in terminal to Weave UI for ops. Default: `True` - `log_level` (str): Sets what type of information to log (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). Default: `INFO` - `display_viewer` (str): Controls how Weave displays objects in the console (`auto`, `rich`, `print`). Default: `auto` - `capture_code` (bool): Captures code of traced ops to your Weave project. Default: `True` - `implicitly_patch_integrations` (bool): Auto-patches supported libraries. Default: `True` - `redact_pii` (bool): Scans all trace data for sensitive information,  like emails, phone numbers, and credit cards, and replaces them with placeholder values  before sending to the server. Requires presidio-analyzer and presidio-anonymizer packages.\n* **`Default`**: `False` - `redact_pii_fields` (list\\[str]): Specifies which PII entity types to redact when `redact_pii` is True. If empty, uses Presidio's default set. Examples  \\['EMAIL','PHONE\\_NUMBER','CREDIT\\_CARD','US\\_SSN']. See full list at  [https://microsoft.github.io/presidio/supported\\_entities/](https://microsoft.github.io/presidio/supported_entities/)\n* **`Default`**: `[]` - `redact_pii_exclude_fields` (list\\[str]): PII entity types to exclude. Default: `[]` - `capture_client_info` (bool): Captures Python/SDK version info. Default: `True` - `capture_system_info` (bool): Captures OS information. Default: `True` - `client_parallelism` (int): Number of workers for background ops. Default: `auto` - `use_server_cache` (bool): Enables local disk caching of server responses. - `server_cache_size_limit` (int): Cache size limit in bytes. Default: `1_000_000_000` - `server_cache_dir` (str): Directory for server cache. Default: `temporary` - `scorers_dir` (str): Directory for scorer model checkpoints. Default: `~/.cache/wandb/weave-scorers` - `max_calls_queue_size` (int): Maximum queue size (0 = unbounded). Default: `100_000` - `retry_max_interval` (float): Maximum retry interval in seconds. Default: `300` - `retry_max_attempts` (int): Maximum number of retries. Default: `3` - `enable_disk_fallback` (bool): Writes dropped items to disk. Default: `True` - `use_parallel_table_upload` (bool): Enables parallel chunked upload for large tables. If False, tables are uploaded sequentially in smaller chunks.\n* **`Default`**: `True` - `http_timeout` (float): Maximum time in seconds to wait for HTTP requests to complete. This includes connection time, data transfer, and server processing. Increase for slow networks or when working with large payloads.\n* **`Default`**: `30.0` - `use_stainless_server` (bool): Uses the Stainless-generated HTTP client which provides better type safety, automatic retries, and improved error handling. This is experimental and may become the default in future versions.\n* **`Default`**: `False` - `use_calls_complete` (bool): Uses an optimized write path that batches complete call data (start and end) into a single request instead of separate start/end requests. This reduces server load and improves performance, especially for short-lived ops.\n* **`Default`**: `True` - `use_otel_v2`: (bool): Routes OTel-capable integrations through their OTel variant.\n* **`Default`**: `True`\n* **`autopatch_settings`**: (Deprecated) Configuration for autopatch integrations. Use explicit patching instead.\n* **`postprocess_inputs`**: A function applied to the inputs of every op traced by this client.\n* **`postprocess_output`**: A function applied to the output of every op traced by this client.\n* **`attributes`**: A dictionary of attributes applied to every trace produced by this client.\n\n**Returns:**\nA Weave client.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/api.py#L409)\n\n",
+        "page_context": "# weave\n\n> Python SDK reference for weave\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "weave"
+          },
+          {
+            "section": 1,
+            "heading": "API Overview"
+          },
+          {
+            "section": 2,
+            "heading": "<kbd>class</kbd> `Agent`"
+          },
+          {
+            "section": 3,
+            "heading": "<kbd>method</kbd> `step`"
+          },
+          {
+            "section": 4,
+            "heading": "<kbd>class</kbd> `AgentState`"
+          },
+          {
+            "section": 5,
+            "heading": "<kbd>class</kbd> `AnnotationSpec`"
+          },
+          {
+            "section": 6,
+            "heading": "<kbd>classmethod</kbd> `preprocess_field_schema`"
+          },
+          {
+            "section": 7,
+            "heading": "<kbd>classmethod</kbd> `validate_field_schema`"
+          },
+          {
+            "section": 8,
+            "heading": "<kbd>method</kbd> `value_is_valid`"
+          },
+          {
+            "section": 9,
+            "heading": "<kbd>class</kbd> `Audio`"
+          },
+          {
+            "section": 10,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 11,
+            "heading": "<kbd>method</kbd> `export`"
+          },
+          {
+            "section": 12,
+            "heading": "<kbd>classmethod</kbd> `from_data`"
+          },
+          {
+            "section": 13,
+            "heading": "<kbd>classmethod</kbd> `from_path`"
+          },
+          {
+            "section": 14,
+            "heading": "<kbd>class</kbd> `ClassifierMonitor`"
+          },
+          {
+            "section": 15,
+            "heading": "<kbd>method</kbd> `activate`"
+          },
+          {
+            "section": 16,
+            "heading": "<kbd>method</kbd> `deactivate`"
+          },
+          {
+            "section": 17,
+            "heading": "<kbd>classmethod</kbd> `from_obj`"
+          },
+          {
+            "section": 18,
+            "heading": "<kbd>method</kbd> `get_prompt_footer`"
+          },
+          {
+            "section": 19,
+            "heading": "<kbd>method</kbd> `get_prompt_header`"
+          },
+          {
+            "section": 20,
+            "heading": "<kbd>method</kbd> `model_post_init`"
+          },
+          {
+            "section": 21,
+            "heading": "<kbd>class</kbd> `Content`"
+          },
+          {
+            "section": 22,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 23,
+            "heading": "<kbd>property</kbd> art"
+          },
+          {
+            "section": 24,
+            "heading": "<kbd>property</kbd> ref"
+          },
+          {
+            "section": 25,
+            "heading": "<kbd>method</kbd> `as_string`"
+          },
+          {
+            "section": 26,
+            "heading": "<kbd>classmethod</kbd> `from_base64`"
+          },
+          {
+            "section": 27,
+            "heading": "<kbd>classmethod</kbd> `from_bytes`"
+          },
+          {
+            "section": 28,
+            "heading": "<kbd>classmethod</kbd> `from_data_url`"
+          },
+          {
+            "section": 29,
+            "heading": "<kbd>classmethod</kbd> `from_path`"
+          },
+          {
+            "section": 30,
+            "heading": "<kbd>classmethod</kbd> `from_text`"
+          },
+          {
+            "section": 31,
+            "heading": "<kbd>classmethod</kbd> `from_url`"
+          },
+          {
+            "section": 32,
+            "heading": "<kbd>classmethod</kbd> `model_validate`"
+          },
+          {
+            "section": 33,
+            "heading": "<kbd>classmethod</kbd> `model_validate_json`"
+          },
+          {
+            "section": 34,
+            "heading": "<kbd>method</kbd> `open`"
+          },
+          {
+            "section": 35,
+            "heading": "<kbd>method</kbd> `save`"
+          },
+          {
+            "section": 36,
+            "heading": "<kbd>method</kbd> `serialize_data`"
+          },
+          {
+            "section": 37,
+            "heading": "<kbd>method</kbd> `to_data_url`"
+          },
+          {
+            "section": 38,
+            "heading": "<kbd>class</kbd> `Conversation`"
+          },
+          {
+            "section": 39,
+            "heading": "<kbd>method</kbd> `end`"
+          },
+          {
+            "section": 40,
+            "heading": "<kbd>method</kbd> `model_post_init`"
+          },
+          {
+            "section": 41,
+            "heading": "<kbd>method</kbd> `start_turn`"
+          },
+          {
+            "section": 42,
+            "heading": "<kbd>class</kbd> `Dataset`"
+          },
+          {
+            "section": 43,
+            "heading": "<kbd>method</kbd> `add_rows`"
+          },
+          {
+            "section": 44,
+            "heading": "<kbd>classmethod</kbd> `convert_to_table`"
+          },
+          {
+            "section": 45,
+            "heading": "<kbd>classmethod</kbd> `from_calls`"
+          },
+          {
+            "section": 46,
+            "heading": "<kbd>classmethod</kbd> `from_hf`"
+          },
+          {
+            "section": 47,
+            "heading": "<kbd>classmethod</kbd> `from_obj`"
+          },
+          {
+            "section": 48,
+            "heading": "<kbd>classmethod</kbd> `from_pandas`"
+          },
+          {
+            "section": 49,
+            "heading": "<kbd>method</kbd> `select`"
+          },
+          {
+            "section": 50,
+            "heading": "<kbd>method</kbd> `to_hf`"
+          },
+          {
+            "section": 51,
+            "heading": "<kbd>method</kbd> `to_pandas`"
+          },
+          {
+            "section": 52,
+            "heading": "<kbd>class</kbd> `EasyPrompt`"
+          },
+          {
+            "section": 53,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 54,
+            "heading": "<kbd>property</kbd> as\\_str"
+          },
+          {
+            "section": 55,
+            "heading": "<kbd>property</kbd> is\\_bound"
+          },
+          {
+            "section": 56,
+            "heading": "<kbd>property</kbd> messages"
+          },
+          {
+            "section": 57,
+            "heading": "<kbd>property</kbd> placeholders"
+          },
+          {
+            "section": 58,
+            "heading": "<kbd>property</kbd> system\\_message"
+          },
+          {
+            "section": 59,
+            "heading": "<kbd>property</kbd> system\\_prompt"
+          },
+          {
+            "section": 60,
+            "heading": "<kbd>property</kbd> unbound\\_placeholders"
+          },
+          {
+            "section": 61,
+            "heading": "<kbd>method</kbd> `append`"
+          },
+          {
+            "section": 62,
+            "heading": "<kbd>method</kbd> `as_dict`"
+          },
+          {
+            "section": 63,
+            "heading": "<kbd>method</kbd> `as_pydantic_dict`"
+          },
+          {
+            "section": 64,
+            "heading": "<kbd>method</kbd> `bind`"
+          },
+          {
+            "section": 65,
+            "heading": "<kbd>method</kbd> `bind_rows`"
+          },
+          {
+            "section": 66,
+            "heading": "<kbd>method</kbd> `config_table`"
+          },
+          {
+            "section": 67,
+            "heading": "<kbd>method</kbd> `configure`"
+          },
+          {
+            "section": 68,
+            "heading": "<kbd>method</kbd> `dump`"
+          },
+          {
+            "section": 69,
+            "heading": "<kbd>method</kbd> `dump_file`"
+          },
+          {
+            "section": 70,
+            "heading": "<kbd>method</kbd> `format`"
+          },
+          {
+            "section": 71,
+            "heading": "<kbd>classmethod</kbd> `from_obj`"
+          },
+          {
+            "section": 72,
+            "heading": "<kbd>classmethod</kbd> `load`"
+          },
+          {
+            "section": 73,
+            "heading": "<kbd>classmethod</kbd> `load_file`"
+          },
+          {
+            "section": 74,
+            "heading": "<kbd>method</kbd> `messages_table`"
+          },
+          {
+            "section": 75,
+            "heading": "<kbd>method</kbd> `print`"
+          },
+          {
+            "section": 76,
+            "heading": "<kbd>method</kbd> `publish`"
+          },
+          {
+            "section": 77,
+            "heading": "<kbd>method</kbd> `require`"
+          },
+          {
+            "section": 78,
+            "heading": "<kbd>method</kbd> `run`"
+          },
+          {
+            "section": 79,
+            "heading": "<kbd>method</kbd> `validate_requirement`"
+          },
+          {
+            "section": 80,
+            "heading": "<kbd>method</kbd> `validate_requirements`"
+          },
+          {
+            "section": 81,
+            "heading": "<kbd>method</kbd> `values_table`"
+          },
+          {
+            "section": 82,
+            "heading": "<kbd>class</kbd> `Evaluation`"
+          },
+          {
+            "section": 83,
+            "heading": "<kbd>method</kbd> `evaluate`"
+          },
+          {
+            "section": 84,
+            "heading": "<kbd>classmethod</kbd> `from_obj`"
+          },
+          {
+            "section": 85,
+            "heading": "<kbd>method</kbd> `get_eval_results`"
+          },
+          {
+            "section": 86,
+            "heading": "<kbd>method</kbd> `get_evaluate_calls`"
+          },
+          {
+            "section": 87,
+            "heading": "<kbd>method</kbd> `get_score_calls`"
+          },
+          {
+            "section": 88,
+            "heading": "<kbd>method</kbd> `get_scores`"
+          },
+          {
+            "section": 89,
+            "heading": "<kbd>method</kbd> `model_post_init`"
+          },
+          {
+            "section": 90,
+            "heading": "<kbd>method</kbd> `predict_and_score`"
+          },
+          {
+            "section": 91,
+            "heading": "<kbd>method</kbd> `summarize`"
+          },
+          {
+            "section": 92,
+            "heading": "<kbd>class</kbd> `EvaluationLogger`"
+          },
+          {
+            "section": 93,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 94,
+            "heading": "<kbd>property</kbd> attributes"
+          },
+          {
+            "section": 95,
+            "heading": "<kbd>property</kbd> ui\\_url"
+          },
+          {
+            "section": 96,
+            "heading": "<kbd>method</kbd> `fail`"
+          },
+          {
+            "section": 97,
+            "heading": "<kbd>method</kbd> `finish`"
+          },
+          {
+            "section": 98,
+            "heading": "<kbd>method</kbd> `log_example`"
+          },
+          {
+            "section": 99,
+            "heading": "<kbd>method</kbd> `log_prediction`"
+          },
+          {
+            "section": 100,
+            "heading": "<kbd>method</kbd> `log_summary`"
+          },
+          {
+            "section": 101,
+            "heading": "<kbd>method</kbd> `set_view`"
+          },
+          {
+            "section": 102,
+            "heading": "<kbd>class</kbd> `File`"
+          },
+          {
+            "section": 103,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 104,
+            "heading": "<kbd>property</kbd> filename"
+          },
+          {
+            "section": 105,
+            "heading": "<kbd>method</kbd> `open`"
+          },
+          {
+            "section": 106,
+            "heading": "<kbd>method</kbd> `save`"
+          },
+          {
+            "section": 107,
+            "heading": "<kbd>class</kbd> `LLM`"
+          },
+          {
+            "section": 108,
+            "heading": "<kbd>method</kbd> `add_event`"
+          },
+          {
+            "section": 109,
+            "heading": "<kbd>method</kbd> `attach_media`"
+          },
+          {
+            "section": 110,
+            "heading": "<kbd>method</kbd> `attach_media_url`"
+          },
+          {
+            "section": 111,
+            "heading": "<kbd>method</kbd> `end`"
+          },
+          {
+            "section": 112,
+            "heading": "<kbd>method</kbd> `model_post_init`"
+          },
+          {
+            "section": 113,
+            "heading": "<kbd>method</kbd> `output`"
+          },
+          {
+            "section": 114,
+            "heading": "<kbd>method</kbd> `record`"
+          },
+          {
+            "section": 115,
+            "heading": "<kbd>method</kbd> `set_attributes`"
+          },
+          {
+            "section": 116,
+            "heading": "<kbd>method</kbd> `think`"
+          },
+          {
+            "section": 117,
+            "heading": "<kbd>class</kbd> `LogResult`"
+          },
+          {
+            "section": 118,
+            "heading": "<kbd>class</kbd> `Markdown`"
+          },
+          {
+            "section": 119,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 120,
+            "heading": "<kbd>class</kbd> `MediaAttachment`"
+          },
+          {
+            "section": 121,
+            "heading": "<kbd>class</kbd> `Message`"
+          },
+          {
+            "section": 122,
+            "heading": "<kbd>classmethod</kbd> `assistant`"
+          },
+          {
+            "section": 123,
+            "heading": "<kbd>classmethod</kbd> `system`"
+          },
+          {
+            "section": 124,
+            "heading": "<kbd>classmethod</kbd> `tool_result`"
+          },
+          {
+            "section": 125,
+            "heading": "<kbd>classmethod</kbd> `user`"
+          },
+          {
+            "section": 126,
+            "heading": "<kbd>class</kbd> `MessagesPrompt`"
+          },
+          {
+            "section": 127,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 128,
+            "heading": "<kbd>method</kbd> `format`"
+          },
+          {
+            "section": 129,
+            "heading": "<kbd>method</kbd> `format_message`"
+          },
+          {
+            "section": 130,
+            "heading": "<kbd>classmethod</kbd> `from_obj`"
+          },
+          {
+            "section": 131,
+            "heading": "<kbd>class</kbd> `Model`"
+          },
+          {
+            "section": 132,
+            "heading": "<kbd>method</kbd> `get_infer_method`"
+          },
+          {
+            "section": 133,
+            "heading": "<kbd>class</kbd> `Monitor`"
+          },
+          {
+            "section": 134,
+            "heading": "<kbd>method</kbd> `activate`"
+          },
+          {
+            "section": 135,
+            "heading": "<kbd>method</kbd> `deactivate`"
+          },
+          {
+            "section": 136,
+            "heading": "<kbd>classmethod</kbd> `from_obj`"
+          },
+          {
+            "section": 137,
+            "heading": "<kbd>method</kbd> `model_post_init`"
+          },
+          {
+            "section": 138,
+            "heading": "<kbd>class</kbd> `Object`"
+          },
+          {
+            "section": 139,
+            "heading": "<kbd>classmethod</kbd> `from_uri`"
+          },
+          {
+            "section": 140,
+            "heading": "<kbd>classmethod</kbd> `handle_relocatable_object`"
+          },
+          {
+            "section": 141,
+            "heading": "<kbd>classmethod</kbd> `strip_weave_serialization_metadata`"
+          },
+          {
+            "section": 142,
+            "heading": "<kbd>class</kbd> `ObjectRef`"
+          },
+          {
+            "section": 143,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 144,
+            "heading": "<kbd>property</kbd> digest"
+          },
+          {
+            "section": 145,
+            "heading": "<kbd>property</kbd> extra"
+          },
+          {
+            "section": 146,
+            "heading": "<kbd>property</kbd> is\\_digest\\_resolved"
+          },
+          {
+            "section": 147,
+            "heading": "<kbd>method</kbd> `as_param_dict`"
+          },
+          {
+            "section": 148,
+            "heading": "<kbd>method</kbd> `delete`"
+          },
+          {
+            "section": 149,
+            "heading": "<kbd>method</kbd> `get`"
+          },
+          {
+            "section": 150,
+            "heading": "<kbd>method</kbd> `is_descended_from`"
+          },
+          {
+            "section": 151,
+            "heading": "<kbd>method</kbd> `maybe_parse_uri`"
+          },
+          {
+            "section": 152,
+            "heading": "<kbd>method</kbd> `parse_uri`"
+          },
+          {
+            "section": 153,
+            "heading": "<kbd>method</kbd> `with_attr`"
+          },
+          {
+            "section": 154,
+            "heading": "<kbd>method</kbd> `with_extra`"
+          },
+          {
+            "section": 155,
+            "heading": "<kbd>method</kbd> `with_index`"
+          },
+          {
+            "section": 156,
+            "heading": "<kbd>method</kbd> `with_item`"
+          },
+          {
+            "section": 157,
+            "heading": "<kbd>method</kbd> `with_key`"
+          },
+          {
+            "section": 158,
+            "heading": "<kbd>class</kbd> `Prompt`"
+          },
+          {
+            "section": 159,
+            "heading": "<kbd>method</kbd> `format`"
+          },
+          {
+            "section": 160,
+            "heading": "<kbd>class</kbd> `SavedView`"
+          },
+          {
+            "section": 161,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 162,
+            "heading": "<kbd>property</kbd> entity"
+          },
+          {
+            "section": 163,
+            "heading": "<kbd>property</kbd> label"
+          },
+          {
+            "section": 164,
+            "heading": "<kbd>property</kbd> project"
+          },
+          {
+            "section": 165,
+            "heading": "<kbd>property</kbd> view\\_type"
+          },
+          {
+            "section": 166,
+            "heading": "<kbd>method</kbd> `add_column`"
+          },
+          {
+            "section": 167,
+            "heading": "<kbd>method</kbd> `add_columns`"
+          },
+          {
+            "section": 168,
+            "heading": "<kbd>method</kbd> `add_filter`"
+          },
+          {
+            "section": 169,
+            "heading": "<kbd>method</kbd> `add_sort`"
+          },
+          {
+            "section": 170,
+            "heading": "<kbd>method</kbd> `column_index`"
+          },
+          {
+            "section": 171,
+            "heading": "<kbd>method</kbd> `filter_op`"
+          },
+          {
+            "section": 172,
+            "heading": "<kbd>method</kbd> `get_calls`"
+          },
+          {
+            "section": 173,
+            "heading": "<kbd>method</kbd> `get_known_columns`"
+          },
+          {
+            "section": 174,
+            "heading": "<kbd>method</kbd> `get_table_columns`"
+          },
+          {
+            "section": 175,
+            "heading": "<kbd>method</kbd> `hide_column`"
+          },
+          {
+            "section": 176,
+            "heading": "<kbd>method</kbd> `insert_column`"
+          },
+          {
+            "section": 177,
+            "heading": "<kbd>classmethod</kbd> `load`"
+          },
+          {
+            "section": 178,
+            "heading": "<kbd>method</kbd> `page_size`"
+          },
+          {
+            "section": 179,
+            "heading": "<kbd>method</kbd> `pin_column_left`"
+          },
+          {
+            "section": 180,
+            "heading": "<kbd>method</kbd> `pin_column_right`"
+          },
+          {
+            "section": 181,
+            "heading": "<kbd>method</kbd> `remove_column`"
+          },
+          {
+            "section": 182,
+            "heading": "<kbd>method</kbd> `remove_columns`"
+          },
+          {
+            "section": 183,
+            "heading": "<kbd>method</kbd> `remove_filter`"
+          },
+          {
+            "section": 184,
+            "heading": "<kbd>method</kbd> `remove_filters`"
+          },
+          {
+            "section": 185,
+            "heading": "<kbd>method</kbd> `rename`"
+          },
+          {
+            "section": 186,
+            "heading": "<kbd>method</kbd> `rename_column`"
+          },
+          {
+            "section": 187,
+            "heading": "<kbd>method</kbd> `save`"
+          },
+          {
+            "section": 188,
+            "heading": "<kbd>method</kbd> `set_columns`"
+          },
+          {
+            "section": 189,
+            "heading": "<kbd>method</kbd> `show_column`"
+          },
+          {
+            "section": 190,
+            "heading": "<kbd>method</kbd> `sort_by`"
+          },
+          {
+            "section": 191,
+            "heading": "<kbd>method</kbd> `to_grid`"
+          },
+          {
+            "section": 192,
+            "heading": "<kbd>method</kbd> `to_rich_table_str`"
+          },
+          {
+            "section": 193,
+            "heading": "<kbd>method</kbd> `ui_url`"
+          },
+          {
+            "section": 194,
+            "heading": "<kbd>method</kbd> `unpin_column`"
+          },
+          {
+            "section": 195,
+            "heading": "<kbd>class</kbd> `Scorer`"
+          },
+          {
+            "section": 196,
+            "heading": "<kbd>property</kbd> display\\_name"
+          },
+          {
+            "section": 197,
+            "heading": "<kbd>classmethod</kbd> `from_obj`"
+          },
+          {
+            "section": 198,
+            "heading": "<kbd>method</kbd> `model_post_init`"
+          },
+          {
+            "section": 199,
+            "heading": "<kbd>method</kbd> `score`"
+          },
+          {
+            "section": 200,
+            "heading": "<kbd>method</kbd> `summarize`"
+          },
+          {
+            "section": 201,
+            "heading": "<kbd>class</kbd> `Session`"
+          },
+          {
+            "section": 202,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 203,
+            "heading": "<kbd>property</kbd> session\\_id"
+          },
+          {
+            "section": 204,
+            "heading": "<kbd>property</kbd> session\\_name"
+          },
+          {
+            "section": 205,
+            "heading": "<kbd>class</kbd> `StringPrompt`"
+          },
+          {
+            "section": 206,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 207,
+            "heading": "<kbd>method</kbd> `format`"
+          },
+          {
+            "section": 208,
+            "heading": "<kbd>classmethod</kbd> `from_obj`"
+          },
+          {
+            "section": 209,
+            "heading": "<kbd>class</kbd> `SubAgent`"
+          },
+          {
+            "section": 210,
+            "heading": "<kbd>method</kbd> `add_event`"
+          },
+          {
+            "section": 211,
+            "heading": "<kbd>method</kbd> `end`"
+          },
+          {
+            "section": 212,
+            "heading": "<kbd>method</kbd> `llm`"
+          },
+          {
+            "section": 213,
+            "heading": "<kbd>method</kbd> `record`"
+          },
+          {
+            "section": 214,
+            "heading": "<kbd>method</kbd> `set_attributes`"
+          },
+          {
+            "section": 215,
+            "heading": "<kbd>method</kbd> `tool`"
+          },
+          {
+            "section": 216,
+            "heading": "<kbd>class</kbd> `Table`"
+          },
+          {
+            "section": 217,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 218,
+            "heading": "<kbd>property</kbd> rows"
+          },
+          {
+            "section": 219,
+            "heading": "<kbd>method</kbd> `append`"
+          },
+          {
+            "section": 220,
+            "heading": "<kbd>method</kbd> `pop`"
+          },
+          {
+            "section": 221,
+            "heading": "<kbd>class</kbd> `ContextAwareThread`"
+          },
+          {
+            "section": 222,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 223,
+            "heading": "<kbd>property</kbd> daemon"
+          },
+          {
+            "section": 224,
+            "heading": "<kbd>property</kbd> ident"
+          },
+          {
+            "section": 225,
+            "heading": "<kbd>property</kbd> name"
+          },
+          {
+            "section": 226,
+            "heading": "<kbd>property</kbd> native\\_id"
+          },
+          {
+            "section": 227,
+            "heading": "<kbd>method</kbd> `run`"
+          },
+          {
+            "section": 228,
+            "heading": "<kbd>class</kbd> `ThreadContext`"
+          },
+          {
+            "section": 229,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 230,
+            "heading": "<kbd>property</kbd> thread\\_id"
+          },
+          {
+            "section": 231,
+            "heading": "<kbd>property</kbd> turn\\_id"
+          },
+          {
+            "section": 232,
+            "heading": "<kbd>class</kbd> `ContextAwareThreadPoolExecutor`"
+          },
+          {
+            "section": 233,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 234,
+            "heading": "<kbd>method</kbd> `map`"
+          },
+          {
+            "section": 235,
+            "heading": "<kbd>method</kbd> `submit`"
+          },
+          {
+            "section": 236,
+            "heading": "<kbd>class</kbd> `Tool`"
+          },
+          {
+            "section": 237,
+            "heading": "<kbd>method</kbd> `add_event`"
+          },
+          {
+            "section": 238,
+            "heading": "<kbd>method</kbd> `end`"
+          },
+          {
+            "section": 239,
+            "heading": "<kbd>method</kbd> `set_attributes`"
+          },
+          {
+            "section": 240,
+            "heading": "<kbd>class</kbd> `Turn`"
+          },
+          {
+            "section": 241,
+            "heading": "<kbd>method</kbd> `add_event`"
+          },
+          {
+            "section": 242,
+            "heading": "<kbd>method</kbd> `end`"
+          },
+          {
+            "section": 243,
+            "heading": "<kbd>method</kbd> `llm`"
+          },
+          {
+            "section": 244,
+            "heading": "<kbd>method</kbd> `model_post_init`"
+          },
+          {
+            "section": 245,
+            "heading": "<kbd>method</kbd> `record`"
+          },
+          {
+            "section": 246,
+            "heading": "<kbd>method</kbd> `set_attributes`"
+          },
+          {
+            "section": 247,
+            "heading": "<kbd>method</kbd> `subagent`"
+          },
+          {
+            "section": 248,
+            "heading": "<kbd>method</kbd> `tool`"
+          },
+          {
+            "section": 249,
+            "heading": "<kbd>method</kbd> `user`"
+          },
+          {
+            "section": 250,
+            "heading": "<kbd>class</kbd> `Usage`"
+          },
+          {
+            "section": 251,
+            "heading": "<kbd>function</kbd> `add_tags`"
+          },
+          {
+            "section": 252,
+            "heading": "<kbd>function</kbd> `as_op`"
+          },
+          {
+            "section": 253,
+            "heading": "<kbd>function</kbd> `attributes`"
+          },
+          {
+            "section": 254,
+            "heading": "<kbd>function</kbd> `end_conversation`"
+          },
+          {
+            "section": 255,
+            "heading": "<kbd>function</kbd> `end_llm`"
+          },
+          {
+            "section": 256,
+            "heading": "<kbd>function</kbd> `end_session`"
+          },
+          {
+            "section": 257,
+            "heading": "<kbd>function</kbd> `end_turn`"
+          },
+          {
+            "section": 258,
+            "heading": "<kbd>function</kbd> `finish`"
+          },
+          {
+            "section": 259,
+            "heading": "<kbd>function</kbd> `get`"
+          },
+          {
+            "section": 260,
+            "heading": "<kbd>function</kbd> `get_aliases`"
+          },
+          {
+            "section": 261,
+            "heading": "<kbd>function</kbd> `get_client`"
+          },
+          {
+            "section": 262,
+            "heading": "<kbd>function</kbd> `get_current_call`"
+          },
+          {
+            "section": 263,
+            "heading": "<kbd>function</kbd> `get_current_conversation`"
+          },
+          {
+            "section": 264,
+            "heading": "<kbd>function</kbd> `get_current_llm`"
+          },
+          {
+            "section": 265,
+            "heading": "<kbd>function</kbd> `get_current_session`"
+          },
+          {
+            "section": 266,
+            "heading": "<kbd>function</kbd> `get_current_turn`"
+          },
+          {
+            "section": 267,
+            "heading": "<kbd>function</kbd> `get_tags`"
+          },
+          {
+            "section": 268,
+            "heading": "<kbd>function</kbd> `get_tags_and_aliases`"
+          },
+          {
+            "section": 269,
+            "heading": "<kbd>function</kbd> `init`"
+          },
+          {
+            "section": 270,
+            "heading": "<kbd>function</kbd> `link_prompt_to_registry`"
+          },
+          {
+            "section": 271,
+            "heading": "<kbd>function</kbd> `list_aliases`"
+          },
+          {
+            "section": 272,
+            "heading": "<kbd>function</kbd> `list_tags`"
+          },
+          {
+            "section": 273,
+            "heading": "<kbd>function</kbd> `log_call`"
+          },
+          {
+            "section": 274,
+            "heading": "<kbd>function</kbd> `log_conversation`"
+          },
+          {
+            "section": 275,
+            "heading": "<kbd>function</kbd> `log_session`"
+          },
+          {
+            "section": 276,
+            "heading": "<kbd>function</kbd> `log_turn`"
+          },
+          {
+            "section": 277,
+            "heading": "<kbd>function</kbd> `op`"
+          },
+          {
+            "section": 278,
+            "heading": "<kbd>function</kbd> `otel_traces_endpoint`"
+          },
+          {
+            "section": 279,
+            "heading": "<kbd>function</kbd> `publish`"
+          },
+          {
+            "section": 280,
+            "heading": "<kbd>function</kbd> `ref`"
+          },
+          {
+            "section": 281,
+            "heading": "<kbd>function</kbd> `remove_aliases`"
+          },
+          {
+            "section": 282,
+            "heading": "<kbd>function</kbd> `remove_tags`"
+          },
+          {
+            "section": 283,
+            "heading": "<kbd>function</kbd> `require_current_call`"
+          },
+          {
+            "section": 284,
+            "heading": "<kbd>function</kbd> `set_aliases`"
+          },
+          {
+            "section": 285,
+            "heading": "<kbd>function</kbd> `set_view`"
+          },
+          {
+            "section": 286,
+            "heading": "<kbd>function</kbd> `start_conversation`"
+          },
+          {
+            "section": 287,
+            "heading": "<kbd>function</kbd> `start_llm`"
+          },
+          {
+            "section": 288,
+            "heading": "<kbd>function</kbd> `start_session`"
+          },
+          {
+            "section": 289,
+            "heading": "<kbd>function</kbd> `start_subagent`"
+          },
+          {
+            "section": 290,
+            "heading": "<kbd>function</kbd> `start_tool`"
+          },
+          {
+            "section": 291,
+            "heading": "<kbd>function</kbd> `start_turn`"
+          },
+          {
+            "section": 292,
+            "heading": "<kbd>function</kbd> `thread`"
+          },
+          {
+            "section": 293,
+            "heading": "<kbd>function</kbd> `wandb_init_hook`"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "answer": "`postprocess_inputs` takes a dict of the call's arguments and returns a dict. `postprocess_output` takes whatever your function returns and returns a changed version of that value. The trace saves the changed versions, not the raw ones.\n\n**`postprocess_inputs`**\n- **Receives:** a dict mapping each argument name to its value (`dict[str, Any]`) [S1].\n- **Returns:** a dict of the changed inputs, for example with a sensitive argument removed [S1].\n\n**`postprocess_output`**\n- **Receives:** whatever your function would normally return. The docs example uses a dataclass called `CustomObject` [S1].\n- **Returns:** the changed output. The example returns a new `CustomObject` with `secret_password=\"REDACTED\"`, so the type stays the same [S1].\n\n**What the trace saves**\n- Both hooks change the inputs and output \"before logging\" [S2]. They let you change what Weave logs without editing the original function, for example to hide sensitive data [S1]. So the trace stores what the hooks return.\n- My reading (the docs don't say this outright): because the hooks only affect logging, your function still receives the original arguments, and callers still get the original return value.\n- If you also pass `postprocess_inputs` / `postprocess_output` to `weave.init`, those apply to every op that client traces. They run after each op's own hooks, so the saved trace reflects both steps in that order [S3].\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: Any) -> Any:\n    return \"REDACTED\"  # replace with your own transformation\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature is Python-only for now. It isn't available in TypeScript yet [S1].",
+        "source_ids": [
+          "S1",
+          "S2",
+          "S3"
+        ]
+      },
+      "result": {
+        "passed": true,
+        "issues": [],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "passed"
+      },
+      "origin": "provider_tool_call"
+    }
+  ],
+  "task_complete": true,
+  "missing_outcomes": [],
+  "completion_status": "complete",
+  "review_reason": "none",
+  "conversation_context": [],
+  "conversation_id": "e152ba76-ea04-40a1-b281-c30ecb1a524f",
+  "trace_id": "84ace6aa671505401e77de8a95bd7136",
+  "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/e152ba76-ea04-40a1-b281-c30ecb1a524f",
+  "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+  "source_sha256": "b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0",
+  "prompt_sha256": "0db790fffbb9edc24333d987516f479c1bd7cab6aaf0ad382a836264c6a00a9c",
+  "config_sha256": "40d8a7bacd0c2eb781964747644ff5335f6e517841b0105821b87cc0fd0b42ca",
+  "citation_contract_version": 3,
+  "verification_contract_version": 6,
+  "verify_mode": "support",
+  "cache_enabled": true,
+  "model": "claude-opus-5-5",
+  "elapsed_seconds": 24.46,
+  "metrics": {
+    "calls": [
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFTk8sTcqpKfkCghEBL",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 2340,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 62,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.2412,
+        "estimated_usd": 0.001724
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFTv89db3jydXYoHAAY",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 3549
+          },
+          "cache_creation_input_tokens": 3549,
+          "cache_read_input_tokens": 2340,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 157,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.5964,
+        "estimated_usd": 0.021369
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFU6Qn3NiMpHUAacyVc",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 3492
+          },
+          "cache_creation_input_tokens": 3492,
+          "cache_read_input_tokens": 5889,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 213,
+          "output_tokens_details": {
+            "thinking_tokens": 135
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.7383,
+        "estimated_usd": 0.0229138
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFUJFvKtgko1hc476Ke",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 12063
+          },
+          "cache_creation_input_tokens": 12063,
+          "cache_read_input_tokens": 9381,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 787,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 7.8521,
+        "estimated_usd": 0.0779472
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFUt1Awmi3y3v3ef9wM",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 19636
+          },
+          "cache_creation_input_tokens": 19636,
+          "cache_read_input_tokens": 1663,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 778,
+          "output_tokens_details": {
+            "thinking_tokens": 678
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 8.9535,
+        "estimated_usd": 0.1140886
+      }
+    ],
+    "model_calls": 5,
+    "tokens": {
+      "input_tokens": 20,
+      "output_tokens": 1997,
+      "cache_creation_input_tokens": 38740,
+      "cache_read_input_tokens": 21613
+    },
+    "total_input_tokens": 60373,
+    "estimated_usd": 0.2380426,
+    "known_estimated_usd": 0.2380426,
+    "unpriced_calls": 0,
+    "by_purpose": {
+      "planner": {
+        "calls": 4,
+        "known_estimated_usd": 0.123954
+      },
+      "verification": {
+        "calls": 1,
+        "known_estimated_usd": 0.1140886
+      }
+    },
+    "research": {
+      "searches": 1,
+      "passage_reads": 3,
+      "distinct_pages_read": 3,
+      "repeated_tool_requests": 0,
+      "drafts_submitted": 1,
+      "code_runs": 0
+    },
+    "pricing": {
+      "checked_at": "2026-10-25",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": {
+        "claude-sonnet-5-5": {
+          "input": 2,
+          "output": 10,
+          "write_5m": 2.5,
+          "write_1h": 4,
+          "read": 0.1
+        },
+        "claude-opus-5-5": {
+          "input": 4,
+          "output": 20,
+          "write_5m": 5,
+          "write_1h": 8,
+          "read": 0.2
+        }
+      }
+    },
+    "scope": "Estimated from Claude's reported usage and published prices. Includes research and answer checks. Excludes Weave Signals, separate evaluation runs, hosting, taxes and any usage missing after failed requests or retries. We count requests made by the app, not every network attempt. Your final bill may differ."
+  },
+  "error_type": null
+}

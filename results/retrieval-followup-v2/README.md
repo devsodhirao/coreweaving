@@ -1,5 +1,7 @@
 # Hybrid follow-up: promising evidence, answer benefit still unmeasured
 
+**Later update, October 29:** the [current-agent paired comparison](../retrieval-live-v3/README.md) is complete. It includes these six questions and finds tied task outcomes with mixed time/cost. The offline records and original proposal below are preserved.
+
 **Hybrid improved discovery on two fresh wordings; it tied on four.** Keeping
 BM25 provisionally is reasonable, but the earlier pilot did not establish that
 hybrid has no benefit. This follow-up made no app changes and no paid calls.

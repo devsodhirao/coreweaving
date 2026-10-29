@@ -2,7 +2,7 @@
 
 Start with [`Agent.run`](../src/coreweaving/agent.py). It owns one conversational turn: choose tools, gather evidence, submit a draft, check it and repair if needed. The [README](../README.md) covers setup; the [behavior contract](BEHAVIOR_CONTRACT.md) describes the enforced boundaries.
 
-**Last live-measured runtime:** `522c320`, verification contract 6. The later clarification-policy change has local checks but no new paid evaluation. [Progress](PROGRESS.md) tracks this distinction; the [validation packet](../results/essence-v2/README.md) separates original runs, the operational retry and independent review.
+**Measured presentation runtime:** `a07e5da`, source `b312a2c9a081`, verification contract 6. Its [full regression](../results/presentation-regression-retry-v1/README.md) records 12/13 cases and 47/48 assertions; the uncited clarification alternatives fail. The same runtime has 430 local tests and a separate [two-turn live walkthrough](../results/decision-walkthrough-v1/README.md). [Progress](PROGRESS.md) and the [decision guide](DECISIONS.md) keep the versions and limitations explicit.
 
 ## Follow one answer
 
@@ -49,7 +49,7 @@ Evaluation references go to the judge, not the agent. Case pass combines asserti
 ## Decisions and limits
 
 - **Direct loop:** one control flow is easier to inspect than a routing framework or specialist-agent team. No framework comparison was run.
-- **BM25:** matches API identifiers and runs locally. An [18-query comparison](../results/retrieval-comparison-v1/README.md) improved selected-evidence recall from 57.0% to 64.4% with hybrid. The live comparison omitted those gain queries. A [targeted offline follow-up](../results/retrieval-followup-v2/README.md) favors hybrid on two fresh wordings; its final-answer benefit is still unmeasured. The baseline remains provisional.
+- **BM25:** matches API identifiers and runs locally. An [18-query comparison](../results/retrieval-comparison-v1/README.md) improved selected-evidence recall from 57.0% to 64.4% with hybrid. The live comparison omitted those gain queries. A [targeted offline follow-up](../results/retrieval-followup-v2/README.md) favors hybrid on two fresh wordings. The [current 24-answer comparison](../results/retrieval-live-v3/README.md) included those gains: 12/12 task passes for each method, equal searches and mixed time/cost. Retain BM25 provisionally for the presentation; broader hybrid benefit remains open.
 - **Separate auditor:** checks support and the actual request without importing every optional page detail. It can miss a claim or omission; its benefit beyond citation checks remains unisolated.
 - **Stored corpus:** reproducible evidence from 351 pages, with context and internal links. It is one October 24 snapshot, not a release-aware or current-site search service. [Version limits](VERSIONING.md)
 - **Bounded Python:** demonstrates execution without granting host access. Syntax checks and a standard-library container do not validate generated Weave SDK examples.

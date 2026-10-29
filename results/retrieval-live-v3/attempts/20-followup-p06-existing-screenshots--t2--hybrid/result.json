@@ -1,0 +1,1601 @@
+{
+  "answer_id": "83181b75-953c-454d-8e25-cb57aad69e39",
+  "question": "Can Weave show the screenshots that are already in our object storage without uploading another copy? Explain what we log and every required storage and team setup step.",
+  "answer": "Yes. Weave can show screenshots that already sit in your own S3 or Google Cloud Storage (GCS) bucket. You log each screenshot's bucket URI, meaning its address such as `s3://bucket/key`, as a plain string in a trace. Weave sends only the URI to its servers, and the image bytes stay in your bucket [S1]. This is different from the Content API, which reads the bytes and stores a copy in Weave [S1].\n\n**What you log**\n- The URI as a string anywhere in a trace: an op's input or output, or an agent tool result. The field name doesn't matter, and you don't need a content annotation [S4, S6]. An \"op\" is a function you decorate with `@weave.op` so Weave records its calls.\n- Only `s3://` and `gs://` URIs work, and only for buckets registered to your team [S4].\n- The file extension decides how the file is shown. Common image formats (for example `.png`, `.jpg`, `.gif`) and common video formats (for example `.mp4`, `.mov`, `.webm`) appear inline. Other formats appear as a download link [S4].\n\n```python\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\n@weave.op\ndef record_screenshot(screenshot_uri: str) -> dict:\n    return {\"screenshot\": screenshot_uri}\n\nrecord_screenshot(\"s3://[YOUR-BUCKET]/screens/step-001.png\")\n```\nThis follows the documented pattern [S6]. For agent applications, there is a separate guide for agent spans [S6].\n\n**Before you start**\n- Your deployment must support it: Multi-tenant Cloud, or preview on Dedicated Cloud and Self-Managed v0.84.0+ [S5].\n- You need a CoreWeave Forge account with an API key, an S3 or GCS bucket you control with at least one object, and organization admin permission [S5].\n\n**Storage setup (read-only access)**\nWhen someone opens a trace, W&B creates a short-lived download link (a \"presigned URL\") for each object, so it needs read access to the bucket [S2].\n- **S3:** Add a bucket policy that grants `s3:GetObject` to `arn:aws:iam::725579432336:role/WandbIntegration`. Then add a CORS rule allowing `GET` and `HEAD` from `https://forge.coreweave.com`. CORS is the setting that lets the browser fetch the images. If objects use a customer-managed KMS key, that key's policy must also grant this role `kms:Decrypt` [S2].\n- **GCS:** Give `wandb-integration@wandb-production.iam.gserviceaccount.com` the `roles/storage.objectViewer` role, and add the same kind of CORS rule [S2].\n\n**Team setup**\n1. Open `https://forge.coreweave.com/wandb/[YOUR-TEAM]/settings`, go to **Reference buckets** and select **Add bucket** [S3].\n2. Choose AWS or Google Cloud and enter the bucket name without the `s3://` or `gs://` prefix [S3].\n3. Enter the key of one existing object, such as `photos/cat.png`. W&B reads it to check access and CORS. After that, links work for any object in the bucket [S3].\n4. Optionally select **Test connection**, then select **Add bucket** [S3].\n\nScreenshots won't display until the bucket is registered [S3]. Once it is, they show inline in the **Traces** view. If Weave can't find an object or the bucket isn't registered, you'll see the plain URI instead [S7].",
+  "kind": "answer",
+  "source_ids": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7"
+  ],
+  "sources": [
+    {
+      "source_id": "S1",
+      "page_id": "guides/tracking/byob-references",
+      "section": 0,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "Reference media in your own bucket (BYOB) using Weave Op",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/tracking/byob-references",
+      "section": 3,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "Configure your bucket",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "## Configure your bucket\n\nGrant W\\&B read access to the bucket and allow the browser to fetch objects with CORS.\n\nWhen you view a trace, W\\&B presigns a short-lived download URL for each referenced object. Grant the W\\&B integration principal read access on the bucket so presigning can succeed. This is read-only access for inline rendering.\n\n**AWS S3**\n\n1. Apply a bucket policy that grants the W\\&B integration principal `s3:GetObject`. Save the following as `bucket-policy.json`, replacing `[YOUR-BUCKET]` with your bucket name:\n\n   ```json lines theme={\"system\"}\n   {\n     \"Version\": \"2012-10-17\",\n     \"Id\": \"WandBAccess\",\n     \"Statement\": [{\n       \"Sid\": \"WandbAccess\",\n       \"Effect\": \"Allow\",\n       \"Principal\": {\"AWS\": \"arn:aws:iam::725579432336:role/WandbIntegration\"},\n       \"Action\": \"s3:GetObject\",\n       \"Resource\": \"arn:aws:s3:::[YOUR-BUCKET]/*\"\n     }]\n   }\n   ```\n\n   Then apply it to your bucket:\n\n   ```bash theme={\"system\"}\n   aws s3api put-bucket-policy --bucket [YOUR-BUCKET] --policy file://bucket-policy.json\n   ```\n\n2. Apply a CORS configuration so the app can fetch objects in the browser. Save the following as `cors.json`:\n\n   ```json lines theme={\"system\"}\n   {\n     \"CORSRules\": [{\n       \"AllowedHeaders\": [\"*\"],\n       \"AllowedMethods\": [\"GET\", \"HEAD\"],\n       \"AllowedOrigins\": [\"https://forge.coreweave.com\"],\n       \"ExposeHeaders\": [\"ETag\"],\n       \"MaxAgeSeconds\": 3000\n     }]\n   }\n   ```\n\n   Then apply it to your bucket:\n\n   ```bash theme={\"system\"}\n   aws s3api put-bucket-cors --bucket [YOUR-BUCKET] --cors-configuration file://cors.json\n   ```\n\n> [!NOTE]\n>\n> If an object is encrypted with a customer-managed KMS key, its key policy must also grant `arn:aws:iam::725579432336:role/WandbIntegration` `kms:Decrypt`. The bucket policy alone is not sufficient.\n\n**Google Cloud Storage**\n\n1. Grant the W\\&B integration service account `roles/storage.objectViewer` on the bucket. Replace `[YOUR-BUCKET]` with your bucket name:\n\n   ```bash theme={\"system\"}\n   gcloud storage buckets add-iam-policy-binding gs://[YOUR-BUCKET] \\\n     --member=\"serviceAccount:wandb-integration@wandb-production.iam.gserviceaccount.com\" \\\n     --role=\"roles/storage.objectViewer\"\n   ```\n\n2. Apply a CORS configuration so the app can fetch objects in the browser. Save the following as `cors.json`:\n\n   ```json lines theme={\"system\"}\n   [{\n     \"origin\": [\"https://forge.coreweave.com\"],\n     \"method\": [\"GET\", \"HEAD\"],\n     \"responseHeader\": [\"ETag\"],\n     \"maxAgeSeconds\": 3000\n   }]\n   ```\n\n   Then apply it to your bucket:\n\n   ```bash theme={\"system\"}\n   gcloud storage buckets update gs://[YOUR-BUCKET] --cors-file=cors.json\n   ```\n\nAt this point, Weight & Biases can read objects from your bucket, and the UI can fetch them in the browser.\n\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "guides/tracking/byob-references",
+      "section": 4,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "Register the reference bucket",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "## Register the reference bucket\n\nRegister the bucket in your team settings so Weave can presign and display referenced URIs.\n\n1. Go to your team settings page (`https://forge.coreweave.com/wandb/[YOUR-TEAM]/settings`).\n2. In the **Reference buckets** section, select **Add bucket**.\n3. Select your cloud provider (**AWS** or **Google Cloud**).\n4. For the bucket name, enter `[YOUR-BUCKET]` only \u2014 without the `s3://` or `gs://` prefix.\n5. For the object key, enter the key of an existing object in the bucket, for example `photos/cat.png` (the object key only, not a full URL). W\\&B reads this one object to confirm it has read access and that CORS is configured correctly. This checks access only; once verified, presigning works for any object in the bucket.\n6. Optionally, select **Test connection** to validate the configuration without saving.\n7. Select **Add bucket** to save.\n\n![The Add reference bucket dialog in team settings, with fields for the cloud provider, the bucket name, and an existing object key, plus Test connection and Add bucket buttons.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/add-ref-bucket.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=7ab906b46a48b51e085530aaaf1e47a4)\n\n> [!WARNING]\n>\n> Until the bucket is registered, referenced URIs do not render. Registration is what lets Weave presign and display the object.\n\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S4",
+      "page_id": "guides/tracking/byob-references",
+      "section": 1,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "How it works",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "## How it works\n\nReference media rendering works in three steps:\n\n1. You store a media object in your bucket, for example `s3://[YOUR-BUCKET]/frames/000123.png`.\n2. You log that URI as a string value anywhere in a trace: an Op input or output, or an agent tool result. The field name does not matter.\n3. When you open the trace, Weave resolves the URI to a short-lived [presigned URL](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/presigned-urls.md) and renders it inline. The file extension decides how it renders. Common image formats (such as `.png`, `.jpg`, `.gif`) and video formats (such as `.mp4`, `.mov`, `.webm`) render inline. Other formats render as a download link.\n\nWeave only resolves URIs that point at a bucket registered for your team. Supported schemes are `s3://` and `gs://`.\n\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S5",
+      "page_id": "guides/tracking/byob-references",
+      "section": 2,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "Prerequisites",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "## Prerequisites\n\n* This feature is supported in [W\\&B Multi-tenant Cloud](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/multi_tenant_cloud.md) and in preview for [Dedicated Cloud](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/dedicated-cloud.md) and [Self-Managed](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/self-managed.md) v0.84.0+.\n* A CoreWeave Forge account and [API key](https://forge.coreweave.com/settings#apikeys).\n* A cloud storage bucket you control (S3 or GCS), containing at least one object.\n* Organization admin permissions. Adding a reference bucket requires the same permission as creating a team in the organization.\n\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S6",
+      "page_id": "guides/tracking/byob-references",
+      "section": 5,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "Log a media reference using Weave Op function tracing",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "## Log a media reference using Weave Op function tracing\n\nLog the URI as a string value in a trace. Any string field whose value is a bucket URI renders. No content annotation is needed because the bytes stay in your bucket. The following example Op captions images that already live in your bucket and logs each URI alongside its caption. Replace `[YOUR-TEAM]`, `[YOUR-PROJECT]`, and `[YOUR-BUCKET]` with your own values.\n\n> [!TIP]\n>\n> If you're adding reference media to an agentic application, see [Reference media in agent spans](https://docs.coreweave.com/products/wandb/weave/guides/tracking/agents-byob-references.md) instead.\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\n@weave.op\ndef caption_image(image_uri: str) -> dict:\n    caption = my_captioner(image_uri)  # Your model or API call.\n    # image_uri renders inline from its value; the field name is arbitrary\n    # and the extension (.png here) decides image vs video.\n    return {\"image\": image_uri, \"caption\": caption}\n\ncaption_image(\"s3://[YOUR-BUCKET]/photos/cat.png\")\n```\n\n**TypeScript**\n\n```typescript lines theme={\"system\"}\nimport * as weave from 'weave';\n\nawait weave.init('[YOUR-TEAM]/[YOUR-PROJECT]');\n\nconst captionImage = weave.op(async function captionImage(imageUri: string) {\n  const caption = await myCaptioner(imageUri); // Your model or API call.\n  // imageUri renders inline from its value; the field name is arbitrary.\n  return {image: imageUri, caption};\n});\n\nawait captionImage('s3://[YOUR-BUCKET]/photos/cat.png');\n```\n\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/tracking/agents-byob-references",
+          "title": "Reference media in your own bucket (BYOB) using agent spans"
+        },
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S7",
+      "page_id": "guides/tracking/byob-references",
+      "section": 6,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "View the reference in Weave Traces",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "## View the reference in Weave Traces\n\nOpen the trace from the link that `weave.init()` prints. The referenced image or video renders inline in the **Traces** view. If Weave can't resolve a URI, for example because the object is missing or the bucket isn't registered, it shows the plain URI string.\n\n![A referenced image rendering inline in the Weave Traces view, resolved from a bucket URI that points at an object in your own cloud bucket.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/traces-byob.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=1089bf820959dde0fd237d7cc8e239d2)\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "all_read_evidence": [
+    {
+      "source_id": "S1",
+      "page_id": "guides/tracking/byob-references",
+      "section": 0,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "Reference media in your own bucket (BYOB) using Weave Op",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/tracking/byob-references",
+      "section": 3,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "Configure your bucket",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "## Configure your bucket\n\nGrant W\\&B read access to the bucket and allow the browser to fetch objects with CORS.\n\nWhen you view a trace, W\\&B presigns a short-lived download URL for each referenced object. Grant the W\\&B integration principal read access on the bucket so presigning can succeed. This is read-only access for inline rendering.\n\n**AWS S3**\n\n1. Apply a bucket policy that grants the W\\&B integration principal `s3:GetObject`. Save the following as `bucket-policy.json`, replacing `[YOUR-BUCKET]` with your bucket name:\n\n   ```json lines theme={\"system\"}\n   {\n     \"Version\": \"2012-10-17\",\n     \"Id\": \"WandBAccess\",\n     \"Statement\": [{\n       \"Sid\": \"WandbAccess\",\n       \"Effect\": \"Allow\",\n       \"Principal\": {\"AWS\": \"arn:aws:iam::725579432336:role/WandbIntegration\"},\n       \"Action\": \"s3:GetObject\",\n       \"Resource\": \"arn:aws:s3:::[YOUR-BUCKET]/*\"\n     }]\n   }\n   ```\n\n   Then apply it to your bucket:\n\n   ```bash theme={\"system\"}\n   aws s3api put-bucket-policy --bucket [YOUR-BUCKET] --policy file://bucket-policy.json\n   ```\n\n2. Apply a CORS configuration so the app can fetch objects in the browser. Save the following as `cors.json`:\n\n   ```json lines theme={\"system\"}\n   {\n     \"CORSRules\": [{\n       \"AllowedHeaders\": [\"*\"],\n       \"AllowedMethods\": [\"GET\", \"HEAD\"],\n       \"AllowedOrigins\": [\"https://forge.coreweave.com\"],\n       \"ExposeHeaders\": [\"ETag\"],\n       \"MaxAgeSeconds\": 3000\n     }]\n   }\n   ```\n\n   Then apply it to your bucket:\n\n   ```bash theme={\"system\"}\n   aws s3api put-bucket-cors --bucket [YOUR-BUCKET] --cors-configuration file://cors.json\n   ```\n\n> [!NOTE]\n>\n> If an object is encrypted with a customer-managed KMS key, its key policy must also grant `arn:aws:iam::725579432336:role/WandbIntegration` `kms:Decrypt`. The bucket policy alone is not sufficient.\n\n**Google Cloud Storage**\n\n1. Grant the W\\&B integration service account `roles/storage.objectViewer` on the bucket. Replace `[YOUR-BUCKET]` with your bucket name:\n\n   ```bash theme={\"system\"}\n   gcloud storage buckets add-iam-policy-binding gs://[YOUR-BUCKET] \\\n     --member=\"serviceAccount:wandb-integration@wandb-production.iam.gserviceaccount.com\" \\\n     --role=\"roles/storage.objectViewer\"\n   ```\n\n2. Apply a CORS configuration so the app can fetch objects in the browser. Save the following as `cors.json`:\n\n   ```json lines theme={\"system\"}\n   [{\n     \"origin\": [\"https://forge.coreweave.com\"],\n     \"method\": [\"GET\", \"HEAD\"],\n     \"responseHeader\": [\"ETag\"],\n     \"maxAgeSeconds\": 3000\n   }]\n   ```\n\n   Then apply it to your bucket:\n\n   ```bash theme={\"system\"}\n   gcloud storage buckets update gs://[YOUR-BUCKET] --cors-file=cors.json\n   ```\n\nAt this point, Weight & Biases can read objects from your bucket, and the UI can fetch them in the browser.\n\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "guides/tracking/byob-references",
+      "section": 4,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "Register the reference bucket",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "## Register the reference bucket\n\nRegister the bucket in your team settings so Weave can presign and display referenced URIs.\n\n1. Go to your team settings page (`https://forge.coreweave.com/wandb/[YOUR-TEAM]/settings`).\n2. In the **Reference buckets** section, select **Add bucket**.\n3. Select your cloud provider (**AWS** or **Google Cloud**).\n4. For the bucket name, enter `[YOUR-BUCKET]` only \u2014 without the `s3://` or `gs://` prefix.\n5. For the object key, enter the key of an existing object in the bucket, for example `photos/cat.png` (the object key only, not a full URL). W\\&B reads this one object to confirm it has read access and that CORS is configured correctly. This checks access only; once verified, presigning works for any object in the bucket.\n6. Optionally, select **Test connection** to validate the configuration without saving.\n7. Select **Add bucket** to save.\n\n![The Add reference bucket dialog in team settings, with fields for the cloud provider, the bucket name, and an existing object key, plus Test connection and Add bucket buttons.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/add-ref-bucket.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=7ab906b46a48b51e085530aaaf1e47a4)\n\n> [!WARNING]\n>\n> Until the bucket is registered, referenced URIs do not render. Registration is what lets Weave presign and display the object.\n\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S4",
+      "page_id": "guides/tracking/byob-references",
+      "section": 1,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "How it works",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "## How it works\n\nReference media rendering works in three steps:\n\n1. You store a media object in your bucket, for example `s3://[YOUR-BUCKET]/frames/000123.png`.\n2. You log that URI as a string value anywhere in a trace: an Op input or output, or an agent tool result. The field name does not matter.\n3. When you open the trace, Weave resolves the URI to a short-lived [presigned URL](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/presigned-urls.md) and renders it inline. The file extension decides how it renders. Common image formats (such as `.png`, `.jpg`, `.gif`) and video formats (such as `.mp4`, `.mov`, `.webm`) render inline. Other formats render as a download link.\n\nWeave only resolves URIs that point at a bucket registered for your team. Supported schemes are `s3://` and `gs://`.\n\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S5",
+      "page_id": "guides/tracking/byob-references",
+      "section": 2,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "Prerequisites",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "## Prerequisites\n\n* This feature is supported in [W\\&B Multi-tenant Cloud](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/multi_tenant_cloud.md) and in preview for [Dedicated Cloud](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/dedicated-cloud.md) and [Self-Managed](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/self-managed.md) v0.84.0+.\n* A CoreWeave Forge account and [API key](https://forge.coreweave.com/settings#apikeys).\n* A cloud storage bucket you control (S3 or GCS), containing at least one object.\n* Organization admin permissions. Adding a reference bucket requires the same permission as creating a team in the organization.\n\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S6",
+      "page_id": "guides/tracking/byob-references",
+      "section": 5,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "Log a media reference using Weave Op function tracing",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "## Log a media reference using Weave Op function tracing\n\nLog the URI as a string value in a trace. Any string field whose value is a bucket URI renders. No content annotation is needed because the bytes stay in your bucket. The following example Op captions images that already live in your bucket and logs each URI alongside its caption. Replace `[YOUR-TEAM]`, `[YOUR-PROJECT]`, and `[YOUR-BUCKET]` with your own values.\n\n> [!TIP]\n>\n> If you're adding reference media to an agentic application, see [Reference media in agent spans](https://docs.coreweave.com/products/wandb/weave/guides/tracking/agents-byob-references.md) instead.\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\n@weave.op\ndef caption_image(image_uri: str) -> dict:\n    caption = my_captioner(image_uri)  # Your model or API call.\n    # image_uri renders inline from its value; the field name is arbitrary\n    # and the extension (.png here) decides image vs video.\n    return {\"image\": image_uri, \"caption\": caption}\n\ncaption_image(\"s3://[YOUR-BUCKET]/photos/cat.png\")\n```\n\n**TypeScript**\n\n```typescript lines theme={\"system\"}\nimport * as weave from 'weave';\n\nawait weave.init('[YOUR-TEAM]/[YOUR-PROJECT]');\n\nconst captionImage = weave.op(async function captionImage(imageUri: string) {\n  const caption = await myCaptioner(imageUri); // Your model or API call.\n  // imageUri renders inline from its value; the field name is arbitrary.\n  return {image: imageUri, caption};\n});\n\nawait captionImage('s3://[YOUR-BUCKET]/photos/cat.png');\n```\n\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/tracking/agents-byob-references",
+          "title": "Reference media in your own bucket (BYOB) using agent spans"
+        },
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S7",
+      "page_id": "guides/tracking/byob-references",
+      "section": 6,
+      "title": "Reference media in your own bucket (BYOB) using Weave Op",
+      "heading": "View the reference in Weave Traces",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+      "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+      "text": "## View the reference in Weave Traces\n\nOpen the trace from the link that `weave.init()` prints. The referenced image or video renders inline in the **Traces** view. If Weave can't resolve a URI, for example because the object is missing or the bucket isn't registered, it shows the plain URI string.\n\n![A referenced image rendering inline in the Weave Traces view, resolved from a bucket URI that points at an object in your own cloud bucket.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/traces-byob.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=1089bf820959dde0fd237d7cc8e239d2)\n",
+      "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+        },
+        {
+          "section": 1,
+          "heading": "How it works"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Configure your bucket"
+        },
+        {
+          "section": 4,
+          "heading": "Register the reference bucket"
+        },
+        {
+          "section": 5,
+          "heading": "Log a media reference using Weave Op function tracing"
+        },
+        {
+          "section": 6,
+          "heading": "View the reference in Weave Traces"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/media",
+          "title": "Log media"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "verification": {
+    "passed": true,
+    "issues": [],
+    "missing_parts": [],
+    "mode": "support",
+    "status": "passed"
+  },
+  "verification_attempts": [
+    {
+      "candidate": {
+        "source_ids": [
+          "S1",
+          "S2",
+          "S3",
+          "S4",
+          "S5",
+          "S6",
+          "S7"
+        ],
+        "answer": "Yes. Weave can show screenshots that already sit in your own S3 or Google Cloud Storage (GCS) bucket. You log each screenshot's bucket URI, meaning its address such as `s3://bucket/key`, as a plain string in a trace. Weave sends only the URI to its servers, and the image bytes stay in your bucket [S1]. This is different from the Content API, which reads the bytes and stores a copy in Weave [S1].\n\n**What you log**\n- The URI as a string anywhere in a trace: an op's input or output, or an agent tool result. The field name doesn't matter, and you don't need a content annotation [S4, S6]. An \"op\" is a function you decorate with `@weave.op` so Weave records its calls.\n- Only `s3://` and `gs://` URIs work, and only for buckets registered to your team [S4].\n- The file extension decides how the file is shown. `.png`, `.jpg` and `.gif` appear as images, and other formats appear as a download link [S4].\n\n```python\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\n@weave.op\ndef record_screenshot(screenshot_uri: str) -> dict:\n    return {\"screenshot\": screenshot_uri}\n\nrecord_screenshot(\"s3://[YOUR-BUCKET]/screens/step-001.png\")\n```\nThis follows the documented pattern [S6]. For agent applications, there is a separate guide for agent spans [S6].\n\n**Before you start**\n- Your deployment must support it: Multi-tenant Cloud, or preview on Dedicated Cloud and Self-Managed v0.84.0+ [S5].\n- You need a CoreWeave Forge account with an API key, an S3 or GCS bucket you control with at least one object, and organization admin permission [S5].\n\n**Storage setup (read-only access)**\nWhen someone opens a trace, W&B creates a short-lived download link (a \"presigned URL\") for each object, so it needs read access to the bucket [S2].\n- **S3:** Add a bucket policy that grants `s3:GetObject` to `arn:aws:iam::725579432336:role/WandbIntegration`. Then add a CORS rule allowing `GET` and `HEAD` from `https://forge.coreweave.com`. CORS is the setting that lets the browser fetch the images. If objects use a customer-managed KMS key, that key's policy must also grant this role `kms:Decrypt` [S2].\n- **GCS:** Give `wandb-integration@wandb-production.iam.gserviceaccount.com` the `roles/storage.objectViewer` role, and add the same kind of CORS rule [S2].\n\n**Team setup**\n1. Open `https://forge.coreweave.com/wandb/[YOUR-TEAM]/settings`, go to **Reference buckets** and select **Add bucket** [S3].\n2. Choose AWS or Google Cloud and enter the bucket name without the `s3://` or `gs://` prefix [S3].\n3. Enter the key of one existing object, such as `photos/cat.png`. W&B reads it to check access and CORS. After that, links work for any object in the bucket [S3].\n4. Optionally select **Test connection**, then select **Add bucket** [S3].\n\nScreenshots won't display until the bucket is registered [S3]. Once it is, they show inline in the **Traces** view. If Weave can't find an object or the bucket isn't registered, you'll see the plain URI instead [S7].",
+        "kind": "answer"
+      },
+      "passed": false,
+      "issues": [
+        "The rendering rule is overstated. S4 gives `.png`, `.jpg` and `.gif` only as examples (\"such as\") of common image formats. It also says common video formats such as `.mp4`, `.mov` and `.webm` render inline. The answer instead treats those three image extensions as the full list and says every other format becomes a download link, which contradicts S4 for video and for other common image formats. Correction: say that common image formats (for example `.png`, `.jpg`, `.gif`) and common video formats render inline, and that other formats render as a download link [S4]."
+      ],
+      "missing_parts": [],
+      "mode": "support",
+      "status": "failed"
+    },
+    {
+      "candidate": {
+        "source_ids": [
+          "S1",
+          "S2",
+          "S3",
+          "S4",
+          "S5",
+          "S6",
+          "S7"
+        ],
+        "answer": "Yes. Weave can show screenshots that already sit in your own S3 or Google Cloud Storage (GCS) bucket. You log each screenshot's bucket URI, meaning its address such as `s3://bucket/key`, as a plain string in a trace. Weave sends only the URI to its servers, and the image bytes stay in your bucket [S1]. This is different from the Content API, which reads the bytes and stores a copy in Weave [S1].\n\n**What you log**\n- The URI as a string anywhere in a trace: an op's input or output, or an agent tool result. The field name doesn't matter, and you don't need a content annotation [S4, S6]. An \"op\" is a function you decorate with `@weave.op` so Weave records its calls.\n- Only `s3://` and `gs://` URIs work, and only for buckets registered to your team [S4].\n- The file extension decides how the file is shown. Common image formats (for example `.png`, `.jpg`, `.gif`) and common video formats (for example `.mp4`, `.mov`, `.webm`) appear inline. Other formats appear as a download link [S4].\n\n```python\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\n@weave.op\ndef record_screenshot(screenshot_uri: str) -> dict:\n    return {\"screenshot\": screenshot_uri}\n\nrecord_screenshot(\"s3://[YOUR-BUCKET]/screens/step-001.png\")\n```\nThis follows the documented pattern [S6]. For agent applications, there is a separate guide for agent spans [S6].\n\n**Before you start**\n- Your deployment must support it: Multi-tenant Cloud, or preview on Dedicated Cloud and Self-Managed v0.84.0+ [S5].\n- You need a CoreWeave Forge account with an API key, an S3 or GCS bucket you control with at least one object, and organization admin permission [S5].\n\n**Storage setup (read-only access)**\nWhen someone opens a trace, W&B creates a short-lived download link (a \"presigned URL\") for each object, so it needs read access to the bucket [S2].\n- **S3:** Add a bucket policy that grants `s3:GetObject` to `arn:aws:iam::725579432336:role/WandbIntegration`. Then add a CORS rule allowing `GET` and `HEAD` from `https://forge.coreweave.com`. CORS is the setting that lets the browser fetch the images. If objects use a customer-managed KMS key, that key's policy must also grant this role `kms:Decrypt` [S2].\n- **GCS:** Give `wandb-integration@wandb-production.iam.gserviceaccount.com` the `roles/storage.objectViewer` role, and add the same kind of CORS rule [S2].\n\n**Team setup**\n1. Open `https://forge.coreweave.com/wandb/[YOUR-TEAM]/settings`, go to **Reference buckets** and select **Add bucket** [S3].\n2. Choose AWS or Google Cloud and enter the bucket name without the `s3://` or `gs://` prefix [S3].\n3. Enter the key of one existing object, such as `photos/cat.png`. W&B reads it to check access and CORS. After that, links work for any object in the bucket [S3].\n4. Optionally select **Test connection**, then select **Add bucket** [S3].\n\nScreenshots won't display until the bucket is registered [S3]. Once it is, they show inline in the **Traces** view. If Weave can't find an object or the bucket isn't registered, you'll see the plain URI instead [S7].",
+        "kind": "answer"
+      },
+      "passed": true,
+      "issues": [],
+      "missing_parts": [],
+      "mode": "support",
+      "status": "passed"
+    }
+  ],
+  "actions": [
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "display images from existing object storage without uploading"
+      },
+      "result": {
+        "query": "display images from existing object storage without uploading",
+        "results": [
+          {
+            "page_id": "guides/tracking/byob-references",
+            "section": 0,
+            "title": "Reference media in your own bucket (BYOB) using Weave Op",
+            "heading": "Reference media in your own bucket (BYOB) using Weave Op",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+            "snippet": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run s"
+          },
+          {
+            "page_id": "guides/tracking/agents-byob-references",
+            "section": 0,
+            "title": "Reference media in your own bucket (BYOB) using agent spans",
+            "heading": "Reference media in your own bucket (BYOB) using agent spans",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/agents-byob-references",
+            "snippet": "# Reference media in your own bucket (BYOB) using agent spans\n\n> Render images and video that live in your own cloud bucket in the Weave Agents view by returning their URIs from agent tool spans, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md),"
+          },
+          {
+            "page_id": "guides/core-types/media",
+            "section": 4,
+            "title": "Log media",
+            "heading": "Advanced example: Resize large images before logging",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/media",
+            "snippet": "### Advanced example: Resize large images before logging\n\nResize images before logging them to reduce UI rendering cost and storage impact. Use `postprocess_output` in your `@weave.op` to resize an image.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nfrom PIL import Image\nimport weave\n\nweave.init('your-team-name/your-project-name')\n\n# Custom output type\n@dataclass\nclass ImageResult:\n    label: str\n    image: Image.Image\n\n# Resize helper\ndef resize_image(image: Image.Image, max_size=(512, 512)) -> Image.Image:\n    image = image.copy()\n    image.thumbnail(max_size, Image.Resampling.LANCZOS)\n    return image\n\n# Postprocess output to resize image before logging\ndef postprocess_output(output: ImageResult) -> ImageResult:\n    resized = resize_image(output.image)\n    return ImageResult(label=output.label, image=resized)\n\n@weave.op(postprocess_output=postprocess_output)\ndef generate_large_image() -> ImageResult:\n    # Create an example image to process (e.g., 2000x2000 red square)\n    img = Image.new(\"RGB\", (2000, 2000), color=\"red\")\n    return Im"
+          },
+          {
+            "page_id": "guides/tracking/byob-references",
+            "section": 4,
+            "title": "Reference media in your own bucket (BYOB) using Weave Op",
+            "heading": "Register the reference bucket",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+            "snippet": "## Register the reference bucket\n\nRegister the bucket in your team settings so Weave can presign and display referenced URIs.\n\n1. Go to your team settings page (`https://forge.coreweave.com/wandb/[YOUR-TEAM]/settings`).\n2. In the **Reference buckets** section, select **Add bucket**.\n3. Select your cloud provider (**AWS** or **Google Cloud**).\n4. For the bucket name, enter `[YOUR-BUCKET]` only \u2014 without the `s3://` or `gs://` prefix.\n5. For the object key, enter the key of an existing object in the bucket, for example `photos/cat.png` (the object key only, not a full URL). W\\&B reads this one object to confirm it has read access and that CORS is configured correctly. This checks access only; once verified, presigning works for any object in the bucket.\n6. Optionally, select **Test connection** to validate the configuration without saving.\n7. Select **Add bucket** to save.\n\n![The Add reference bucket dialog in team settings, with fields for the cloud provider, the bucket name, and an existing object key, plus Test connection and Add bucket buttons.](https://mintcdn.com/coreweave-dbfa0e"
+          },
+          {
+            "page_id": "guides/tracking/agents-byob-references",
+            "section": 4,
+            "title": "Reference media in your own bucket (BYOB) using agent spans",
+            "heading": "Register the reference bucket",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/agents-byob-references",
+            "snippet": "## Register the reference bucket\n\nRegister the bucket in your team settings so Weave can presign and display referenced URIs.\n\n1. Go to your team settings page (`https://forge.coreweave.com/wandb/[YOUR-TEAM]/settings`).\n2. In the **Reference buckets** section, select **Add bucket**.\n3. Select your cloud provider (**AWS** or **Google Cloud**).\n4. For the bucket name, enter `[YOUR-BUCKET]` only \u2014 without the `s3://` or `gs://` prefix.\n5. For the object key, enter the key of an existing object in the bucket, for example `photos/cat.png` (the object key only, not a full URL). W\\&B reads this one object to confirm it has read access and that CORS is configured correctly. This checks access only; once verified, presigning works for any object in the bucket.\n6. Optionally, select **Test connection** to validate the configuration without saving.\n7. Select **Add bucket** to save.\n\n![The Add reference bucket dialog in team settings, with fields for the cloud provider, the bucket name, and an existing object key, plus Test connection and Add bucket buttons.](https://mintcdn.com/coreweave-dbfa0e"
+          },
+          {
+            "page_id": "guides/core-types/media",
+            "section": 2,
+            "title": "Log media",
+            "heading": "Log images",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/media",
+            "snippet": "## Log images\n\nThe following examples demonstrate how to generate and log images to the Weights & Biases UI.\n\n![Weave trace view showing a generated image of a cat wearing a pumpkin hat](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/cat-pumpkin-trace.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=0ca6286851e5875b2894ace123134562)\n\n**Python**\n\nLog images by annotating functions with `Annotated[bytes, Content]` types or filepaths with `Annotated[str, Content]`.\n\nThe following example draws a basic image and then logs it to Weave using the `Content` annotation:\n\n```python lines {16,23} theme={\"system\"}\nimport weave\nfrom weave import Content\nfrom PIL import Image, ImageDraw\nfrom typing import Annotated\n\nweave.init('your-team-name/your-project-name')\n\n# Create and save a sample image\nimg = Image.new('RGB', (200, 100), color='lightblue')\ndraw = ImageDraw.Draw(img)\ndraw.text((50, 40), \"Hello Weave!\", fill='black')\nimg.save(\"sample_image.png\")\n\n# Method 1: Content annotation (recommended)\n@weave.op\ndef load_image_content(path: Annotated[str, Conte"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "media URL reference bucket CORS"
+      },
+      "result": {
+        "query": "media URL reference bucket CORS",
+        "results": [
+          {
+            "page_id": "guides/tracking/agents-byob-references",
+            "section": 3,
+            "title": "Reference media in your own bucket (BYOB) using agent spans",
+            "heading": "Configure your bucket",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/agents-byob-references",
+            "snippet": "## Configure your bucket\n\nGrant W\\&B read access to the bucket and allow the browser to fetch objects with CORS.\n\nWhen you view a trace, W\\&B presigns a short-lived download URL for each referenced object. Grant the W\\&B integration principal read access on the bucket so presigning can succeed. This is read-only access for inline rendering.\n\n**AWS S3**\n\n1. Apply a bucket policy that grants the W\\&B integration principal `s3:GetObject`. Save the following as `bucket-policy.json`, replacing `[YOUR-BUCKET]` with your bucket name:\n\n   ```json lines theme={\"system\"}\n   {\n     \"Version\": \"2012-10-17\",\n     \"Id\": \"WandBAccess\",\n     \"Statement\": [{\n       \"Sid\": \"WandbAccess\",\n       \"Effect\": \"Allow\",\n       \"Principal\": {\"AWS\": \"arn:aws:iam::725579432336:role/WandbIntegration\"},\n       \"Action\": \"s3:GetObject\",\n       \"Resource\": \"arn:aws:s3:::[YOUR-BUCKET]/*\"\n     }]\n   }\n   ```\n\n   Then apply it to your bucket:\n\n   ```bash theme={\"system\"}\n   aws s3api put-bucket-policy --bucket [YOUR-BUCKET] --policy file://bucket-policy.json\n   ```\n\n2. Apply a CORS configuration so the app can fetch o"
+          },
+          {
+            "page_id": "guides/tracking/byob-references",
+            "section": 3,
+            "title": "Reference media in your own bucket (BYOB) using Weave Op",
+            "heading": "Configure your bucket",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+            "snippet": "## Configure your bucket\n\nGrant W\\&B read access to the bucket and allow the browser to fetch objects with CORS.\n\nWhen you view a trace, W\\&B presigns a short-lived download URL for each referenced object. Grant the W\\&B integration principal read access on the bucket so presigning can succeed. This is read-only access for inline rendering.\n\n**AWS S3**\n\n1. Apply a bucket policy that grants the W\\&B integration principal `s3:GetObject`. Save the following as `bucket-policy.json`, replacing `[YOUR-BUCKET]` with your bucket name:\n\n   ```json lines theme={\"system\"}\n   {\n     \"Version\": \"2012-10-17\",\n     \"Id\": \"WandBAccess\",\n     \"Statement\": [{\n       \"Sid\": \"WandbAccess\",\n       \"Effect\": \"Allow\",\n       \"Principal\": {\"AWS\": \"arn:aws:iam::725579432336:role/WandbIntegration\"},\n       \"Action\": \"s3:GetObject\",\n       \"Resource\": \"arn:aws:s3:::[YOUR-BUCKET]/*\"\n     }]\n   }\n   ```\n\n   Then apply it to your bucket:\n\n   ```bash theme={\"system\"}\n   aws s3api put-bucket-policy --bucket [YOUR-BUCKET] --policy file://bucket-policy.json\n   ```\n\n2. Apply a CORS configuration so the app can fetch o"
+          },
+          {
+            "page_id": "guides/tracking/agents-byob-references",
+            "section": 4,
+            "title": "Reference media in your own bucket (BYOB) using agent spans",
+            "heading": "Register the reference bucket",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/agents-byob-references",
+            "snippet": "## Register the reference bucket\n\nRegister the bucket in your team settings so Weave can presign and display referenced URIs.\n\n1. Go to your team settings page (`https://forge.coreweave.com/wandb/[YOUR-TEAM]/settings`).\n2. In the **Reference buckets** section, select **Add bucket**.\n3. Select your cloud provider (**AWS** or **Google Cloud**).\n4. For the bucket name, enter `[YOUR-BUCKET]` only \u2014 without the `s3://` or `gs://` prefix.\n5. For the object key, enter the key of an existing object in the bucket, for example `photos/cat.png` (the object key only, not a full URL). W\\&B reads this one object to confirm it has read access and that CORS is configured correctly. This checks access only; once verified, presigning works for any object in the bucket.\n6. Optionally, select **Test connection** to validate the configuration without saving.\n7. Select **Add bucket** to save.\n\n![The Add reference bucket dialog in team settings, with fields for the cloud provider, the bucket name, and an existing object key, plus Test connection and Add bucket buttons.](https://mintcdn.com/coreweave-dbfa0e"
+          },
+          {
+            "page_id": "guides/tracking/byob-references",
+            "section": 4,
+            "title": "Reference media in your own bucket (BYOB) using Weave Op",
+            "heading": "Register the reference bucket",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+            "snippet": "## Register the reference bucket\n\nRegister the bucket in your team settings so Weave can presign and display referenced URIs.\n\n1. Go to your team settings page (`https://forge.coreweave.com/wandb/[YOUR-TEAM]/settings`).\n2. In the **Reference buckets** section, select **Add bucket**.\n3. Select your cloud provider (**AWS** or **Google Cloud**).\n4. For the bucket name, enter `[YOUR-BUCKET]` only \u2014 without the `s3://` or `gs://` prefix.\n5. For the object key, enter the key of an existing object in the bucket, for example `photos/cat.png` (the object key only, not a full URL). W\\&B reads this one object to confirm it has read access and that CORS is configured correctly. This checks access only; once verified, presigning works for any object in the bucket.\n6. Optionally, select **Test connection** to validate the configuration without saving.\n7. Select **Add bucket** to save.\n\n![The Add reference bucket dialog in team settings, with fields for the cloud provider, the bucket name, and an existing object key, plus Test connection and Add bucket buttons.](https://mintcdn.com/coreweave-dbfa0e"
+          },
+          {
+            "page_id": "reference/python-sdk",
+            "section": 110,
+            "title": "weave",
+            "heading": "<kbd>method</kbd> `attach_media_url`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+            "snippet": "### <kbd>method</kbd> `attach_media_url`\n\n```python theme={\"system\"}\nattach_media_url(url: 'str', modality: 'str' = '') \u2192 LLM\n```\n\nAttach a media URL to this LLM call.\n\nConvenience over `attach_media` for the common case where the caller has a URL string from an upstream message. `data:` URLs are parsed into bytes and published; plain URIs are fetched and published. Empty URLs are ignored. Returns `self` for chaining.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/conversation/conversation.py#L690)\n\n"
+          },
+          {
+            "page_id": "reference/typescript-sdk/classes/objectref",
+            "section": 12,
+            "title": "ObjectRef",
+            "heading": "ui\\_url()",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/classes/objectref",
+            "snippet": "### ui\\_url()\n\n> **ui\\_url**(): `string`\n\n"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/byob-references",
+        "section": 0
+      },
+      "result": {
+        "source_id": "S1",
+        "page_id": "guides/tracking/byob-references",
+        "section": 0,
+        "title": "Reference media in your own bucket (BYOB) using Weave Op",
+        "heading": "Reference media in your own bucket (BYOB) using Weave Op",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+        "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+        "text": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+        "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+          },
+          {
+            "section": 1,
+            "heading": "How it works"
+          },
+          {
+            "section": 2,
+            "heading": "Prerequisites"
+          },
+          {
+            "section": 3,
+            "heading": "Configure your bucket"
+          },
+          {
+            "section": 4,
+            "heading": "Register the reference bucket"
+          },
+          {
+            "section": 5,
+            "heading": "Log a media reference using Weave Op function tracing"
+          },
+          {
+            "section": 6,
+            "heading": "View the reference in Weave Traces"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/media",
+            "title": "Log media"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/byob-references",
+        "section": 3
+      },
+      "result": {
+        "source_id": "S2",
+        "page_id": "guides/tracking/byob-references",
+        "section": 3,
+        "title": "Reference media in your own bucket (BYOB) using Weave Op",
+        "heading": "Configure your bucket",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+        "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+        "text": "## Configure your bucket\n\nGrant W\\&B read access to the bucket and allow the browser to fetch objects with CORS.\n\nWhen you view a trace, W\\&B presigns a short-lived download URL for each referenced object. Grant the W\\&B integration principal read access on the bucket so presigning can succeed. This is read-only access for inline rendering.\n\n**AWS S3**\n\n1. Apply a bucket policy that grants the W\\&B integration principal `s3:GetObject`. Save the following as `bucket-policy.json`, replacing `[YOUR-BUCKET]` with your bucket name:\n\n   ```json lines theme={\"system\"}\n   {\n     \"Version\": \"2012-10-17\",\n     \"Id\": \"WandBAccess\",\n     \"Statement\": [{\n       \"Sid\": \"WandbAccess\",\n       \"Effect\": \"Allow\",\n       \"Principal\": {\"AWS\": \"arn:aws:iam::725579432336:role/WandbIntegration\"},\n       \"Action\": \"s3:GetObject\",\n       \"Resource\": \"arn:aws:s3:::[YOUR-BUCKET]/*\"\n     }]\n   }\n   ```\n\n   Then apply it to your bucket:\n\n   ```bash theme={\"system\"}\n   aws s3api put-bucket-policy --bucket [YOUR-BUCKET] --policy file://bucket-policy.json\n   ```\n\n2. Apply a CORS configuration so the app can fetch objects in the browser. Save the following as `cors.json`:\n\n   ```json lines theme={\"system\"}\n   {\n     \"CORSRules\": [{\n       \"AllowedHeaders\": [\"*\"],\n       \"AllowedMethods\": [\"GET\", \"HEAD\"],\n       \"AllowedOrigins\": [\"https://forge.coreweave.com\"],\n       \"ExposeHeaders\": [\"ETag\"],\n       \"MaxAgeSeconds\": 3000\n     }]\n   }\n   ```\n\n   Then apply it to your bucket:\n\n   ```bash theme={\"system\"}\n   aws s3api put-bucket-cors --bucket [YOUR-BUCKET] --cors-configuration file://cors.json\n   ```\n\n> [!NOTE]\n>\n> If an object is encrypted with a customer-managed KMS key, its key policy must also grant `arn:aws:iam::725579432336:role/WandbIntegration` `kms:Decrypt`. The bucket policy alone is not sufficient.\n\n**Google Cloud Storage**\n\n1. Grant the W\\&B integration service account `roles/storage.objectViewer` on the bucket. Replace `[YOUR-BUCKET]` with your bucket name:\n\n   ```bash theme={\"system\"}\n   gcloud storage buckets add-iam-policy-binding gs://[YOUR-BUCKET] \\\n     --member=\"serviceAccount:wandb-integration@wandb-production.iam.gserviceaccount.com\" \\\n     --role=\"roles/storage.objectViewer\"\n   ```\n\n2. Apply a CORS configuration so the app can fetch objects in the browser. Save the following as `cors.json`:\n\n   ```json lines theme={\"system\"}\n   [{\n     \"origin\": [\"https://forge.coreweave.com\"],\n     \"method\": [\"GET\", \"HEAD\"],\n     \"responseHeader\": [\"ETag\"],\n     \"maxAgeSeconds\": 3000\n   }]\n   ```\n\n   Then apply it to your bucket:\n\n   ```bash theme={\"system\"}\n   gcloud storage buckets update gs://[YOUR-BUCKET] --cors-file=cors.json\n   ```\n\nAt this point, Weight & Biases can read objects from your bucket, and the UI can fetch them in the browser.\n\n",
+        "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+          },
+          {
+            "section": 1,
+            "heading": "How it works"
+          },
+          {
+            "section": 2,
+            "heading": "Prerequisites"
+          },
+          {
+            "section": 3,
+            "heading": "Configure your bucket"
+          },
+          {
+            "section": 4,
+            "heading": "Register the reference bucket"
+          },
+          {
+            "section": 5,
+            "heading": "Log a media reference using Weave Op function tracing"
+          },
+          {
+            "section": 6,
+            "heading": "View the reference in Weave Traces"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/media",
+            "title": "Log media"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/byob-references",
+        "section": 4
+      },
+      "result": {
+        "source_id": "S3",
+        "page_id": "guides/tracking/byob-references",
+        "section": 4,
+        "title": "Reference media in your own bucket (BYOB) using Weave Op",
+        "heading": "Register the reference bucket",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+        "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+        "text": "## Register the reference bucket\n\nRegister the bucket in your team settings so Weave can presign and display referenced URIs.\n\n1. Go to your team settings page (`https://forge.coreweave.com/wandb/[YOUR-TEAM]/settings`).\n2. In the **Reference buckets** section, select **Add bucket**.\n3. Select your cloud provider (**AWS** or **Google Cloud**).\n4. For the bucket name, enter `[YOUR-BUCKET]` only \u2014 without the `s3://` or `gs://` prefix.\n5. For the object key, enter the key of an existing object in the bucket, for example `photos/cat.png` (the object key only, not a full URL). W\\&B reads this one object to confirm it has read access and that CORS is configured correctly. This checks access only; once verified, presigning works for any object in the bucket.\n6. Optionally, select **Test connection** to validate the configuration without saving.\n7. Select **Add bucket** to save.\n\n![The Add reference bucket dialog in team settings, with fields for the cloud provider, the bucket name, and an existing object key, plus Test connection and Add bucket buttons.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/add-ref-bucket.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=7ab906b46a48b51e085530aaaf1e47a4)\n\n> [!WARNING]\n>\n> Until the bucket is registered, referenced URIs do not render. Registration is what lets Weave presign and display the object.\n\n",
+        "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+          },
+          {
+            "section": 1,
+            "heading": "How it works"
+          },
+          {
+            "section": 2,
+            "heading": "Prerequisites"
+          },
+          {
+            "section": 3,
+            "heading": "Configure your bucket"
+          },
+          {
+            "section": 4,
+            "heading": "Register the reference bucket"
+          },
+          {
+            "section": 5,
+            "heading": "Log a media reference using Weave Op function tracing"
+          },
+          {
+            "section": 6,
+            "heading": "View the reference in Weave Traces"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/media",
+            "title": "Log media"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/byob-references",
+        "section": 1
+      },
+      "result": {
+        "source_id": "S4",
+        "page_id": "guides/tracking/byob-references",
+        "section": 1,
+        "title": "Reference media in your own bucket (BYOB) using Weave Op",
+        "heading": "How it works",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+        "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+        "text": "## How it works\n\nReference media rendering works in three steps:\n\n1. You store a media object in your bucket, for example `s3://[YOUR-BUCKET]/frames/000123.png`.\n2. You log that URI as a string value anywhere in a trace: an Op input or output, or an agent tool result. The field name does not matter.\n3. When you open the trace, Weave resolves the URI to a short-lived [presigned URL](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/presigned-urls.md) and renders it inline. The file extension decides how it renders. Common image formats (such as `.png`, `.jpg`, `.gif`) and video formats (such as `.mp4`, `.mov`, `.webm`) render inline. Other formats render as a download link.\n\nWeave only resolves URIs that point at a bucket registered for your team. Supported schemes are `s3://` and `gs://`.\n\n",
+        "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+          },
+          {
+            "section": 1,
+            "heading": "How it works"
+          },
+          {
+            "section": 2,
+            "heading": "Prerequisites"
+          },
+          {
+            "section": 3,
+            "heading": "Configure your bucket"
+          },
+          {
+            "section": 4,
+            "heading": "Register the reference bucket"
+          },
+          {
+            "section": 5,
+            "heading": "Log a media reference using Weave Op function tracing"
+          },
+          {
+            "section": 6,
+            "heading": "View the reference in Weave Traces"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/media",
+            "title": "Log media"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/byob-references",
+        "section": 2
+      },
+      "result": {
+        "source_id": "S5",
+        "page_id": "guides/tracking/byob-references",
+        "section": 2,
+        "title": "Reference media in your own bucket (BYOB) using Weave Op",
+        "heading": "Prerequisites",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+        "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+        "text": "## Prerequisites\n\n* This feature is supported in [W\\&B Multi-tenant Cloud](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/multi_tenant_cloud.md) and in preview for [Dedicated Cloud](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/dedicated-cloud.md) and [Self-Managed](https://docs.coreweave.com/products/wandb/platform/hosting/hosting-options/self-managed.md) v0.84.0+.\n* A CoreWeave Forge account and [API key](https://forge.coreweave.com/settings#apikeys).\n* A cloud storage bucket you control (S3 or GCS), containing at least one object.\n* Organization admin permissions. Adding a reference bucket requires the same permission as creating a team in the organization.\n\n",
+        "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+          },
+          {
+            "section": 1,
+            "heading": "How it works"
+          },
+          {
+            "section": 2,
+            "heading": "Prerequisites"
+          },
+          {
+            "section": 3,
+            "heading": "Configure your bucket"
+          },
+          {
+            "section": 4,
+            "heading": "Register the reference bucket"
+          },
+          {
+            "section": 5,
+            "heading": "Log a media reference using Weave Op function tracing"
+          },
+          {
+            "section": 6,
+            "heading": "View the reference in Weave Traces"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/media",
+            "title": "Log media"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/byob-references",
+        "section": 5
+      },
+      "result": {
+        "source_id": "S6",
+        "page_id": "guides/tracking/byob-references",
+        "section": 5,
+        "title": "Reference media in your own bucket (BYOB) using Weave Op",
+        "heading": "Log a media reference using Weave Op function tracing",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+        "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+        "text": "## Log a media reference using Weave Op function tracing\n\nLog the URI as a string value in a trace. Any string field whose value is a bucket URI renders. No content annotation is needed because the bytes stay in your bucket. The following example Op captions images that already live in your bucket and logs each URI alongside its caption. Replace `[YOUR-TEAM]`, `[YOUR-PROJECT]`, and `[YOUR-BUCKET]` with your own values.\n\n> [!TIP]\n>\n> If you're adding reference media to an agentic application, see [Reference media in agent spans](https://docs.coreweave.com/products/wandb/weave/guides/tracking/agents-byob-references.md) instead.\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\n@weave.op\ndef caption_image(image_uri: str) -> dict:\n    caption = my_captioner(image_uri)  # Your model or API call.\n    # image_uri renders inline from its value; the field name is arbitrary\n    # and the extension (.png here) decides image vs video.\n    return {\"image\": image_uri, \"caption\": caption}\n\ncaption_image(\"s3://[YOUR-BUCKET]/photos/cat.png\")\n```\n\n**TypeScript**\n\n```typescript lines theme={\"system\"}\nimport * as weave from 'weave';\n\nawait weave.init('[YOUR-TEAM]/[YOUR-PROJECT]');\n\nconst captionImage = weave.op(async function captionImage(imageUri: string) {\n  const caption = await myCaptioner(imageUri); // Your model or API call.\n  // imageUri renders inline from its value; the field name is arbitrary.\n  return {image: imageUri, caption};\n});\n\nawait captionImage('s3://[YOUR-BUCKET]/photos/cat.png');\n```\n\n",
+        "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+          },
+          {
+            "section": 1,
+            "heading": "How it works"
+          },
+          {
+            "section": 2,
+            "heading": "Prerequisites"
+          },
+          {
+            "section": 3,
+            "heading": "Configure your bucket"
+          },
+          {
+            "section": 4,
+            "heading": "Register the reference bucket"
+          },
+          {
+            "section": 5,
+            "heading": "Log a media reference using Weave Op function tracing"
+          },
+          {
+            "section": 6,
+            "heading": "View the reference in Weave Traces"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/tracking/agents-byob-references",
+            "title": "Reference media in your own bucket (BYOB) using agent spans"
+          },
+          {
+            "page_id": "guides/core-types/media",
+            "title": "Log media"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/byob-references",
+        "section": 6
+      },
+      "result": {
+        "source_id": "S7",
+        "page_id": "guides/tracking/byob-references",
+        "section": 6,
+        "title": "Reference media in your own bucket (BYOB) using Weave Op",
+        "heading": "View the reference in Weave Traces",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/byob-references",
+        "page_sha256": "4816836d5f0c3271e8f6d3259a9ec84d1ea9a623197e1102fd62460dfde25190",
+        "text": "## View the reference in Weave Traces\n\nOpen the trace from the link that `weave.init()` prints. The referenced image or video renders inline in the **Traces** view. If Weave can't resolve a URI, for example because the object is missing or the bucket isn't registered, it shows the plain URI string.\n\n![A referenced image rendering inline in the Weave Traces view, resolved from a bucket URI that points at an object in your own cloud bucket.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/traces-byob.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=1089bf820959dde0fd237d7cc8e239d2)\n",
+        "page_context": "# Reference media in your own bucket (BYOB) using Weave Op\n\n> Render images and video that live in your own cloud bucket in Weave traces by logging their URIs, without importing the bytes into Weave.\n\nUse this technique when the media you want to see in Weave already lives in your own bucket:\n\n* Frames from a video pipeline.\n* Screenshots from a browser agent.\n* Images a model wrote to S3.\n\nInstead of re-uploading those bytes into Weave, you log the object's URI as a string and Weave renders the image or video inline from your bucket. Only the URI is sent to Weave; the bytes stay in your bucket. Logging a 2 GB video costs the same as logging its path.\n\nThis is different from logging media with the [Content API](https://docs.coreweave.com/products/wandb/weave/guides/core-types/media.md#contents-api), which reads the bytes and stores them in Weave.\n\n> [!NOTE]\n>\n> This is a Weave feature and is separate from [platform BYOB (secure storage connector)](https://docs.coreweave.com/products/wandb/platform/hosting/data-security/secure-storage-connector.md), which backs W\\&B artifact and run storage. Reference media buckets are configured per team and only need read access.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Reference media in your own bucket (BYOB) using Weave Op"
+          },
+          {
+            "section": 1,
+            "heading": "How it works"
+          },
+          {
+            "section": 2,
+            "heading": "Prerequisites"
+          },
+          {
+            "section": 3,
+            "heading": "Configure your bucket"
+          },
+          {
+            "section": 4,
+            "heading": "Register the reference bucket"
+          },
+          {
+            "section": 5,
+            "heading": "Log a media reference using Weave Op function tracing"
+          },
+          {
+            "section": 6,
+            "heading": "View the reference in Weave Traces"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/media",
+            "title": "Log media"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "answer": "Yes. Weave can show screenshots that already sit in your own S3 or Google Cloud Storage (GCS) bucket. You log each screenshot's bucket URI, meaning its address such as `s3://bucket/key`, as a plain string in a trace. Weave sends only the URI to its servers, and the image bytes stay in your bucket [S1]. This is different from the Content API, which reads the bytes and stores a copy in Weave [S1].\n\n**What you log**\n- The URI as a string anywhere in a trace: an op's input or output, or an agent tool result. The field name doesn't matter, and you don't need a content annotation [S4, S6]. An \"op\" is a function you decorate with `@weave.op` so Weave records its calls.\n- Only `s3://` and `gs://` URIs work, and only for buckets registered to your team [S4].\n- The file extension decides how the file is shown. `.png`, `.jpg` and `.gif` appear as images, and other formats appear as a download link [S4].\n\n```python\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\n@weave.op\ndef record_screenshot(screenshot_uri: str) -> dict:\n    return {\"screenshot\": screenshot_uri}\n\nrecord_screenshot(\"s3://[YOUR-BUCKET]/screens/step-001.png\")\n```\nThis follows the documented pattern [S6]. For agent applications, there is a separate guide for agent spans [S6].\n\n**Before you start**\n- Your deployment must support it: Multi-tenant Cloud, or preview on Dedicated Cloud and Self-Managed v0.84.0+ [S5].\n- You need a CoreWeave Forge account with an API key, an S3 or GCS bucket you control with at least one object, and organization admin permission [S5].\n\n**Storage setup (read-only access)**\nWhen someone opens a trace, W&B creates a short-lived download link (a \"presigned URL\") for each object, so it needs read access to the bucket [S2].\n- **S3:** Add a bucket policy that grants `s3:GetObject` to `arn:aws:iam::725579432336:role/WandbIntegration`. Then add a CORS rule allowing `GET` and `HEAD` from `https://forge.coreweave.com`. CORS is the setting that lets the browser fetch the images. If objects use a customer-managed KMS key, that key's policy must also grant this role `kms:Decrypt` [S2].\n- **GCS:** Give `wandb-integration@wandb-production.iam.gserviceaccount.com` the `roles/storage.objectViewer` role, and add the same kind of CORS rule [S2].\n\n**Team setup**\n1. Open `https://forge.coreweave.com/wandb/[YOUR-TEAM]/settings`, go to **Reference buckets** and select **Add bucket** [S3].\n2. Choose AWS or Google Cloud and enter the bucket name without the `s3://` or `gs://` prefix [S3].\n3. Enter the key of one existing object, such as `photos/cat.png`. W&B reads it to check access and CORS. After that, links work for any object in the bucket [S3].\n4. Optionally select **Test connection**, then select **Add bucket** [S3].\n\nScreenshots won't display until the bucket is registered [S3]. Once it is, they show inline in the **Traces** view. If Weave can't find an object or the bucket isn't registered, you'll see the plain URI instead [S7].",
+        "source_ids": [
+          "S1",
+          "S2",
+          "S3",
+          "S4",
+          "S5",
+          "S6",
+          "S7"
+        ]
+      },
+      "result": {
+        "passed": false,
+        "issues": [
+          "The rendering rule is overstated. S4 gives `.png`, `.jpg` and `.gif` only as examples (\"such as\") of common image formats. It also says common video formats such as `.mp4`, `.mov` and `.webm` render inline. The answer instead treats those three image extensions as the full list and says every other format becomes a download link, which contradicts S4 for video and for other common image formats. Correction: say that common image formats (for example `.png`, `.jpg`, `.gif`) and common video formats render inline, and that other formats render as a download link [S4]."
+        ],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "failed"
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "answer": "Yes. Weave can show screenshots that already sit in your own S3 or Google Cloud Storage (GCS) bucket. You log each screenshot's bucket URI, meaning its address such as `s3://bucket/key`, as a plain string in a trace. Weave sends only the URI to its servers, and the image bytes stay in your bucket [S1]. This is different from the Content API, which reads the bytes and stores a copy in Weave [S1].\n\n**What you log**\n- The URI as a string anywhere in a trace: an op's input or output, or an agent tool result. The field name doesn't matter, and you don't need a content annotation [S4, S6]. An \"op\" is a function you decorate with `@weave.op` so Weave records its calls.\n- Only `s3://` and `gs://` URIs work, and only for buckets registered to your team [S4].\n- The file extension decides how the file is shown. Common image formats (for example `.png`, `.jpg`, `.gif`) and common video formats (for example `.mp4`, `.mov`, `.webm`) appear inline. Other formats appear as a download link [S4].\n\n```python\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\n@weave.op\ndef record_screenshot(screenshot_uri: str) -> dict:\n    return {\"screenshot\": screenshot_uri}\n\nrecord_screenshot(\"s3://[YOUR-BUCKET]/screens/step-001.png\")\n```\nThis follows the documented pattern [S6]. For agent applications, there is a separate guide for agent spans [S6].\n\n**Before you start**\n- Your deployment must support it: Multi-tenant Cloud, or preview on Dedicated Cloud and Self-Managed v0.84.0+ [S5].\n- You need a CoreWeave Forge account with an API key, an S3 or GCS bucket you control with at least one object, and organization admin permission [S5].\n\n**Storage setup (read-only access)**\nWhen someone opens a trace, W&B creates a short-lived download link (a \"presigned URL\") for each object, so it needs read access to the bucket [S2].\n- **S3:** Add a bucket policy that grants `s3:GetObject` to `arn:aws:iam::725579432336:role/WandbIntegration`. Then add a CORS rule allowing `GET` and `HEAD` from `https://forge.coreweave.com`. CORS is the setting that lets the browser fetch the images. If objects use a customer-managed KMS key, that key's policy must also grant this role `kms:Decrypt` [S2].\n- **GCS:** Give `wandb-integration@wandb-production.iam.gserviceaccount.com` the `roles/storage.objectViewer` role, and add the same kind of CORS rule [S2].\n\n**Team setup**\n1. Open `https://forge.coreweave.com/wandb/[YOUR-TEAM]/settings`, go to **Reference buckets** and select **Add bucket** [S3].\n2. Choose AWS or Google Cloud and enter the bucket name without the `s3://` or `gs://` prefix [S3].\n3. Enter the key of one existing object, such as `photos/cat.png`. W&B reads it to check access and CORS. After that, links work for any object in the bucket [S3].\n4. Optionally select **Test connection**, then select **Add bucket** [S3].\n\nScreenshots won't display until the bucket is registered [S3]. Once it is, they show inline in the **Traces** view. If Weave can't find an object or the bucket isn't registered, you'll see the plain URI instead [S7].",
+        "source_ids": [
+          "S1",
+          "S2",
+          "S3",
+          "S4",
+          "S5",
+          "S6",
+          "S7"
+        ]
+      },
+      "result": {
+        "passed": true,
+        "issues": [],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "passed"
+      },
+      "origin": "provider_tool_call"
+    }
+  ],
+  "task_complete": true,
+  "missing_outcomes": [],
+  "completion_status": "complete",
+  "review_reason": "none",
+  "conversation_context": [],
+  "conversation_id": "ac2fa3b3-5fac-4a29-9cdb-cfffe9a2c888",
+  "trace_id": "d5150d83eee3267a5e0ba579130f1f64",
+  "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/ac2fa3b3-5fac-4a29-9cdb-cfffe9a2c888",
+  "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+  "source_sha256": "b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0",
+  "prompt_sha256": "0db790fffbb9edc24333d987516f479c1bd7cab6aaf0ad382a836264c6a00a9c",
+  "config_sha256": "40d8a7bacd0c2eb781964747644ff5335f6e517841b0105821b87cc0fd0b42ca",
+  "citation_contract_version": 3,
+  "verification_contract_version": 6,
+  "verify_mode": "support",
+  "cache_enabled": true,
+  "model": "claude-opus-5-5",
+  "elapsed_seconds": 46.79,
+  "metrics": {
+    "calls": [
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFvbsYuFKBaYA3NfhsY",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 2332,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 174,
+          "output_tokens_details": {
+            "thinking_tokens": 59
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.6202,
+        "estimated_usd": 0.0039624
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFvnoNeJzLhVxqzWnDr",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 6534
+          },
+          "cache_creation_input_tokens": 6534,
+          "cache_read_input_tokens": 2332,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 264,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 3.8197,
+        "estimated_usd": 0.0384324
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFw5792kjhCaomsPa8s",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 5515
+          },
+          "cache_creation_input_tokens": 5515,
+          "cache_read_input_tokens": 8866,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 311,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 3.58,
+        "estimated_usd": 0.0355842
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFwLW6gqVTZsmigros9",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 5672
+          },
+          "cache_creation_input_tokens": 5672,
+          "cache_read_input_tokens": 14381,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 1286,
+          "output_tokens_details": {
+            "thinking_tokens": 38
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 12.5129,
+        "estimated_usd": 0.0569722
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFxFyX7tZ8ZruVB3dog",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 18472
+          },
+          "cache_creation_input_tokens": 18472,
+          "cache_read_input_tokens": 1663,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 770,
+          "output_tokens_details": {
+            "thinking_tokens": 487
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 9.6047,
+        "estimated_usd": 0.1081086
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFxy9H9qqVES5cxGWam",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 1566
+          },
+          "cache_creation_input_tokens": 1566,
+          "cache_read_input_tokens": 20053,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 1289,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 9.5321,
+        "estimated_usd": 0.0376366
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFyfmnfaMWngs4TTGoL",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 18508
+          },
+          "cache_creation_input_tokens": 18508,
+          "cache_read_input_tokens": 1663,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 460,
+          "output_tokens_details": {
+            "thinking_tokens": 360
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 5.05,
+        "estimated_usd": 0.1020886
+      }
+    ],
+    "model_calls": 7,
+    "tokens": {
+      "input_tokens": 28,
+      "output_tokens": 4554,
+      "cache_creation_input_tokens": 56267,
+      "cache_read_input_tokens": 51290
+    },
+    "total_input_tokens": 107585,
+    "estimated_usd": 0.382785,
+    "known_estimated_usd": 0.382785,
+    "unpriced_calls": 0,
+    "by_purpose": {
+      "planner": {
+        "calls": 5,
+        "known_estimated_usd": 0.17258779999999999
+      },
+      "verification": {
+        "calls": 2,
+        "known_estimated_usd": 0.2101972
+      }
+    },
+    "research": {
+      "searches": 2,
+      "passage_reads": 7,
+      "distinct_pages_read": 1,
+      "repeated_tool_requests": 0,
+      "drafts_submitted": 2,
+      "code_runs": 0
+    },
+    "pricing": {
+      "checked_at": "2026-10-25",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": {
+        "claude-sonnet-5-5": {
+          "input": 2,
+          "output": 10,
+          "write_5m": 2.5,
+          "write_1h": 4,
+          "read": 0.1
+        },
+        "claude-opus-5-5": {
+          "input": 4,
+          "output": 20,
+          "write_5m": 5,
+          "write_1h": 8,
+          "read": 0.2
+        }
+      }
+    },
+    "scope": "Estimated from Claude's reported usage and published prices. Includes research and answer checks. Excludes Weave Signals, separate evaluation runs, hosting, taxes and any usage missing after failed requests or retries. We count requests made by the app, not every network attempt. Your final bill may differ."
+  },
+  "error_type": null
+}

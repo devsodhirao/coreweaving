@@ -1,8 +1,8 @@
 # Coreweaving
 
-A conversational assistant for complex Weave documentation questions. It chooses when to search, read another page, run a small Python example or propose an answer; remembers follow-ups; and checks the answer against its sources and the original question. The assignment’s **agent tracing, online Signals and `weave.Evaluation` with 13 varied cases and an LLM judge** are implemented.
+A conversational assistant for Weave documentation questions that need more than one page. It chooses when to search, read another page, run a small Python example or draft an answer. It remembers follow-ups and checks answers against the documents and the user's question. The assignment's **agent tracing, online Signals and `weave.Evaluation` with 13 varied cases and an AI judge** are implemented. Traces record what happened; Signals review selected completed answers; evaluations test the assistant on known questions.
 
-[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving) · [Progress](docs/PROGRESS.md) · [Code map](docs/CODE_MAP.md) · [Evaluation design](docs/EVALUATION_DESIGN.md) · [Evidence index](results/README.md)
+[Public Weave project](https://forge.coreweave.com/wandb/devfromlll-learning-layer-labs/coreweaving) · [Decisions, tradeoffs and screenshots](docs/DECISIONS.md) · [Progress](docs/PROGRESS.md) · [Code map](docs/CODE_MAP.md) · [Evaluation design](docs/EVALUATION_DESIGN.md) · [Evidence index](results/README.md)
 
 ![The local assistant](docs/images/app-start.png)
 
@@ -27,9 +27,9 @@ docker pull python:3.12-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a
 uv run streamlit run app.py --server.address 127.0.0.1
 ```
 
-Open **http://localhost:8501**. Terminal: `uv run python -m coreweaving`. Try **Understand Weave**, then a follow-up. Sources & analysis shows the exact passages, checks, usage and Weave trace, with a downloadable answer receipt. Docker is unnecessary for questions that require no code execution.
+Open **http://localhost:8501**. Terminal: `uv run python -m coreweaving`. Try **Understand Weave**, then a follow-up. Sources & analysis shows the documents read, checks, cost and recorded steps in Weave. You can download those details with the answer. Docker is unnecessary for questions that require no code execution.
 
-**Use public examples in the public demo project.** Questions, answers and tool inputs are traced. Credential masking is limited; it is not general PII protection.
+**Use public examples in the public demo project.** Questions, answers and tool inputs are recorded in Weave. The app hides recognized credentials, but it cannot reliably remove all private information. Keep API keys, passwords and personal data out of chat.
 
 ## How it works
 
@@ -38,7 +38,7 @@ flowchart LR
     Q[Question + recent dialogue] --> A[One tool-calling agent]
     A --> T[Search / read / offline Python]
     T --> A
-    A --> V[Citation and syntax checks + source and task audit]
+    A --> V[Check citations, Python syntax and whether the docs support the answer]
     V -->|specific problems| A
     V -->|accepted| U[Answer + sources]
     A -. model, tool and verifier spans .-> W[Weave Agents]
@@ -46,18 +46,18 @@ flowchart LR
     W --> S[Signal reviews eligible completed turns]
 ```
 
-The agent gets up to 10 writer calls, 18 research dispatches and three draft attempts. A rejection returns specific problems through the same loop. A useful partial answer must state what remains unresolved and pass the ordinary check. There is no separate planning agent, hidden recovery model or answer-library database. The web app requires verification.
+The agent gets up to 10 requests to the writing model, 18 search/read/Python actions and three draft attempts. If a check finds a problem, the same agent researches or revises the answer. A partial answer must say what remains unanswered and pass the same checks. There is one research loop, one separate answer-checking role, and no saved-answer database. The web app always checks answers before showing them.
 
 | File | Responsibility and reason |
 | --- | --- |
 | [`app.py`](app.py) | Conversation, real progress and evidence dialog. A background job survives UI reruns without resubmitting questions. |
-| [`agent.py`](src/coreweaving/agent.py) | Tools, six-exchange memory, evidence ledger and bounded draft/check loop; one place to follow control flow. |
-| [`corpus.py`](src/coreweaving/corpus.py) | BM25 search and exact section reads from the licensed, hash-locked snapshot. Search results navigate; read passages support citations. |
+| [`agent.py`](src/coreweaving/agent.py) | Tools, memory for six exchanges, records of sources read, and the draft/check loop. |
+| [`corpus.py`](src/coreweaving/corpus.py) | BM25 keyword search over a saved copy of the docs. File checksums detect changes. Search finds sections; the agent must read them before citing them. |
 | [`llm.py`](src/coreweaving/llm.py), [`metrics.py`](src/coreweaving/metrics.py) | Provider calls, caching, explicit model spans and returned-usage cost estimates. |
-| [`config.py`](src/coreweaving/config.py), [`telemetry.py`](src/coreweaving/telemetry.py) | Settings, credential masking, source identity and faithful trace serialization. |
+| [`config.py`](src/coreweaving/config.py), [`telemetry.py`](src/coreweaving/telemetry.py) | Settings, hiding recognized credentials, identifying the code version, and sending activity records to Weave without changing their meaning. |
 | [`sandbox.py`](src/coreweaving/sandbox.py) | Optional bounded, offline Docker execution for plain Python; no Weave SDK or account access. |
-| [`evaluate.py`](src/coreweaving/evaluate.py), [`budget.py`](src/coreweaving/budget.py) | Frozen tasks, reference-based judging, preserved failures and local spend reservations. |
-| [`signals.py`](src/coreweaving/signals.py) | Completed-turn eligibility filter and online review on CoreWeave inference. |
+| [`evaluate.py`](src/coreweaving/evaluate.py), [`budget.py`](src/coreweaving/budget.py) | Fixed test questions, judging against reference documents, saved results and estimated spending limits. |
+| [`signals.py`](src/coreweaving/signals.py) | Selects completed answers for online review using CoreWeave inference. |
 
 Reading route: `app.run_question` → `Agent.run` → `execute` / `verify` → `show_result`; then `DocumentationModel.predict` and `QualityJudge.score`. [Detailed map](docs/CODE_MAP.md)
 
@@ -65,23 +65,23 @@ Reading route: `app.run_question` → `Agent.run` → `execute` / `verify` → `
 
 | Decision | Reason and evidence |
 | --- | --- |
-| Direct tool loop | The brief needs iterative research, conversation and verification. One writer plus one auditor makes ownership explicit. No framework comparison was run. |
-| Opus writer and auditor | Retained provisionally after a matched 12-attempt development diagnostic on the earlier audit contract failed the cheaper Sonnet adoption rule. Sonnet fulfilled 2/6 planned tasks, Opus 5/6; one Sonnet attempt was budget-interrupted. The diagnostic also exposed auditor defects affecting both writers. This is not a general model ranking. [Records and review](results/essence-v1/writer-diagnostic/review.json) |
-| Compact source/task audit | Checks original-question completeness and material claims, reporting only problems. Removed positive-claim quotation bookkeeping after it blocked useful corrected answers. Deterministic citation and Python syntax checks remain. [Failure and repair](results/essence-v1/audit-reporting-proposal.md) |
-| Snapshot + BM25 | Reproducible sources, API-name matching and no retrieval service. Hybrid improved retrieval in the original pilot, but the live tasks excluded its gain queries. A targeted offline follow-up also favors hybrid on two wordings; its final-answer benefit remains unmeasured. BM25 stays provisional. [Original experiment](results/retrieval-comparison-v1/README.md) · [Follow-up](results/retrieval-followup-v2/README.md) |
+| Direct tool loop | The brief needs repeated research, conversation and answer checking. One model writes the answer and a separate call checks it. We did not compare agent frameworks. |
+| Opus for writing and checking | Kept provisionally after a small comparison: Sonnet fulfilled 2/6 planned tasks and Opus 5/6; one Sonnet attempt stopped at its spending limit. Problems in the shared answer checker also affected both models. This earlier test does not establish the best model for today's app. [Records and review](results/essence-v1/writer-diagnostic/review.json) |
+| Short answer-check reports | Checks important claims and whether the answer addresses the question, then reports problems. Requiring a quotation for every supported claim had blocked useful answers, so that reporting step was removed. Citation and Python syntax checks remain. [Failure and repair](results/essence-v1/audit-reporting-proposal.md) |
+| Snapshot + BM25 | Reproducible sources, API-name matching and no retrieval service. Hybrid improved selected-source retrieval. A current 24-answer comparison included its gain questions: both methods passed 12/12 tasks, made the same number of searches, and had mixed time/cost. Keep BM25 for this demo; broader hybrid benefit remains open. [Original](results/retrieval-comparison-v1/README.md) · [Offline](results/retrieval-followup-v2/README.md) · [Current paired answers](results/retrieval-live-v3/README.md) |
 | Cache conversations, not one-off judges | Conversation inputs showed cache hits. Per-case judge schemas wrote cache tokens without reading them, so judge caching is disabled. [Build log](docs/AI_BUILD_LOG.md) |
 
-Opus also judges the evaluation: separate calls and reference access do not make it an independent model family. The model auditor’s benefit beyond deterministic citation checks remains unisolated; the historical pilot tied support and verification-off on factual assertions. [Pilot](results/coverage-pilot-v1/summary.json)
+Opus also grades the evaluation, so writer, checker and judge can share the same mistakes. We have not isolated how much the AI checker adds beyond code-based citation checks; an earlier pilot tied on factual checks with the AI check enabled and disabled. [Pilot](results/coverage-pilot-v1/summary.json)
 
 ## Brief → implementation → proof
 
 | Requirement | Implementation | Evidence |
 | --- | --- | --- |
-| Agentic, multi-page tool use | Repeated model-selected search/read/code/submit steps | [Current actions and answer review](results/essence-v2/regression-review.json) |
-| Multi-turn context | Retained dialogue plus original source records | [Current regression](results/essence-regression-v2/summary.json): direct-Anthropic/usage and Signal/sampling follow-ups |
-| Self-verification | Deterministic checks, grounded audit and bounded repair | [Positive/negative controls and their misses](results/essence-v2/auditor-check/semantic-review.json); unchanged regression |
-| New agent tracing model | Conversations group turns containing model, tool and verifier-subagent spans | [Backend readback](results/essence-v2/evaluation-backend-readback.json), separate from local execution success |
-| Online Signals | Filter eligible completed turns, then classify with CoreWeave Serverless Inference | [Active policy](results/essence-v2/signal-readback.json) and [current error tagged for review](results/essence-v2/signal-error-readback.json) |
+| Agentic, multi-page tool use | Repeated model-selected search/read/code/submit steps | [Current actions and answer review](results/presentation-regression-retry-v1/answer-review.json) |
+| Multi-turn context | Retained dialogue plus original source records | [Current regression](results/presentation-regression-retry-v1/summary.json): direct-Anthropic/usage and Signal/sampling follow-ups |
+| Self-verification | Deterministic checks, grounded audit and bounded repair | [Positive/negative controls and their misses](results/essence-v2/auditor-check/semantic-review.json); current clarification miss disclosed below |
+| New agent tracing model | Conversations group turns containing model, tool and verifier-subagent spans | [Backend readback](results/presentation-regression-retry-v1/evaluation-backend-readback.json), separate from local execution success |
+| Online Signals | Filter eligible completed turns, then classify with CoreWeave Serverless Inference | [Active policy](results/essence-v2/signal-readback.json) and [recorded error tagged for review](results/essence-v2/signal-error-readback.json) |
 | ≥10 varied questions + LLM judge | 13 regression cases, 48 assertions; six capability cases retained | [`evals/`](evals), [`evaluate.py`](src/coreweaving/evaluate.py), results below |
 | Public, runnable repository and project | Offline corpus restore, local UI/CLI, setup instructions | [Fresh-clone check](results/essence-v2/fresh-setup.json) and linked public project |
 
@@ -90,21 +90,23 @@ Weave connects an answer to its execution, usage, evaluations and review feedbac
 ## Quality and speed
 
 <!-- MEASURED_RESULTS_START -->
-Last live-measured runtime **`522c320`**, [validation packet](results/essence-v2/README.md). The later [clarification-policy change](docs/BEHAVIOR_CONTRACT.md#clarification) has local checks but has not had a new paid evaluation; the following results retain their original source identity. The regression retained the same questions and rubric:
+The presentation build **`a07e5da`**, source **`b312a2c9a081`**, has a complete [current regression](results/presentation-regression-retry-v1/README.md): **12/13 cases and 47/48 assertions passed**. Every case has a valid grade. This is one full run after a separately preserved judge timeout; no runtime, question or rubric changes were made between attempts.
 
 | Check | Observed result |
 | --- | --- |
-| Regression completion | **All 13 cases graded: judge-recorded 12/13 cases and 47/48 assertions.** This combines the original 12 assessed cases with one billing-failure retry, not a fresh full-suite run. [Completion view](results/essence-v2/regression-completion.json) · [Original run](results/essence-regression-v2/summary.json) |
-| Remaining answer gaps | Initialization omits authentication and agent-span export. Review also disputes the retry judge’s hierarchy pass: LLM/tool nesting inside turns is implicit. [Original review](results/essence-v2/regression-review.json) · [Retry review](results/essence-v2/regression-resumption-review.json) |
-| Engine time | Median **20 seconds across all 15 turns**, including the failed request; **22 seconds across 14 substantive answers**. Offline judging is excluded. |
-| Actual browser | **17/18 frozen checks, 5/6 strict tasks; all six literal requests fulfilled** in AI-assisted source/code review. Overview omits the extra completed-turn timing criterion. Median terminal prose **23 seconds**, range **18–67 seconds** across seven turns. One late code block leaves full-render timing incomplete. [Review](results/essence-v2/ui-after-funding/answer-review.json) |
-| Preset and delivery | **Understand Weave** returned a useful answer in **30 seconds**. All eight browser turns and 47 provider responses matched their stored Weave records. [Readback](results/essence-v2/ui-after-funding-backend-readback.json) |
-| Local mechanics and setup | **428 tests**, Ruff and clean-clone offline restore passed. [Checks](results/essence-v2/local-checks.json) |
+| Current regression | **12/13 judge-recorded case passes; 47/48 assertions.** Same 13 development questions and rubric 2.3, one trial per case. [Summary](results/presentation-regression-retry-v1/summary.json) |
+| Current failure | “How do I monitor it?” asks for context but adds uncited product alternatives after searching without reading a page. The answer checker accepts it; the evaluation judge rejects it. [Answer review](results/presentation-regression-retry-v1/answer-review.json) |
+| Current engine time and cost | Median **31.46 seconds** across 15 turns, range **10.24–70.99 seconds**; **$5.25** returned-usage estimate including the evaluation judge. Engine time excludes that judge and browser rendering. The failed first attempt adds $0.24 known usage and one unpriced timeout. |
+| Current source and delivery checks | 64 stored document-section occurrences match the saved docs, counting reused sources; no citation-format or Python-syntax issues. All **15 turn roots, 97 agent responses and 13 indexed evaluation rows** match Weave records, including saved judge receipts. [Source checks](results/presentation-regression-retry-v1/source-checks.json) · [Readback](results/presentation-regression-retry-v1/evaluation-backend-readback.json) |
+| Current browser walkthrough | Two actual turns: about **58 and 44 seconds** to full render, **$1.01** total. The overview needed three audits and retained loose Signals wording; both answers were long. [Walkthrough](results/decision-walkthrough-v1/README.md) |
+| Local mechanics | **430 tests** passed on these same runtime bytes, plus Ruff and whitespace checks. These are deterministic checks, separate from model quality. [Receipt](results/decision-walkthrough-v1/local-checks.json) |
 
-The app/package is **5,458 → 3,774 lines**: 455 moved to optional experiments, 1,229 removed. Fewer control paths make the program easier to explain. The initialization omission remains. The billing-blocked case is now assessed in a separate retry; the original failure remains preserved. [Accounting](results/essence-v2/size-review.json)
+**Keep the earlier limits visible.** The `522c320` completion view also recorded 12/13 cases and 47/48 assertions, but combined an original run with one billing-failure retry and had a different failed case. Initialization omitted required setup; review disputed another generous hierarchy grade. Its browser test remains **17/18 frozen checks, 5/6 strict tasks**: the overview omitted the completed-turn timing criterion. Its 23-second median measured terminal prose; one late code block left full-render timing incomplete. Those scores and times do not transfer to the current build. [Earlier validation](results/essence-v2/README.md)
+
+The earlier simplification reduced app/package code from 5,458 to 3,774 lines on `522c320`: 455 moved to optional experiments and 1,229 removed. Later wording and status changes are separate. [Accounting](results/essence-v2/size-review.json)
 <!-- MEASURED_RESULTS_END -->
 
-Local tests protect deterministic contracts and UI state. Live evaluations and browser measurements separately assess task completion, source support, operational success and time to the visible answer. The 13-case regression is a reused development set. Browser criteria remain frozen, including an overview timing detail beyond the literal question; literal fulfillment is reviewed separately. The current captured-answer controls accepted both corrected positives but did not identify either targeted negative defect in their reasons. They expose a limitation, not a verifier accuracy rate. [What each test measures](docs/EVALUATION_DESIGN.md)
+Local tests protect deterministic contracts and UI state. Live evaluations and browser measurements separately assess task completion, source support, operational success and time to the visible answer. The 13-case regression is a reused development set. Browser criteria remain frozen, including an overview timing detail beyond the literal question; literal fulfillment is reviewed separately. The earlier captured-answer controls accepted both corrected positives but did not identify either targeted negative defect in their reasons. They expose a limitation, not a verifier accuracy rate. [What each test measures](docs/EVALUATION_DESIGN.md)
 
 ```bash
 uv run pytest -q

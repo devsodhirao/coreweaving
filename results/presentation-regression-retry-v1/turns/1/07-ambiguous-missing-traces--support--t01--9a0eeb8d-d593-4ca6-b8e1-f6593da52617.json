@@ -1,0 +1,3691 @@
+{
+  "case_id": "07-ambiguous-missing-traces",
+  "trial_index": 1,
+  "example_id": "07-ambiguous-missing-traces:trial:1",
+  "prediction_id": "9a0eeb8d-d593-4ca6-b8e1-f6593da52617",
+  "verify_mode": "support",
+  "suite": "regression",
+  "source_sha256": "b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0",
+  "evaluation_call_id": "01a189ec-8f31-751a-9d8c-8749fb7623ae",
+  "predict_and_score_call_id": "01a189f1-e8a3-7c22-bbde-7d8aad47ba97",
+  "predict_call_id": "01a189f1-e8a4-7016-9f6b-e7fc43d0133b",
+  "output": {
+    "answer_id": "6fc4d57e-2a57-434d-9f67-1969d6d02238",
+    "question": "My traces aren't showing up. What's wrong?",
+    "answer": "I can't say for sure yet, because the fix depends on how you send traces. **How are you tracing: the Python SDK, the TypeScript SDK, OpenTelemetry (OTel, an open tracing standard), or an agent plugin? And which view are you checking, Traces or Agents?** Each setup fails in different ways.\n\nIn the meantime, these are the most common causes:\n\n- **`weave.init()` was never called.** Weave only traces calls to supported LLM libraries (such as `openai` or `anthropic`) after you import the library and initialize your project with `weave.init('your-project')` [S5].\n- **Your own functions aren't marked for tracing.** To trace custom code, decorate it with `@weave.op` in Python or wrap it with `weave.op(...)` in TypeScript. You can also create Calls manually through the API [S1].\n- **The program exits before traces are sent.** Weave sends data in the background. In TypeScript, await `client.flush()` before `process.exit()` [S3]. In Python, `flush()` finishes background tasks and is safe to call more than once [S6].\n- **TypeScript automatic tracing isn't working.** Projects that use ES modules (ESM), bundlers such as Next.js, or restricted runtimes can stop Weave from attaching to libraries automatically. The integration guide's troubleshooting section covers fixes [S4].\n- **OTel spans are going to a different view.** The older OTel endpoint feeds the **Traces** and **Threads** views, and OpenInference spans sent there appear in **Traces**, not **Agents**. The Agents view builds conversations from spans that follow the OTel GenAI semantic conventions (a standard naming scheme for AI spans), sent to the agents endpoint [S2]. Also check that your entity (team name), project and `wandb-api-key` header are set. In TypeScript, call `provider.shutdown()` before exit so pending spans get sent [S2].\n\nTell me your setup and I'll narrow it down.",
+    "kind": "clarification",
+    "source_ids": [
+      "S1",
+      "S2",
+      "S3",
+      "S4",
+      "S5",
+      "S6"
+    ],
+    "sources": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/create-call",
+        "section": 2,
+        "title": "Trace your code",
+        "heading": "Track custom functions",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-call",
+        "page_sha256": "a072092a9701139504707ba608e5cd9215d7640b24b88b801006cda3a697f490",
+        "text": "## Track custom functions\n\nLLM applications often have additional logic, such as pre-processing and post-processing, prompts, and more, that you want to track. Use this approach when you want Weave to capture your own functions alongside the LLM calls it traces automatically.\n\n**Python**\n\nWeave lets you manually track these Calls using the [`@weave.op`](https://docs.coreweave.com/products/wandb/weave/reference/python-sdk#function-op) decorator. For example:\n\n```python lines theme={\"system\"}\nimport weave\n\n# Initialize Weave Tracing\nweave.init('intro-example')\n\n# Decorate your function\n@weave.op\ndef my_function(name: str):\n    return f\"Hello, {name}!\"\n\n# Call your function -- Weave will automatically track inputs and outputs\nprint(my_function(\"World\"))\n```\n\nYou can also track [methods on classes](#track-class-and-object-methods).\n\n**TypeScript**\n\nWeave lets you manually track these Calls by wrapping your function with [`weave.op`](https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/functions/op). For example:\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nawait weave.init('intro-example')\n\nfunction myFunction(name: string) {\n    return `Hello, ${name}!`\n}\n\nconst myFunctionOp = weave.op(myFunction)\n```\n\nYou can also define the wrapping inline:\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nconst myFunctionOp = weave.op((name: string) => `Hello, ${name}!`)\n```\n\nThis works for both functions and methods on classes:\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nclass MyClass {\n    constructor() {\n        this.myMethod = weave.op(this.myMethod)\n    }\n\n    myMethod(name: string) {\n        return `Hello, ${name}!`\n    }\n}\n```\n\n",
+        "page_context": "# Trace your code\n\n> Instrument your running code so its execution appears as detailed traces in Weave.\n\nThis guide shows you how to instrument your application so that its execution appears as detailed traces in Weave. Traces help you debug, evaluate, and monitor LLM-powered code by capturing inputs, outputs, and the structure of each operation as a Call.\n\nTo see your running code as detailed traces in Weave, you create Calls. The following sections describe the three main ways to do this, from least to most manual:\n\n* Automatic tracking of LLM library calls.\n* Tracking of custom functions with `weave.op`.\n* Manual Call tracking using the API directly.\n\nChoose the approach that fits how much control you need over what gets traced.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Trace your code"
+          },
+          {
+            "section": 1,
+            "heading": "Automatic tracking of LLM library calls"
+          },
+          {
+            "section": 2,
+            "heading": "Track custom functions"
+          },
+          {
+            "section": 3,
+            "heading": "Track class and object methods"
+          },
+          {
+            "section": 4,
+            "heading": "Trace parallel (multi-threaded) function calls"
+          },
+          {
+            "section": 5,
+            "heading": "Manual Call tracking"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "reference/python-sdk",
+            "title": "weave"
+          },
+          {
+            "page_id": "reference/typescript-sdk/functions/op",
+            "title": "op"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S2",
+        "page_id": "guides/tracking/otel",
+        "section": 4,
+        "title": "Send OpenTelemetry Traces to Weave",
+        "heading": "OpenInference instrumentation",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/otel",
+        "page_sha256": "2b27bfb5db158afe1cb0e04dae99926154f64ccbe8cf8ca527e185315a62348c",
+        "text": "### OpenInference instrumentation\n\n[OpenInference](https://github.com/Arize-ai/openinference) is an open source instrumentation library from Arize AI that captures LLM calls as OpenTelemetry spans. This example shows how to use the OpenAI instrumentation. Additional instrumentations are available in the [official repository](https://github.com/Arize-ai/openinference).\n\n> [!NOTE]\n>\n> OpenInference spans render in the **Traces** view only, not the **Agents** view. The Agents view builds conversations, turns, and tool calls from spans that follow the [OTel GenAI semantic conventions](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-otel.md#shape-spans-for-the-agents-view).\n\nFirst, install the required dependencies:\n\n**Python**\n\n```bash theme={\"system\"}\npip install openai openinference-instrumentation-openai opentelemetry-exporter-otlp-proto-http\n```\n\n**TypeScript**\n\n```bash theme={\"system\"}\nnpm install openai @opentelemetry/sdk-trace-node @opentelemetry/sdk-trace-base @opentelemetry/resources @opentelemetry/exporter-trace-otlp-proto @arizeai/openinference-instrumentation-openai @opentelemetry/api\n```\n\n> [!WARNING]\n>\n> **Performance recommendation**: Always use `BatchSpanProcessor` instead of `SimpleSpanProcessor` when sending traces to Weave. `SimpleSpanProcessor` exports spans synchronously, which can impact the performance of other workloads. These examples illustrate `BatchSpanProcessor`, which is recommended in production because it batches spans asynchronously and efficiently.\n\n**Python**\n\nPaste the following code into a Python file such as `openinference_example.py`:\n\n```python lines theme={\"system\"}\nimport os\nimport openai\nfrom opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter\nfrom opentelemetry.sdk import trace as trace_sdk\nfrom opentelemetry.sdk.resources import Resource\nfrom opentelemetry.sdk.trace.export import ConsoleSpanExporter, BatchSpanProcessor\nfrom openinference.instrumentation.openai import OpenAIInstrumentor\n\nOPENAI_API_KEY = \"[REDACTED_SECRET]\"\nWANDB_BASE_URL = \"https://trace.wandb.ai\"\nENTITY = \"<your-team-name>\"\nPROJECT = \"<your-project-name>\"\n\nWEAVE_OTLP_ENDPOINT = f\"{WANDB_BASE_URL}/otel/v1/traces\"\n\n# Create an API key at https://forge.coreweave.com/settings\nWANDB_API_KEY = os.environ[\"WANDB_API_KEY\"]\n\nexporter = OTLPSpanExporter(\n    endpoint=WEAVE_OTLP_ENDPOINT,\n    headers={\"wandb-api-key\": WANDB_API_KEY},\n)\n\ntracer_provider = trace_sdk.TracerProvider(resource=Resource({\n    \"wandb.entity\": ENTITY,\n    \"wandb.project\": PROJECT,\n}))\ntracer_provider.add_span_processor(BatchSpanProcessor(exporter))\n\n# Optionally, print the spans to the console.\ntracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))\n\nOpenAIInstrumentor().instrument(tracer_provider=tracer_provider)\n\ndef main():\n    client = openai.OpenAI(api_key=OPENAI_API_KEY)\n    response = client.chat.completions.create(\n        model=\"gpt-3.5-turbo\",\n        messages=[{\"role\": \"user\", \"content\": \"Describe OTel in a single sentence.\"}],\n        max_tokens=20,\n        stream=True,\n        stream_options={\"include_usage\": True},\n    )\n    for chunk in response:\n        if chunk.choices and (content := chunk.choices[0].delta.content):\n            print(content, end=\"\")\n\nif __name__ == \"__main__\":\n    main()\n```\n\nRun the code:\n\n```bash theme={\"system\"}\npython openinference_example.py\n```\n\n**TypeScript**\n\nThe TypeScript implementation of this example contains the following key differences from the Python implementation:\n\n* OpenAI must be imported before registering instrumentation (ESM modules require this).\n* Uses `@opentelemetry/exporter-trace-otlp-proto` (protobuf format) instead of the HTTP exporter, since the Weights & Biases endpoint only accepts protobuf.\n* Requires explicit `provider.shutdown()` with a delay before shutdown to ensure spans are flushed, since `BatchSpanProcessor` flushes asynchronously.\n\nPaste the following code into a TypeScript file such as `openinference_example.ts`:\n\n```typescript lines {11,12} theme={\"system\"}\n// IMPORTANT: Import OpenAI FIRST so instrumentation can patch it\nimport OpenAI from \"openai\";\nimport { NodeTracerProvider } from \"@opentelemetry/sdk-trace-node\";\nimport { BatchSpanProcessor } from \"@opentelemetry/sdk-trace-base\";\nimport { OTLPTraceExporter } from \"@opentelemetry/exporter-trace-otlp-proto\";\nimport { resourceFromAttributes } from \"@opentelemetry/resources\";\nimport { OpenAIInstrumentation, isPatched } from \"@arizeai/openinference-instrumentation-openai\";\n\nconst OPENAI_API_KEY = [REDACTED_SECRET];\nconst WANDB_BASE_URL = \"https://trace.wandb.ai\";\nconst ENTITY = \"<your-team-name>\";\nconst PROJECT = \"<your-project-name>\";\n\nconst WEAVE_OTLP_ENDPOINT = `${WANDB_BASE_URL}/otel/v1/traces`;\n\n// Create an API key at https://forge.coreweave.com/settings\nconst WANDB_API_KEY = [REDACTED_SECRET];\n\nconst exporter = new OTLPTraceExporter({\n  url: WEAVE_OTLP_ENDPOINT,\n  headers: { \"wandb-api-key\": [REDACTED_SECRET] },\n});\n\nconst provider = new NodeTracerProvider({\n  resource: resourceFromAttributes({\n    \"wandb.entity\": ENTITY,\n    \"wandb.project\": PROJECT,\n  }),\n  spanProcessors: [\n    new BatchSpanProcessor(exporter)\n  ],\n});\n\nprovider.register();\n\n// Register the OpenAI instrumentation with the tracer provider\nconst openAIInstrumentation = new OpenAIInstrumentation();\nopenAIInstrumentation.setTracerProvider(provider);\n\n// Manually instrument OpenAI since we're using ESM\nopenAIInstrumentation.manuallyInstrument(OpenAI);\n\nasync function main() {\n  console.log(\"OpenAI is patched?\", isPatched());\n\n  const client = new OpenAI({ apiKey: [REDACTED_SECRET] });\n\n  console.log(\"Making OpenAI API call...\");\n  const response = await client.chat.completions.create({\n    model: \"gpt-3.5-turbo\",\n    messages: [{ role: \"user\", content: \"Describe OTel in a single sentence.\" }],\n    max_tokens: 50,\n  });\n\n  console.log(\"Response:\", response.choices[0]?.message?.content);\n  console.log(\"Waiting for spans to flush...\");\n}\n\n(async () => {\n  await main();\n\n  // Give spans time to flush\n  console.log(\"Waiting 2 seconds for spans to flush...\");\n  await new Promise(resolve => setTimeout(resolve, 2000));\n\n  await provider.shutdown(); // flush all pending spans before exit\n  console.log(\"Shutdown complete\");\n})();\n```\n\nRun the code:\n\n```bash theme={\"system\"}\nnpx ts-node openinference_example.ts\n```\n\n",
+        "page_context": "# Send OpenTelemetry Traces to Weave\n\n> Import OpenTelemetry compatible trace data through a dedicated endpoint\n\n> [!WARNING]\n>\n> This page documents W\\&B Weave's legacy OTel workflow. If you are new to Weave and are building agentic applications, we **highly recommend** [sending your traces to the new endpoint](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-otel.md), `/agents/otel/v1/traces`. The new endpoint lets you send OTLP trace data from any OpenTelemetry pipeline to both W\\&B Weave and [Agent Lens](https://docs.coreweave.com/products/agent-lens/what-is-agent-lens.md), an agent-focused tracing and observability platform.\n\nWeave supports import of OpenTelemetry compatible trace data through a dedicated endpoint. This endpoint lets you send OTLP (OpenTelemetry Protocol) formatted trace data directly to your Weave project. Use this integration when you want to instrument your application with the OpenTelemetry standard and have those traces appear alongside your other Weave data, without replacing your existing OTel-based observability pipeline.\n\nThis page covers the endpoint details, authentication, end-to-end examples in Python and TypeScript, how to forward traces through an OpenTelemetry Collector, how to organize traces into Weave threads, and the attribute mappings Weave applies to incoming spans.\n\n> [!NOTE]\n>\n> This endpoint feeds the **Traces** and **Threads** views. To send OTel spans from a multi-turn agent to the **Agents** view, use the agents endpoint instead. See [Send OpenTelemetry spans to the Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-otel.md).\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Send OpenTelemetry Traces to Weave"
+          },
+          {
+            "section": 1,
+            "heading": "Endpoint details"
+          },
+          {
+            "section": 2,
+            "heading": "Authentication and routing"
+          },
+          {
+            "section": 3,
+            "heading": "Examples"
+          },
+          {
+            "section": 4,
+            "heading": "OpenInference instrumentation"
+          },
+          {
+            "section": 5,
+            "heading": "OpenLLMetry instrumentation"
+          },
+          {
+            "section": 6,
+            "heading": "Without instrumentation"
+          },
+          {
+            "section": 7,
+            "heading": "Use an OpenTelemetry Collector"
+          },
+          {
+            "section": 8,
+            "heading": "Set up a collector"
+          },
+          {
+            "section": 9,
+            "heading": "Organize OTel traces into threads"
+          },
+          {
+            "section": 10,
+            "heading": "Organize OTel traces into threads"
+          },
+          {
+            "section": 11,
+            "heading": "Organize OTel traces into threads"
+          },
+          {
+            "section": 12,
+            "heading": "Attribute mappings"
+          },
+          {
+            "section": 13,
+            "heading": "Supported frameworks"
+          },
+          {
+            "section": 14,
+            "heading": "Attribute reference"
+          },
+          {
+            "section": 15,
+            "heading": "Limitations"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "credential_redacted": true,
+        "outgoing_links": [
+          {
+            "page_id": "guides/tracking/trace-agents-otel",
+            "title": "Send OpenTelemetry spans to the Agents view"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S3",
+        "page_id": "reference/typescript-sdk/interfaces/weaveclient",
+        "section": 23,
+        "title": "WeaveClient",
+        "heading": "flush()",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/weaveclient",
+        "page_sha256": "562a114529705c6d97ad328cc554eb177c9dc389917f342cf3178cdc66897156",
+        "text": "### flush()\n\n> **flush**(): `Promise`\\<`void`>\n\nDeliver all buffered calls to the server. Await before `process.exit()`.\n\n",
+        "page_context": "# WeaveClient\n\n> TypeScript SDK reference\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/weaveClient.ts#L519)\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "WeaveClient"
+          },
+          {
+            "section": 1,
+            "heading": "Properties"
+          },
+          {
+            "section": 2,
+            "heading": "projectId"
+          },
+          {
+            "section": 3,
+            "heading": "settings"
+          },
+          {
+            "section": 4,
+            "heading": "attributes"
+          },
+          {
+            "section": 5,
+            "heading": "genai"
+          },
+          {
+            "section": 6,
+            "heading": "printCallLink"
+          },
+          {
+            "section": 7,
+            "heading": "useCallsComplete"
+          },
+          {
+            "section": 8,
+            "heading": "useOTelV2"
+          },
+          {
+            "section": 9,
+            "heading": "traceServerApi"
+          },
+          {
+            "section": 10,
+            "heading": "Methods"
+          },
+          {
+            "section": 11,
+            "heading": "addScore()"
+          },
+          {
+            "section": 12,
+            "heading": "Parameters"
+          },
+          {
+            "section": 13,
+            "heading": "Returns"
+          },
+          {
+            "section": 14,
+            "heading": "createCall()"
+          },
+          {
+            "section": 15,
+            "heading": "Parameters"
+          },
+          {
+            "section": 16,
+            "heading": "Returns"
+          },
+          {
+            "section": 17,
+            "heading": "finishCall()"
+          },
+          {
+            "section": 18,
+            "heading": "Parameters"
+          },
+          {
+            "section": 19,
+            "heading": "Returns"
+          },
+          {
+            "section": 20,
+            "heading": "finishCallWithException()"
+          },
+          {
+            "section": 21,
+            "heading": "Parameters"
+          },
+          {
+            "section": 22,
+            "heading": "Returns"
+          },
+          {
+            "section": 23,
+            "heading": "flush()"
+          },
+          {
+            "section": 24,
+            "heading": "Returns"
+          },
+          {
+            "section": 25,
+            "heading": "get()"
+          },
+          {
+            "section": 26,
+            "heading": "Parameters"
+          },
+          {
+            "section": 27,
+            "heading": "Returns"
+          },
+          {
+            "section": 28,
+            "heading": "getAgentCustomAttributes()"
+          },
+          {
+            "section": 29,
+            "heading": "Parameters"
+          },
+          {
+            "section": 30,
+            "heading": "Returns"
+          },
+          {
+            "section": 31,
+            "heading": "Example"
+          },
+          {
+            "section": 32,
+            "heading": "getAgents()"
+          },
+          {
+            "section": 33,
+            "heading": "Parameters"
+          },
+          {
+            "section": 34,
+            "heading": "Returns"
+          },
+          {
+            "section": 35,
+            "heading": "Example"
+          },
+          {
+            "section": 36,
+            "heading": "getAgentSpans()"
+          },
+          {
+            "section": 37,
+            "heading": "Parameters"
+          },
+          {
+            "section": 38,
+            "heading": "Returns"
+          },
+          {
+            "section": 39,
+            "heading": "Examples"
+          },
+          {
+            "section": 40,
+            "heading": "getAgentSpanStats()"
+          },
+          {
+            "section": 41,
+            "heading": "Parameters"
+          },
+          {
+            "section": 42,
+            "heading": "Returns"
+          },
+          {
+            "section": 43,
+            "heading": "Example"
+          },
+          {
+            "section": 44,
+            "heading": "getAgentTurn()"
+          },
+          {
+            "section": 45,
+            "heading": "Parameters"
+          },
+          {
+            "section": 46,
+            "heading": "Returns"
+          },
+          {
+            "section": 47,
+            "heading": "Example"
+          },
+          {
+            "section": 48,
+            "heading": "getAgentTurns()"
+          },
+          {
+            "section": 49,
+            "heading": "Parameters"
+          },
+          {
+            "section": 50,
+            "heading": "Returns"
+          },
+          {
+            "section": 51,
+            "heading": "Example"
+          },
+          {
+            "section": 52,
+            "heading": "getAgentVersions()"
+          },
+          {
+            "section": 53,
+            "heading": "Parameters"
+          },
+          {
+            "section": 54,
+            "heading": "Returns"
+          },
+          {
+            "section": 55,
+            "heading": "Example"
+          },
+          {
+            "section": 56,
+            "heading": "getCall()"
+          },
+          {
+            "section": 57,
+            "heading": "Parameters"
+          },
+          {
+            "section": 58,
+            "heading": "Returns"
+          },
+          {
+            "section": 59,
+            "heading": "getCalls()"
+          },
+          {
+            "section": 60,
+            "heading": "Call Signature"
+          },
+          {
+            "section": 61,
+            "heading": "Call Signature"
+          },
+          {
+            "section": 62,
+            "heading": "getCallsIterator()"
+          },
+          {
+            "section": 63,
+            "heading": "Call Signature"
+          },
+          {
+            "section": 64,
+            "heading": "Call Signature"
+          },
+          {
+            "section": 65,
+            "heading": "getCallStack()"
+          },
+          {
+            "section": 66,
+            "heading": "Returns"
+          },
+          {
+            "section": 67,
+            "heading": "getCurrentAttributes()"
+          },
+          {
+            "section": 68,
+            "heading": "Returns"
+          },
+          {
+            "section": 69,
+            "heading": "linkPromptToRegistry()"
+          },
+          {
+            "section": 70,
+            "heading": "Parameters"
+          },
+          {
+            "section": 71,
+            "heading": "Returns"
+          },
+          {
+            "section": 72,
+            "heading": "pendingCallCount()"
+          },
+          {
+            "section": 73,
+            "heading": "Returns"
+          },
+          {
+            "section": 74,
+            "heading": "publish()"
+          },
+          {
+            "section": 75,
+            "heading": "Parameters"
+          },
+          {
+            "section": 76,
+            "heading": "Returns"
+          },
+          {
+            "section": 77,
+            "heading": "pushNewCall()"
+          },
+          {
+            "section": 78,
+            "heading": "Returns"
+          },
+          {
+            "section": 79,
+            "heading": "registerCustomRuntime()"
+          },
+          {
+            "section": 80,
+            "heading": "Parameters"
+          },
+          {
+            "section": 81,
+            "heading": "Returns"
+          },
+          {
+            "section": 82,
+            "heading": "runWithAttributes()"
+          },
+          {
+            "section": 83,
+            "heading": "Type Parameters"
+          },
+          {
+            "section": 84,
+            "heading": "Parameters"
+          },
+          {
+            "section": 85,
+            "heading": "Returns"
+          },
+          {
+            "section": 86,
+            "heading": "runWithCallStack()"
+          },
+          {
+            "section": 87,
+            "heading": "Type Parameters"
+          },
+          {
+            "section": 88,
+            "heading": "Parameters"
+          },
+          {
+            "section": 89,
+            "heading": "Returns"
+          },
+          {
+            "section": 90,
+            "heading": "saveCallEnd()"
+          },
+          {
+            "section": 91,
+            "heading": "Parameters"
+          },
+          {
+            "section": 92,
+            "heading": "Returns"
+          },
+          {
+            "section": 93,
+            "heading": "saveCallStart()"
+          },
+          {
+            "section": 94,
+            "heading": "Parameters"
+          },
+          {
+            "section": 95,
+            "heading": "Returns"
+          },
+          {
+            "section": 96,
+            "heading": "saveOp()"
+          },
+          {
+            "section": 97,
+            "heading": "Parameters"
+          },
+          {
+            "section": 98,
+            "heading": "Returns"
+          },
+          {
+            "section": 99,
+            "heading": "searchAgents()"
+          },
+          {
+            "section": 100,
+            "heading": "Parameters"
+          },
+          {
+            "section": 101,
+            "heading": "Returns"
+          },
+          {
+            "section": 102,
+            "heading": "Example"
+          },
+          {
+            "section": 103,
+            "heading": "serializeAudio()"
+          },
+          {
+            "section": 104,
+            "heading": "Parameters"
+          },
+          {
+            "section": 105,
+            "heading": "Returns"
+          },
+          {
+            "section": 106,
+            "heading": "updateCall()"
+          },
+          {
+            "section": 107,
+            "heading": "Parameters"
+          },
+          {
+            "section": 108,
+            "heading": "Returns"
+          },
+          {
+            "section": 109,
+            "heading": "waitForBatchProcessing()"
+          },
+          {
+            "section": 110,
+            "heading": "Returns"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S4",
+        "page_id": "guides/integrations/js",
+        "section": 5,
+        "title": "TypeScript SDK: third-party integration guide",
+        "heading": "Advanced usage and troubleshooting",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/js",
+        "page_sha256": "b68a24af4db8b9eb3e233c1936034feb1c27a695b0ef963adc6e331111edfe8e",
+        "text": "## Advanced usage and troubleshooting\n\nThe following sections cover edge cases and workarounds for when the TypeScript SDK's automatic patching doesn't work as expected. For example, ESM-only environments, bundler setups such as Next.js, or constrained runtime environments may cause issues. If you see missing traces or integration issues, start here.\n\n",
+        "page_context": "# TypeScript SDK: third-party integration guide\n\n> Integrate third-party libraries with the Weave TypeScript SDK\n\nThis guide describes how to integrate third-party libraries (for example, OpenAI) with the Weave TypeScript SDK. It's intended for TypeScript developers who want Weave to automatically trace calls to supported libraries in their application.\n\nWeave supports automatic instrumentation, which streamlines setup and reduces the need for manual configuration.\n\n> [!WARNING]\n>\n> **What changed?**\n> As of [PR #4554](https://github.com/wandb/weave/pull/4554), Weave automatically patches supported libraries such as OpenAI when it loads. You no longer need to manually wrap them:\n>\n> ```ts twoslash lines theme={\"system\"}\n> // @noErrors\n> weave.wrapOpenAI(new OpenAI());\n> ```\n>\n> Weave handles this automatically in most cases. However, [edge cases](#advanced-usage) may occur.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "TypeScript SDK: third-party integration guide"
+          },
+          {
+            "section": 1,
+            "heading": "Use Weave integrations with your TypeScript project"
+          },
+          {
+            "section": 2,
+            "heading": "If you're unsure which type of project you have"
+          },
+          {
+            "section": 3,
+            "heading": "Set up a CommonJS project"
+          },
+          {
+            "section": 4,
+            "heading": "Set up an ESM project"
+          },
+          {
+            "section": 5,
+            "heading": "Advanced usage and troubleshooting"
+          },
+          {
+            "section": 6,
+            "heading": "Use `NODE_OPTIONS` (only for ESM)"
+          },
+          {
+            "section": 7,
+            "heading": "Bundler compatibility"
+          },
+          {
+            "section": 8,
+            "heading": "Manual patching (fallback option)"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S5",
+        "page_id": "guides/tracking/create-call",
+        "section": 1,
+        "title": "Trace your code",
+        "heading": "Automatic tracking of LLM library calls",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-call",
+        "page_sha256": "a072092a9701139504707ba608e5cd9215d7640b24b88b801006cda3a697f490",
+        "text": "## Automatic tracking of LLM library calls\n\nWeave integrates automatically with many common libraries and frameworks, such as `openai`, `anthropic`, `cohere`, `mistral`, and `LangChain`. Import the LLM or framework library and initialize your Weave project. Weave then automatically traces all Calls made to the LLM or platform to your project without any additional code changes. For a complete list of supported library integrations, see [Integrations overview](https://docs.coreweave.com/products/wandb/weave/guides/integrations.md).\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nfrom openai import OpenAI\nclient = OpenAI()\n\n# Initialize Weave Tracing\nweave.init('intro-example')\n\nresponse = client.chat.completions.create(\n    model=\"gpt-4\",\n    messages=[\n        {\n            \"role\": \"user\",\n            \"content\": \"How are you?\"\n        }\n    ],\n    temperature=0.8,\n    max_tokens=64,\n    top_p=1,\n)\n```\n\n**TypeScript**\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport OpenAI from 'openai'\nimport * as weave from 'weave'\n\nconst client = new OpenAI()\n\n// Initialize Weave Tracing\nawait weave.init('intro-example')\n\nconst response = await client.chat.completions.create({\n  model: 'gpt-4',\n  messages: [\n    {\n      role: 'user',\n      content: 'How are you?',\n    },\n  ],\n  temperature: 0.8,\n  max_tokens: 64,\n  top_p: 1,\n});\n```\n\nFor a complete setup guide for JavaScript and TypeScript projects, see the [TypeScript SDK: Third-Party Integration Guide](https://docs.coreweave.com/products/wandb/weave/guides/integrations/js.md).\n\nIf you want more control over automatic behavior, see [Configure automatic LLM call tracking](https://docs.coreweave.com/products/wandb/weave/guides/integrations/autopatching.md).\n\n",
+        "page_context": "# Trace your code\n\n> Instrument your running code so its execution appears as detailed traces in Weave.\n\nThis guide shows you how to instrument your application so that its execution appears as detailed traces in Weave. Traces help you debug, evaluate, and monitor LLM-powered code by capturing inputs, outputs, and the structure of each operation as a Call.\n\nTo see your running code as detailed traces in Weave, you create Calls. The following sections describe the three main ways to do this, from least to most manual:\n\n* Automatic tracking of LLM library calls.\n* Tracking of custom functions with `weave.op`.\n* Manual Call tracking using the API directly.\n\nChoose the approach that fits how much control you need over what gets traced.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Trace your code"
+          },
+          {
+            "section": 1,
+            "heading": "Automatic tracking of LLM library calls"
+          },
+          {
+            "section": 2,
+            "heading": "Track custom functions"
+          },
+          {
+            "section": 3,
+            "heading": "Track class and object methods"
+          },
+          {
+            "section": 4,
+            "heading": "Trace parallel (multi-threaded) function calls"
+          },
+          {
+            "section": 5,
+            "heading": "Manual Call tracking"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/integrations",
+            "title": "Integrations overview"
+          },
+          {
+            "page_id": "guides/integrations/js",
+            "title": "TypeScript SDK: third-party integration guide"
+          },
+          {
+            "page_id": "guides/integrations/autopatching",
+            "title": "Control automatic LLM call tracking"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S6",
+        "page_id": "reference/python-sdk/trace/weave_client",
+        "section": 27,
+        "title": "weave_client",
+        "heading": "<kbd>method</kbd> `flush`",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/weave_client",
+        "page_sha256": "4a55edebc27f64ad25e1c39375938004b243bebecfb6b9e95d4902f1020bf5a7",
+        "text": "### <kbd>method</kbd> `flush`\n\n```python theme={\"system\"}\nflush() \u2192 None\n```\n\nFlushes background asynchronous tasks, safe to call multiple times.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/telemetry/trace_sentry.py#L568)\n\n",
+        "page_context": "# weave_client\n\n> Python SDK reference for weave.trace.weave_client\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "weave_client"
+          },
+          {
+            "section": 1,
+            "heading": "API Overview"
+          },
+          {
+            "section": 2,
+            "heading": "<kbd>class</kbd> `CrossProjectRefError`"
+          },
+          {
+            "section": 3,
+            "heading": "<kbd>class</kbd> `FlushStatus`"
+          },
+          {
+            "section": 4,
+            "heading": "<kbd>class</kbd> `NoInternalProjectIDError`"
+          },
+          {
+            "section": 5,
+            "heading": "<kbd>class</kbd> `PendingJobCounts`"
+          },
+          {
+            "section": 6,
+            "heading": "<kbd>class</kbd> `WeaveClient`"
+          },
+          {
+            "section": 7,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 8,
+            "heading": "<kbd>property</kbd> num\\_outstanding\\_jobs"
+          },
+          {
+            "section": 9,
+            "heading": "<kbd>property</kbd> project\\_id"
+          },
+          {
+            "section": 10,
+            "heading": "<kbd>method</kbd> `add_calls_to_annotation_queue`"
+          },
+          {
+            "section": 11,
+            "heading": "<kbd>method</kbd> `add_cost`"
+          },
+          {
+            "section": 12,
+            "heading": "<kbd>method</kbd> `add_tags`"
+          },
+          {
+            "section": 13,
+            "heading": "<kbd>method</kbd> `clear_wandb_run_context`"
+          },
+          {
+            "section": 14,
+            "heading": "<kbd>method</kbd> `create_annotation_queue`"
+          },
+          {
+            "section": 15,
+            "heading": "<kbd>method</kbd> `create_call`"
+          },
+          {
+            "section": 16,
+            "heading": "<kbd>method</kbd> `delete_all_object_versions`"
+          },
+          {
+            "section": 17,
+            "heading": "<kbd>method</kbd> `delete_all_op_versions`"
+          },
+          {
+            "section": 18,
+            "heading": "<kbd>method</kbd> `delete_annotation_queue`"
+          },
+          {
+            "section": 19,
+            "heading": "<kbd>method</kbd> `delete_call`"
+          },
+          {
+            "section": 20,
+            "heading": "<kbd>method</kbd> `delete_calls`"
+          },
+          {
+            "section": 21,
+            "heading": "<kbd>method</kbd> `delete_object_version`"
+          },
+          {
+            "section": 22,
+            "heading": "<kbd>method</kbd> `delete_object_versions`"
+          },
+          {
+            "section": 23,
+            "heading": "<kbd>method</kbd> `delete_op_version`"
+          },
+          {
+            "section": 24,
+            "heading": "<kbd>method</kbd> `fail_call`"
+          },
+          {
+            "section": 25,
+            "heading": "<kbd>method</kbd> `finish`"
+          },
+          {
+            "section": 26,
+            "heading": "<kbd>method</kbd> `finish_call`"
+          },
+          {
+            "section": 27,
+            "heading": "<kbd>method</kbd> `flush`"
+          },
+          {
+            "section": 28,
+            "heading": "<kbd>method</kbd> `get`"
+          },
+          {
+            "section": 29,
+            "heading": "<kbd>method</kbd> `get_agent_custom_attributes`"
+          },
+          {
+            "section": 30,
+            "heading": "<kbd>method</kbd> `get_agent_span_stats`"
+          },
+          {
+            "section": 31,
+            "heading": "<kbd>method</kbd> `get_agent_spans`"
+          },
+          {
+            "section": 32,
+            "heading": "<kbd>method</kbd> `get_agent_turn`"
+          },
+          {
+            "section": 33,
+            "heading": "<kbd>method</kbd> `get_agent_turns`"
+          },
+          {
+            "section": 34,
+            "heading": "<kbd>method</kbd> `get_agent_versions`"
+          },
+          {
+            "section": 35,
+            "heading": "<kbd>method</kbd> `get_agents`"
+          },
+          {
+            "section": 36,
+            "heading": "<kbd>method</kbd> `get_aliases`"
+          },
+          {
+            "section": 37,
+            "heading": "<kbd>method</kbd> `get_annotation_queue`"
+          },
+          {
+            "section": 38,
+            "heading": "<kbd>method</kbd> `get_annotation_queue_stats`"
+          },
+          {
+            "section": 39,
+            "heading": "<kbd>method</kbd> `get_call`"
+          },
+          {
+            "section": 40,
+            "heading": "<kbd>method</kbd> `get_calls`"
+          },
+          {
+            "section": 41,
+            "heading": "<kbd>method</kbd> `get_evaluation`"
+          },
+          {
+            "section": 42,
+            "heading": "<kbd>method</kbd> `get_evaluations`"
+          },
+          {
+            "section": 43,
+            "heading": "<kbd>method</kbd> `get_feedback`"
+          },
+          {
+            "section": 44,
+            "heading": "<kbd>method</kbd> `get_tags`"
+          },
+          {
+            "section": 45,
+            "heading": "<kbd>method</kbd> `get_tags_and_aliases`"
+          },
+          {
+            "section": 46,
+            "heading": "<kbd>method</kbd> `link_prompt_to_registry`"
+          },
+          {
+            "section": 47,
+            "heading": "<kbd>method</kbd> `list_aliases`"
+          },
+          {
+            "section": 48,
+            "heading": "<kbd>method</kbd> `list_annotation_queue_items`"
+          },
+          {
+            "section": 49,
+            "heading": "<kbd>method</kbd> `list_annotation_queues`"
+          },
+          {
+            "section": 50,
+            "heading": "<kbd>method</kbd> `list_tags`"
+          },
+          {
+            "section": 51,
+            "heading": "<kbd>method</kbd> `purge_costs`"
+          },
+          {
+            "section": 52,
+            "heading": "<kbd>method</kbd> `query_costs`"
+          },
+          {
+            "section": 53,
+            "heading": "<kbd>method</kbd> `remove_aliases`"
+          },
+          {
+            "section": 54,
+            "heading": "<kbd>method</kbd> `remove_tags`"
+          },
+          {
+            "section": 55,
+            "heading": "<kbd>method</kbd> `save`"
+          },
+          {
+            "section": 56,
+            "heading": "<kbd>method</kbd> `search_agents`"
+          },
+          {
+            "section": 57,
+            "heading": "<kbd>method</kbd> `set_aliases`"
+          },
+          {
+            "section": 58,
+            "heading": "<kbd>method</kbd> `set_wandb_run_context`"
+          },
+          {
+            "section": 59,
+            "heading": "<kbd>method</kbd> `update_annotation_queue`"
+          },
+          {
+            "section": 60,
+            "heading": "<kbd>function</kbd> `get_obj_name`"
+          },
+          {
+            "section": 61,
+            "heading": "<kbd>function</kbd> `get_parallelism_settings`"
+          },
+          {
+            "section": 62,
+            "heading": "<kbd>function</kbd> `map_to_refs`"
+          },
+          {
+            "section": 63,
+            "heading": "<kbd>function</kbd> `print_call_link`"
+          },
+          {
+            "section": 64,
+            "heading": "<kbd>function</kbd> `redact_sensitive_keys`"
+          },
+          {
+            "section": 65,
+            "heading": "<kbd>function</kbd> `sanitize_object_name`"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      }
+    ],
+    "all_read_evidence": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/create-call",
+        "section": 2,
+        "title": "Trace your code",
+        "heading": "Track custom functions",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-call",
+        "page_sha256": "a072092a9701139504707ba608e5cd9215d7640b24b88b801006cda3a697f490",
+        "text": "## Track custom functions\n\nLLM applications often have additional logic, such as pre-processing and post-processing, prompts, and more, that you want to track. Use this approach when you want Weave to capture your own functions alongside the LLM calls it traces automatically.\n\n**Python**\n\nWeave lets you manually track these Calls using the [`@weave.op`](https://docs.coreweave.com/products/wandb/weave/reference/python-sdk#function-op) decorator. For example:\n\n```python lines theme={\"system\"}\nimport weave\n\n# Initialize Weave Tracing\nweave.init('intro-example')\n\n# Decorate your function\n@weave.op\ndef my_function(name: str):\n    return f\"Hello, {name}!\"\n\n# Call your function -- Weave will automatically track inputs and outputs\nprint(my_function(\"World\"))\n```\n\nYou can also track [methods on classes](#track-class-and-object-methods).\n\n**TypeScript**\n\nWeave lets you manually track these Calls by wrapping your function with [`weave.op`](https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/functions/op). For example:\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nawait weave.init('intro-example')\n\nfunction myFunction(name: string) {\n    return `Hello, ${name}!`\n}\n\nconst myFunctionOp = weave.op(myFunction)\n```\n\nYou can also define the wrapping inline:\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nconst myFunctionOp = weave.op((name: string) => `Hello, ${name}!`)\n```\n\nThis works for both functions and methods on classes:\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nclass MyClass {\n    constructor() {\n        this.myMethod = weave.op(this.myMethod)\n    }\n\n    myMethod(name: string) {\n        return `Hello, ${name}!`\n    }\n}\n```\n\n",
+        "page_context": "# Trace your code\n\n> Instrument your running code so its execution appears as detailed traces in Weave.\n\nThis guide shows you how to instrument your application so that its execution appears as detailed traces in Weave. Traces help you debug, evaluate, and monitor LLM-powered code by capturing inputs, outputs, and the structure of each operation as a Call.\n\nTo see your running code as detailed traces in Weave, you create Calls. The following sections describe the three main ways to do this, from least to most manual:\n\n* Automatic tracking of LLM library calls.\n* Tracking of custom functions with `weave.op`.\n* Manual Call tracking using the API directly.\n\nChoose the approach that fits how much control you need over what gets traced.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Trace your code"
+          },
+          {
+            "section": 1,
+            "heading": "Automatic tracking of LLM library calls"
+          },
+          {
+            "section": 2,
+            "heading": "Track custom functions"
+          },
+          {
+            "section": 3,
+            "heading": "Track class and object methods"
+          },
+          {
+            "section": 4,
+            "heading": "Trace parallel (multi-threaded) function calls"
+          },
+          {
+            "section": 5,
+            "heading": "Manual Call tracking"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "reference/python-sdk",
+            "title": "weave"
+          },
+          {
+            "page_id": "reference/typescript-sdk/functions/op",
+            "title": "op"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S2",
+        "page_id": "guides/tracking/otel",
+        "section": 4,
+        "title": "Send OpenTelemetry Traces to Weave",
+        "heading": "OpenInference instrumentation",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/otel",
+        "page_sha256": "2b27bfb5db158afe1cb0e04dae99926154f64ccbe8cf8ca527e185315a62348c",
+        "text": "### OpenInference instrumentation\n\n[OpenInference](https://github.com/Arize-ai/openinference) is an open source instrumentation library from Arize AI that captures LLM calls as OpenTelemetry spans. This example shows how to use the OpenAI instrumentation. Additional instrumentations are available in the [official repository](https://github.com/Arize-ai/openinference).\n\n> [!NOTE]\n>\n> OpenInference spans render in the **Traces** view only, not the **Agents** view. The Agents view builds conversations, turns, and tool calls from spans that follow the [OTel GenAI semantic conventions](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-otel.md#shape-spans-for-the-agents-view).\n\nFirst, install the required dependencies:\n\n**Python**\n\n```bash theme={\"system\"}\npip install openai openinference-instrumentation-openai opentelemetry-exporter-otlp-proto-http\n```\n\n**TypeScript**\n\n```bash theme={\"system\"}\nnpm install openai @opentelemetry/sdk-trace-node @opentelemetry/sdk-trace-base @opentelemetry/resources @opentelemetry/exporter-trace-otlp-proto @arizeai/openinference-instrumentation-openai @opentelemetry/api\n```\n\n> [!WARNING]\n>\n> **Performance recommendation**: Always use `BatchSpanProcessor` instead of `SimpleSpanProcessor` when sending traces to Weave. `SimpleSpanProcessor` exports spans synchronously, which can impact the performance of other workloads. These examples illustrate `BatchSpanProcessor`, which is recommended in production because it batches spans asynchronously and efficiently.\n\n**Python**\n\nPaste the following code into a Python file such as `openinference_example.py`:\n\n```python lines theme={\"system\"}\nimport os\nimport openai\nfrom opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter\nfrom opentelemetry.sdk import trace as trace_sdk\nfrom opentelemetry.sdk.resources import Resource\nfrom opentelemetry.sdk.trace.export import ConsoleSpanExporter, BatchSpanProcessor\nfrom openinference.instrumentation.openai import OpenAIInstrumentor\n\nOPENAI_API_KEY = \"[REDACTED_SECRET]\"\nWANDB_BASE_URL = \"https://trace.wandb.ai\"\nENTITY = \"<your-team-name>\"\nPROJECT = \"<your-project-name>\"\n\nWEAVE_OTLP_ENDPOINT = f\"{WANDB_BASE_URL}/otel/v1/traces\"\n\n# Create an API key at https://forge.coreweave.com/settings\nWANDB_API_KEY = os.environ[\"WANDB_API_KEY\"]\n\nexporter = OTLPSpanExporter(\n    endpoint=WEAVE_OTLP_ENDPOINT,\n    headers={\"wandb-api-key\": WANDB_API_KEY},\n)\n\ntracer_provider = trace_sdk.TracerProvider(resource=Resource({\n    \"wandb.entity\": ENTITY,\n    \"wandb.project\": PROJECT,\n}))\ntracer_provider.add_span_processor(BatchSpanProcessor(exporter))\n\n# Optionally, print the spans to the console.\ntracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))\n\nOpenAIInstrumentor().instrument(tracer_provider=tracer_provider)\n\ndef main():\n    client = openai.OpenAI(api_key=OPENAI_API_KEY)\n    response = client.chat.completions.create(\n        model=\"gpt-3.5-turbo\",\n        messages=[{\"role\": \"user\", \"content\": \"Describe OTel in a single sentence.\"}],\n        max_tokens=20,\n        stream=True,\n        stream_options={\"include_usage\": True},\n    )\n    for chunk in response:\n        if chunk.choices and (content := chunk.choices[0].delta.content):\n            print(content, end=\"\")\n\nif __name__ == \"__main__\":\n    main()\n```\n\nRun the code:\n\n```bash theme={\"system\"}\npython openinference_example.py\n```\n\n**TypeScript**\n\nThe TypeScript implementation of this example contains the following key differences from the Python implementation:\n\n* OpenAI must be imported before registering instrumentation (ESM modules require this).\n* Uses `@opentelemetry/exporter-trace-otlp-proto` (protobuf format) instead of the HTTP exporter, since the Weights & Biases endpoint only accepts protobuf.\n* Requires explicit `provider.shutdown()` with a delay before shutdown to ensure spans are flushed, since `BatchSpanProcessor` flushes asynchronously.\n\nPaste the following code into a TypeScript file such as `openinference_example.ts`:\n\n```typescript lines {11,12} theme={\"system\"}\n// IMPORTANT: Import OpenAI FIRST so instrumentation can patch it\nimport OpenAI from \"openai\";\nimport { NodeTracerProvider } from \"@opentelemetry/sdk-trace-node\";\nimport { BatchSpanProcessor } from \"@opentelemetry/sdk-trace-base\";\nimport { OTLPTraceExporter } from \"@opentelemetry/exporter-trace-otlp-proto\";\nimport { resourceFromAttributes } from \"@opentelemetry/resources\";\nimport { OpenAIInstrumentation, isPatched } from \"@arizeai/openinference-instrumentation-openai\";\n\nconst OPENAI_API_KEY = [REDACTED_SECRET];\nconst WANDB_BASE_URL = \"https://trace.wandb.ai\";\nconst ENTITY = \"<your-team-name>\";\nconst PROJECT = \"<your-project-name>\";\n\nconst WEAVE_OTLP_ENDPOINT = `${WANDB_BASE_URL}/otel/v1/traces`;\n\n// Create an API key at https://forge.coreweave.com/settings\nconst WANDB_API_KEY = [REDACTED_SECRET];\n\nconst exporter = new OTLPTraceExporter({\n  url: WEAVE_OTLP_ENDPOINT,\n  headers: { \"wandb-api-key\": [REDACTED_SECRET] },\n});\n\nconst provider = new NodeTracerProvider({\n  resource: resourceFromAttributes({\n    \"wandb.entity\": ENTITY,\n    \"wandb.project\": PROJECT,\n  }),\n  spanProcessors: [\n    new BatchSpanProcessor(exporter)\n  ],\n});\n\nprovider.register();\n\n// Register the OpenAI instrumentation with the tracer provider\nconst openAIInstrumentation = new OpenAIInstrumentation();\nopenAIInstrumentation.setTracerProvider(provider);\n\n// Manually instrument OpenAI since we're using ESM\nopenAIInstrumentation.manuallyInstrument(OpenAI);\n\nasync function main() {\n  console.log(\"OpenAI is patched?\", isPatched());\n\n  const client = new OpenAI({ apiKey: [REDACTED_SECRET] });\n\n  console.log(\"Making OpenAI API call...\");\n  const response = await client.chat.completions.create({\n    model: \"gpt-3.5-turbo\",\n    messages: [{ role: \"user\", content: \"Describe OTel in a single sentence.\" }],\n    max_tokens: 50,\n  });\n\n  console.log(\"Response:\", response.choices[0]?.message?.content);\n  console.log(\"Waiting for spans to flush...\");\n}\n\n(async () => {\n  await main();\n\n  // Give spans time to flush\n  console.log(\"Waiting 2 seconds for spans to flush...\");\n  await new Promise(resolve => setTimeout(resolve, 2000));\n\n  await provider.shutdown(); // flush all pending spans before exit\n  console.log(\"Shutdown complete\");\n})();\n```\n\nRun the code:\n\n```bash theme={\"system\"}\nnpx ts-node openinference_example.ts\n```\n\n",
+        "page_context": "# Send OpenTelemetry Traces to Weave\n\n> Import OpenTelemetry compatible trace data through a dedicated endpoint\n\n> [!WARNING]\n>\n> This page documents W\\&B Weave's legacy OTel workflow. If you are new to Weave and are building agentic applications, we **highly recommend** [sending your traces to the new endpoint](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-otel.md), `/agents/otel/v1/traces`. The new endpoint lets you send OTLP trace data from any OpenTelemetry pipeline to both W\\&B Weave and [Agent Lens](https://docs.coreweave.com/products/agent-lens/what-is-agent-lens.md), an agent-focused tracing and observability platform.\n\nWeave supports import of OpenTelemetry compatible trace data through a dedicated endpoint. This endpoint lets you send OTLP (OpenTelemetry Protocol) formatted trace data directly to your Weave project. Use this integration when you want to instrument your application with the OpenTelemetry standard and have those traces appear alongside your other Weave data, without replacing your existing OTel-based observability pipeline.\n\nThis page covers the endpoint details, authentication, end-to-end examples in Python and TypeScript, how to forward traces through an OpenTelemetry Collector, how to organize traces into Weave threads, and the attribute mappings Weave applies to incoming spans.\n\n> [!NOTE]\n>\n> This endpoint feeds the **Traces** and **Threads** views. To send OTel spans from a multi-turn agent to the **Agents** view, use the agents endpoint instead. See [Send OpenTelemetry spans to the Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-otel.md).\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Send OpenTelemetry Traces to Weave"
+          },
+          {
+            "section": 1,
+            "heading": "Endpoint details"
+          },
+          {
+            "section": 2,
+            "heading": "Authentication and routing"
+          },
+          {
+            "section": 3,
+            "heading": "Examples"
+          },
+          {
+            "section": 4,
+            "heading": "OpenInference instrumentation"
+          },
+          {
+            "section": 5,
+            "heading": "OpenLLMetry instrumentation"
+          },
+          {
+            "section": 6,
+            "heading": "Without instrumentation"
+          },
+          {
+            "section": 7,
+            "heading": "Use an OpenTelemetry Collector"
+          },
+          {
+            "section": 8,
+            "heading": "Set up a collector"
+          },
+          {
+            "section": 9,
+            "heading": "Organize OTel traces into threads"
+          },
+          {
+            "section": 10,
+            "heading": "Organize OTel traces into threads"
+          },
+          {
+            "section": 11,
+            "heading": "Organize OTel traces into threads"
+          },
+          {
+            "section": 12,
+            "heading": "Attribute mappings"
+          },
+          {
+            "section": 13,
+            "heading": "Supported frameworks"
+          },
+          {
+            "section": 14,
+            "heading": "Attribute reference"
+          },
+          {
+            "section": 15,
+            "heading": "Limitations"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "credential_redacted": true,
+        "outgoing_links": [
+          {
+            "page_id": "guides/tracking/trace-agents-otel",
+            "title": "Send OpenTelemetry spans to the Agents view"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S3",
+        "page_id": "reference/typescript-sdk/interfaces/weaveclient",
+        "section": 23,
+        "title": "WeaveClient",
+        "heading": "flush()",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/weaveclient",
+        "page_sha256": "562a114529705c6d97ad328cc554eb177c9dc389917f342cf3178cdc66897156",
+        "text": "### flush()\n\n> **flush**(): `Promise`\\<`void`>\n\nDeliver all buffered calls to the server. Await before `process.exit()`.\n\n",
+        "page_context": "# WeaveClient\n\n> TypeScript SDK reference\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/weaveClient.ts#L519)\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "WeaveClient"
+          },
+          {
+            "section": 1,
+            "heading": "Properties"
+          },
+          {
+            "section": 2,
+            "heading": "projectId"
+          },
+          {
+            "section": 3,
+            "heading": "settings"
+          },
+          {
+            "section": 4,
+            "heading": "attributes"
+          },
+          {
+            "section": 5,
+            "heading": "genai"
+          },
+          {
+            "section": 6,
+            "heading": "printCallLink"
+          },
+          {
+            "section": 7,
+            "heading": "useCallsComplete"
+          },
+          {
+            "section": 8,
+            "heading": "useOTelV2"
+          },
+          {
+            "section": 9,
+            "heading": "traceServerApi"
+          },
+          {
+            "section": 10,
+            "heading": "Methods"
+          },
+          {
+            "section": 11,
+            "heading": "addScore()"
+          },
+          {
+            "section": 12,
+            "heading": "Parameters"
+          },
+          {
+            "section": 13,
+            "heading": "Returns"
+          },
+          {
+            "section": 14,
+            "heading": "createCall()"
+          },
+          {
+            "section": 15,
+            "heading": "Parameters"
+          },
+          {
+            "section": 16,
+            "heading": "Returns"
+          },
+          {
+            "section": 17,
+            "heading": "finishCall()"
+          },
+          {
+            "section": 18,
+            "heading": "Parameters"
+          },
+          {
+            "section": 19,
+            "heading": "Returns"
+          },
+          {
+            "section": 20,
+            "heading": "finishCallWithException()"
+          },
+          {
+            "section": 21,
+            "heading": "Parameters"
+          },
+          {
+            "section": 22,
+            "heading": "Returns"
+          },
+          {
+            "section": 23,
+            "heading": "flush()"
+          },
+          {
+            "section": 24,
+            "heading": "Returns"
+          },
+          {
+            "section": 25,
+            "heading": "get()"
+          },
+          {
+            "section": 26,
+            "heading": "Parameters"
+          },
+          {
+            "section": 27,
+            "heading": "Returns"
+          },
+          {
+            "section": 28,
+            "heading": "getAgentCustomAttributes()"
+          },
+          {
+            "section": 29,
+            "heading": "Parameters"
+          },
+          {
+            "section": 30,
+            "heading": "Returns"
+          },
+          {
+            "section": 31,
+            "heading": "Example"
+          },
+          {
+            "section": 32,
+            "heading": "getAgents()"
+          },
+          {
+            "section": 33,
+            "heading": "Parameters"
+          },
+          {
+            "section": 34,
+            "heading": "Returns"
+          },
+          {
+            "section": 35,
+            "heading": "Example"
+          },
+          {
+            "section": 36,
+            "heading": "getAgentSpans()"
+          },
+          {
+            "section": 37,
+            "heading": "Parameters"
+          },
+          {
+            "section": 38,
+            "heading": "Returns"
+          },
+          {
+            "section": 39,
+            "heading": "Examples"
+          },
+          {
+            "section": 40,
+            "heading": "getAgentSpanStats()"
+          },
+          {
+            "section": 41,
+            "heading": "Parameters"
+          },
+          {
+            "section": 42,
+            "heading": "Returns"
+          },
+          {
+            "section": 43,
+            "heading": "Example"
+          },
+          {
+            "section": 44,
+            "heading": "getAgentTurn()"
+          },
+          {
+            "section": 45,
+            "heading": "Parameters"
+          },
+          {
+            "section": 46,
+            "heading": "Returns"
+          },
+          {
+            "section": 47,
+            "heading": "Example"
+          },
+          {
+            "section": 48,
+            "heading": "getAgentTurns()"
+          },
+          {
+            "section": 49,
+            "heading": "Parameters"
+          },
+          {
+            "section": 50,
+            "heading": "Returns"
+          },
+          {
+            "section": 51,
+            "heading": "Example"
+          },
+          {
+            "section": 52,
+            "heading": "getAgentVersions()"
+          },
+          {
+            "section": 53,
+            "heading": "Parameters"
+          },
+          {
+            "section": 54,
+            "heading": "Returns"
+          },
+          {
+            "section": 55,
+            "heading": "Example"
+          },
+          {
+            "section": 56,
+            "heading": "getCall()"
+          },
+          {
+            "section": 57,
+            "heading": "Parameters"
+          },
+          {
+            "section": 58,
+            "heading": "Returns"
+          },
+          {
+            "section": 59,
+            "heading": "getCalls()"
+          },
+          {
+            "section": 60,
+            "heading": "Call Signature"
+          },
+          {
+            "section": 61,
+            "heading": "Call Signature"
+          },
+          {
+            "section": 62,
+            "heading": "getCallsIterator()"
+          },
+          {
+            "section": 63,
+            "heading": "Call Signature"
+          },
+          {
+            "section": 64,
+            "heading": "Call Signature"
+          },
+          {
+            "section": 65,
+            "heading": "getCallStack()"
+          },
+          {
+            "section": 66,
+            "heading": "Returns"
+          },
+          {
+            "section": 67,
+            "heading": "getCurrentAttributes()"
+          },
+          {
+            "section": 68,
+            "heading": "Returns"
+          },
+          {
+            "section": 69,
+            "heading": "linkPromptToRegistry()"
+          },
+          {
+            "section": 70,
+            "heading": "Parameters"
+          },
+          {
+            "section": 71,
+            "heading": "Returns"
+          },
+          {
+            "section": 72,
+            "heading": "pendingCallCount()"
+          },
+          {
+            "section": 73,
+            "heading": "Returns"
+          },
+          {
+            "section": 74,
+            "heading": "publish()"
+          },
+          {
+            "section": 75,
+            "heading": "Parameters"
+          },
+          {
+            "section": 76,
+            "heading": "Returns"
+          },
+          {
+            "section": 77,
+            "heading": "pushNewCall()"
+          },
+          {
+            "section": 78,
+            "heading": "Returns"
+          },
+          {
+            "section": 79,
+            "heading": "registerCustomRuntime()"
+          },
+          {
+            "section": 80,
+            "heading": "Parameters"
+          },
+          {
+            "section": 81,
+            "heading": "Returns"
+          },
+          {
+            "section": 82,
+            "heading": "runWithAttributes()"
+          },
+          {
+            "section": 83,
+            "heading": "Type Parameters"
+          },
+          {
+            "section": 84,
+            "heading": "Parameters"
+          },
+          {
+            "section": 85,
+            "heading": "Returns"
+          },
+          {
+            "section": 86,
+            "heading": "runWithCallStack()"
+          },
+          {
+            "section": 87,
+            "heading": "Type Parameters"
+          },
+          {
+            "section": 88,
+            "heading": "Parameters"
+          },
+          {
+            "section": 89,
+            "heading": "Returns"
+          },
+          {
+            "section": 90,
+            "heading": "saveCallEnd()"
+          },
+          {
+            "section": 91,
+            "heading": "Parameters"
+          },
+          {
+            "section": 92,
+            "heading": "Returns"
+          },
+          {
+            "section": 93,
+            "heading": "saveCallStart()"
+          },
+          {
+            "section": 94,
+            "heading": "Parameters"
+          },
+          {
+            "section": 95,
+            "heading": "Returns"
+          },
+          {
+            "section": 96,
+            "heading": "saveOp()"
+          },
+          {
+            "section": 97,
+            "heading": "Parameters"
+          },
+          {
+            "section": 98,
+            "heading": "Returns"
+          },
+          {
+            "section": 99,
+            "heading": "searchAgents()"
+          },
+          {
+            "section": 100,
+            "heading": "Parameters"
+          },
+          {
+            "section": 101,
+            "heading": "Returns"
+          },
+          {
+            "section": 102,
+            "heading": "Example"
+          },
+          {
+            "section": 103,
+            "heading": "serializeAudio()"
+          },
+          {
+            "section": 104,
+            "heading": "Parameters"
+          },
+          {
+            "section": 105,
+            "heading": "Returns"
+          },
+          {
+            "section": 106,
+            "heading": "updateCall()"
+          },
+          {
+            "section": 107,
+            "heading": "Parameters"
+          },
+          {
+            "section": 108,
+            "heading": "Returns"
+          },
+          {
+            "section": 109,
+            "heading": "waitForBatchProcessing()"
+          },
+          {
+            "section": 110,
+            "heading": "Returns"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S4",
+        "page_id": "guides/integrations/js",
+        "section": 5,
+        "title": "TypeScript SDK: third-party integration guide",
+        "heading": "Advanced usage and troubleshooting",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/js",
+        "page_sha256": "b68a24af4db8b9eb3e233c1936034feb1c27a695b0ef963adc6e331111edfe8e",
+        "text": "## Advanced usage and troubleshooting\n\nThe following sections cover edge cases and workarounds for when the TypeScript SDK's automatic patching doesn't work as expected. For example, ESM-only environments, bundler setups such as Next.js, or constrained runtime environments may cause issues. If you see missing traces or integration issues, start here.\n\n",
+        "page_context": "# TypeScript SDK: third-party integration guide\n\n> Integrate third-party libraries with the Weave TypeScript SDK\n\nThis guide describes how to integrate third-party libraries (for example, OpenAI) with the Weave TypeScript SDK. It's intended for TypeScript developers who want Weave to automatically trace calls to supported libraries in their application.\n\nWeave supports automatic instrumentation, which streamlines setup and reduces the need for manual configuration.\n\n> [!WARNING]\n>\n> **What changed?**\n> As of [PR #4554](https://github.com/wandb/weave/pull/4554), Weave automatically patches supported libraries such as OpenAI when it loads. You no longer need to manually wrap them:\n>\n> ```ts twoslash lines theme={\"system\"}\n> // @noErrors\n> weave.wrapOpenAI(new OpenAI());\n> ```\n>\n> Weave handles this automatically in most cases. However, [edge cases](#advanced-usage) may occur.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "TypeScript SDK: third-party integration guide"
+          },
+          {
+            "section": 1,
+            "heading": "Use Weave integrations with your TypeScript project"
+          },
+          {
+            "section": 2,
+            "heading": "If you're unsure which type of project you have"
+          },
+          {
+            "section": 3,
+            "heading": "Set up a CommonJS project"
+          },
+          {
+            "section": 4,
+            "heading": "Set up an ESM project"
+          },
+          {
+            "section": 5,
+            "heading": "Advanced usage and troubleshooting"
+          },
+          {
+            "section": 6,
+            "heading": "Use `NODE_OPTIONS` (only for ESM)"
+          },
+          {
+            "section": 7,
+            "heading": "Bundler compatibility"
+          },
+          {
+            "section": 8,
+            "heading": "Manual patching (fallback option)"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S5",
+        "page_id": "guides/tracking/create-call",
+        "section": 1,
+        "title": "Trace your code",
+        "heading": "Automatic tracking of LLM library calls",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-call",
+        "page_sha256": "a072092a9701139504707ba608e5cd9215d7640b24b88b801006cda3a697f490",
+        "text": "## Automatic tracking of LLM library calls\n\nWeave integrates automatically with many common libraries and frameworks, such as `openai`, `anthropic`, `cohere`, `mistral`, and `LangChain`. Import the LLM or framework library and initialize your Weave project. Weave then automatically traces all Calls made to the LLM or platform to your project without any additional code changes. For a complete list of supported library integrations, see [Integrations overview](https://docs.coreweave.com/products/wandb/weave/guides/integrations.md).\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nfrom openai import OpenAI\nclient = OpenAI()\n\n# Initialize Weave Tracing\nweave.init('intro-example')\n\nresponse = client.chat.completions.create(\n    model=\"gpt-4\",\n    messages=[\n        {\n            \"role\": \"user\",\n            \"content\": \"How are you?\"\n        }\n    ],\n    temperature=0.8,\n    max_tokens=64,\n    top_p=1,\n)\n```\n\n**TypeScript**\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport OpenAI from 'openai'\nimport * as weave from 'weave'\n\nconst client = new OpenAI()\n\n// Initialize Weave Tracing\nawait weave.init('intro-example')\n\nconst response = await client.chat.completions.create({\n  model: 'gpt-4',\n  messages: [\n    {\n      role: 'user',\n      content: 'How are you?',\n    },\n  ],\n  temperature: 0.8,\n  max_tokens: 64,\n  top_p: 1,\n});\n```\n\nFor a complete setup guide for JavaScript and TypeScript projects, see the [TypeScript SDK: Third-Party Integration Guide](https://docs.coreweave.com/products/wandb/weave/guides/integrations/js.md).\n\nIf you want more control over automatic behavior, see [Configure automatic LLM call tracking](https://docs.coreweave.com/products/wandb/weave/guides/integrations/autopatching.md).\n\n",
+        "page_context": "# Trace your code\n\n> Instrument your running code so its execution appears as detailed traces in Weave.\n\nThis guide shows you how to instrument your application so that its execution appears as detailed traces in Weave. Traces help you debug, evaluate, and monitor LLM-powered code by capturing inputs, outputs, and the structure of each operation as a Call.\n\nTo see your running code as detailed traces in Weave, you create Calls. The following sections describe the three main ways to do this, from least to most manual:\n\n* Automatic tracking of LLM library calls.\n* Tracking of custom functions with `weave.op`.\n* Manual Call tracking using the API directly.\n\nChoose the approach that fits how much control you need over what gets traced.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Trace your code"
+          },
+          {
+            "section": 1,
+            "heading": "Automatic tracking of LLM library calls"
+          },
+          {
+            "section": 2,
+            "heading": "Track custom functions"
+          },
+          {
+            "section": 3,
+            "heading": "Track class and object methods"
+          },
+          {
+            "section": 4,
+            "heading": "Trace parallel (multi-threaded) function calls"
+          },
+          {
+            "section": 5,
+            "heading": "Manual Call tracking"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/integrations",
+            "title": "Integrations overview"
+          },
+          {
+            "page_id": "guides/integrations/js",
+            "title": "TypeScript SDK: third-party integration guide"
+          },
+          {
+            "page_id": "guides/integrations/autopatching",
+            "title": "Control automatic LLM call tracking"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S6",
+        "page_id": "reference/python-sdk/trace/weave_client",
+        "section": 27,
+        "title": "weave_client",
+        "heading": "<kbd>method</kbd> `flush`",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/weave_client",
+        "page_sha256": "4a55edebc27f64ad25e1c39375938004b243bebecfb6b9e95d4902f1020bf5a7",
+        "text": "### <kbd>method</kbd> `flush`\n\n```python theme={\"system\"}\nflush() \u2192 None\n```\n\nFlushes background asynchronous tasks, safe to call multiple times.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/telemetry/trace_sentry.py#L568)\n\n",
+        "page_context": "# weave_client\n\n> Python SDK reference for weave.trace.weave_client\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "weave_client"
+          },
+          {
+            "section": 1,
+            "heading": "API Overview"
+          },
+          {
+            "section": 2,
+            "heading": "<kbd>class</kbd> `CrossProjectRefError`"
+          },
+          {
+            "section": 3,
+            "heading": "<kbd>class</kbd> `FlushStatus`"
+          },
+          {
+            "section": 4,
+            "heading": "<kbd>class</kbd> `NoInternalProjectIDError`"
+          },
+          {
+            "section": 5,
+            "heading": "<kbd>class</kbd> `PendingJobCounts`"
+          },
+          {
+            "section": 6,
+            "heading": "<kbd>class</kbd> `WeaveClient`"
+          },
+          {
+            "section": 7,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 8,
+            "heading": "<kbd>property</kbd> num\\_outstanding\\_jobs"
+          },
+          {
+            "section": 9,
+            "heading": "<kbd>property</kbd> project\\_id"
+          },
+          {
+            "section": 10,
+            "heading": "<kbd>method</kbd> `add_calls_to_annotation_queue`"
+          },
+          {
+            "section": 11,
+            "heading": "<kbd>method</kbd> `add_cost`"
+          },
+          {
+            "section": 12,
+            "heading": "<kbd>method</kbd> `add_tags`"
+          },
+          {
+            "section": 13,
+            "heading": "<kbd>method</kbd> `clear_wandb_run_context`"
+          },
+          {
+            "section": 14,
+            "heading": "<kbd>method</kbd> `create_annotation_queue`"
+          },
+          {
+            "section": 15,
+            "heading": "<kbd>method</kbd> `create_call`"
+          },
+          {
+            "section": 16,
+            "heading": "<kbd>method</kbd> `delete_all_object_versions`"
+          },
+          {
+            "section": 17,
+            "heading": "<kbd>method</kbd> `delete_all_op_versions`"
+          },
+          {
+            "section": 18,
+            "heading": "<kbd>method</kbd> `delete_annotation_queue`"
+          },
+          {
+            "section": 19,
+            "heading": "<kbd>method</kbd> `delete_call`"
+          },
+          {
+            "section": 20,
+            "heading": "<kbd>method</kbd> `delete_calls`"
+          },
+          {
+            "section": 21,
+            "heading": "<kbd>method</kbd> `delete_object_version`"
+          },
+          {
+            "section": 22,
+            "heading": "<kbd>method</kbd> `delete_object_versions`"
+          },
+          {
+            "section": 23,
+            "heading": "<kbd>method</kbd> `delete_op_version`"
+          },
+          {
+            "section": 24,
+            "heading": "<kbd>method</kbd> `fail_call`"
+          },
+          {
+            "section": 25,
+            "heading": "<kbd>method</kbd> `finish`"
+          },
+          {
+            "section": 26,
+            "heading": "<kbd>method</kbd> `finish_call`"
+          },
+          {
+            "section": 27,
+            "heading": "<kbd>method</kbd> `flush`"
+          },
+          {
+            "section": 28,
+            "heading": "<kbd>method</kbd> `get`"
+          },
+          {
+            "section": 29,
+            "heading": "<kbd>method</kbd> `get_agent_custom_attributes`"
+          },
+          {
+            "section": 30,
+            "heading": "<kbd>method</kbd> `get_agent_span_stats`"
+          },
+          {
+            "section": 31,
+            "heading": "<kbd>method</kbd> `get_agent_spans`"
+          },
+          {
+            "section": 32,
+            "heading": "<kbd>method</kbd> `get_agent_turn`"
+          },
+          {
+            "section": 33,
+            "heading": "<kbd>method</kbd> `get_agent_turns`"
+          },
+          {
+            "section": 34,
+            "heading": "<kbd>method</kbd> `get_agent_versions`"
+          },
+          {
+            "section": 35,
+            "heading": "<kbd>method</kbd> `get_agents`"
+          },
+          {
+            "section": 36,
+            "heading": "<kbd>method</kbd> `get_aliases`"
+          },
+          {
+            "section": 37,
+            "heading": "<kbd>method</kbd> `get_annotation_queue`"
+          },
+          {
+            "section": 38,
+            "heading": "<kbd>method</kbd> `get_annotation_queue_stats`"
+          },
+          {
+            "section": 39,
+            "heading": "<kbd>method</kbd> `get_call`"
+          },
+          {
+            "section": 40,
+            "heading": "<kbd>method</kbd> `get_calls`"
+          },
+          {
+            "section": 41,
+            "heading": "<kbd>method</kbd> `get_evaluation`"
+          },
+          {
+            "section": 42,
+            "heading": "<kbd>method</kbd> `get_evaluations`"
+          },
+          {
+            "section": 43,
+            "heading": "<kbd>method</kbd> `get_feedback`"
+          },
+          {
+            "section": 44,
+            "heading": "<kbd>method</kbd> `get_tags`"
+          },
+          {
+            "section": 45,
+            "heading": "<kbd>method</kbd> `get_tags_and_aliases`"
+          },
+          {
+            "section": 46,
+            "heading": "<kbd>method</kbd> `link_prompt_to_registry`"
+          },
+          {
+            "section": 47,
+            "heading": "<kbd>method</kbd> `list_aliases`"
+          },
+          {
+            "section": 48,
+            "heading": "<kbd>method</kbd> `list_annotation_queue_items`"
+          },
+          {
+            "section": 49,
+            "heading": "<kbd>method</kbd> `list_annotation_queues`"
+          },
+          {
+            "section": 50,
+            "heading": "<kbd>method</kbd> `list_tags`"
+          },
+          {
+            "section": 51,
+            "heading": "<kbd>method</kbd> `purge_costs`"
+          },
+          {
+            "section": 52,
+            "heading": "<kbd>method</kbd> `query_costs`"
+          },
+          {
+            "section": 53,
+            "heading": "<kbd>method</kbd> `remove_aliases`"
+          },
+          {
+            "section": 54,
+            "heading": "<kbd>method</kbd> `remove_tags`"
+          },
+          {
+            "section": 55,
+            "heading": "<kbd>method</kbd> `save`"
+          },
+          {
+            "section": 56,
+            "heading": "<kbd>method</kbd> `search_agents`"
+          },
+          {
+            "section": 57,
+            "heading": "<kbd>method</kbd> `set_aliases`"
+          },
+          {
+            "section": 58,
+            "heading": "<kbd>method</kbd> `set_wandb_run_context`"
+          },
+          {
+            "section": 59,
+            "heading": "<kbd>method</kbd> `update_annotation_queue`"
+          },
+          {
+            "section": 60,
+            "heading": "<kbd>function</kbd> `get_obj_name`"
+          },
+          {
+            "section": 61,
+            "heading": "<kbd>function</kbd> `get_parallelism_settings`"
+          },
+          {
+            "section": 62,
+            "heading": "<kbd>function</kbd> `map_to_refs`"
+          },
+          {
+            "section": 63,
+            "heading": "<kbd>function</kbd> `print_call_link`"
+          },
+          {
+            "section": 64,
+            "heading": "<kbd>function</kbd> `redact_sensitive_keys`"
+          },
+          {
+            "section": 65,
+            "heading": "<kbd>function</kbd> `sanitize_object_name`"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      }
+    ],
+    "verification": {
+      "passed": true,
+      "issues": [],
+      "missing_parts": [],
+      "mode": "support",
+      "status": "passed"
+    },
+    "verification_attempts": [
+      {
+        "candidate": {
+          "source_ids": [
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "S6"
+          ],
+          "answer": "I can't say for sure yet, because the fix depends on how you send traces. **How are you tracing: the Python SDK, the TypeScript SDK, OpenTelemetry (OTel, an open tracing standard), or an agent plugin?** Each one fails in different ways.\n\nIn the meantime, these are the most common causes:\n\n- **`weave.init()` was never called.** Weave only traces calls to supported LLM libraries (such as `openai` or `anthropic`) after you import the library and initialize your project with `weave.init('your-project')` [S5].\n- **Your own functions aren't marked for tracing.** Custom code only shows up if you decorate it with `@weave.op` in Python or wrap it with `weave.op(...)` in TypeScript [S1].\n- **The program exits before traces are sent.** Weave sends data in the background. In TypeScript, await `client.flush()` before `process.exit()` [S3]. In Python, `flush()` finishes background tasks and is safe to call more than once [S6].\n- **TypeScript automatic tracing isn't working.** Projects that use ES modules (ESM), bundlers such as Next.js, or restricted runtimes can stop Weave from attaching to libraries automatically. The integration guide's troubleshooting section covers fixes [S4].\n- **OTel spans are going to a different view.** Spans sent to the older OTel endpoint, including OpenInference spans, appear under **Traces**, not **Agents**. For the Agents view, use the `/agents/otel/v1/traces` endpoint [S2]. Also check that your entity (team name), project and `wandb-api-key` header are set. In TypeScript, call `provider.shutdown()` before exit so pending spans get sent [S2].\n\nTell me your setup and which view you're checking (**Traces** or **Agents**), and I'll narrow it down.",
+          "kind": "clarification"
+        },
+        "passed": false,
+        "issues": [
+          "The OTel bullet is misleading. It groups OpenInference spans with the legacy endpoint, then says to use `/agents/otel/v1/traces` for the Agents view. That suggests switching endpoints would make OpenInference spans appear in Agents. S2 says OpenInference spans render in the Traces view only, and that the Agents view is built from spans that follow the OTel GenAI semantic conventions. Correction: say the legacy endpoint feeds the Traces and Threads views. Also say that for the Agents view you need both the agents endpoint and spans shaped to the GenAI semantic conventions. OpenInference spans show only in Traces either way."
+        ],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "failed"
+      },
+      {
+        "candidate": {
+          "source_ids": [
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "S6"
+          ],
+          "answer": "I can't say for sure yet, because the fix depends on how you send traces. **How are you tracing: the Python SDK, the TypeScript SDK, OpenTelemetry (OTel, an open tracing standard), or an agent plugin? And which view are you checking, Traces or Agents?** Each setup fails in different ways.\n\nIn the meantime, these are the most common causes:\n\n- **`weave.init()` was never called.** Weave only traces calls to supported LLM libraries (such as `openai` or `anthropic`) after you import the library and initialize your project with `weave.init('your-project')` [S5].\n- **Your own functions aren't marked for tracing.** Custom code only shows up if you decorate it with `@weave.op` in Python or wrap it with `weave.op(...)` in TypeScript [S1].\n- **The program exits before traces are sent.** Weave sends data in the background. In TypeScript, await `client.flush()` before `process.exit()` [S3]. In Python, `flush()` finishes background tasks and is safe to call more than once [S6].\n- **TypeScript automatic tracing isn't working.** Projects that use ES modules (ESM), bundlers such as Next.js, or restricted runtimes can stop Weave from attaching to libraries automatically. The integration guide's troubleshooting section covers fixes [S4].\n- **OTel spans are going to a different view.** The older OTel endpoint feeds the **Traces** and **Threads** views. The **Agents** view needs two things: the agents endpoint, and spans that follow the OTel GenAI semantic conventions (a standard naming scheme for AI spans). OpenInference spans appear only in **Traces**, whichever endpoint you use [S2]. Also check that your entity (team name), project and `wandb-api-key` header are set. In TypeScript, call `provider.shutdown()` before exit so pending spans get sent [S2].\n\nTell me your setup and I'll narrow it down.",
+          "kind": "clarification"
+        },
+        "passed": false,
+        "issues": [
+          "Asking about the setup is justified here, but the claim that custom code 'only shows up' with `@weave.op` / `weave.op(...)` goes too far. S1's page context also lists manual Call tracking through the API as a third way to create traces. Drop 'only' or mention manual Call tracking.",
+          "The claim that OpenInference spans appear only in Traces 'whichever endpoint you use' isn't supported. S2's note sits on the legacy-endpoint page and doesn't cover what happens when OpenInference spans go to the agents endpoint. Remove 'whichever endpoint you use', or read the agents-endpoint page (guides/tracking/trace-agents-otel) to back it up."
+        ],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "failed"
+      },
+      {
+        "candidate": {
+          "source_ids": [
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "S6"
+          ],
+          "answer": "I can't say for sure yet, because the fix depends on how you send traces. **How are you tracing: the Python SDK, the TypeScript SDK, OpenTelemetry (OTel, an open tracing standard), or an agent plugin? And which view are you checking, Traces or Agents?** Each setup fails in different ways.\n\nIn the meantime, these are the most common causes:\n\n- **`weave.init()` was never called.** Weave only traces calls to supported LLM libraries (such as `openai` or `anthropic`) after you import the library and initialize your project with `weave.init('your-project')` [S5].\n- **Your own functions aren't marked for tracing.** To trace custom code, decorate it with `@weave.op` in Python or wrap it with `weave.op(...)` in TypeScript. You can also create Calls manually through the API [S1].\n- **The program exits before traces are sent.** Weave sends data in the background. In TypeScript, await `client.flush()` before `process.exit()` [S3]. In Python, `flush()` finishes background tasks and is safe to call more than once [S6].\n- **TypeScript automatic tracing isn't working.** Projects that use ES modules (ESM), bundlers such as Next.js, or restricted runtimes can stop Weave from attaching to libraries automatically. The integration guide's troubleshooting section covers fixes [S4].\n- **OTel spans are going to a different view.** The older OTel endpoint feeds the **Traces** and **Threads** views, and OpenInference spans sent there appear in **Traces**, not **Agents**. The Agents view builds conversations from spans that follow the OTel GenAI semantic conventions (a standard naming scheme for AI spans), sent to the agents endpoint [S2]. Also check that your entity (team name), project and `wandb-api-key` header are set. In TypeScript, call `provider.shutdown()` before exit so pending spans get sent [S2].\n\nTell me your setup and I'll narrow it down.",
+          "kind": "clarification"
+        },
+        "passed": true,
+        "issues": [],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "passed"
+      }
+    ],
+    "actions": [
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "traces not showing up troubleshooting"
+        },
+        "result": {
+          "query": "traces not showing up troubleshooting",
+          "results": [
+            {
+              "page_id": "guides/platform/weave-self-managed",
+              "section": 39,
+              "title": "Set up a self-managed Weave instance",
+              "heading": "Troubleshooting",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/platform/weave-self-managed",
+              "snippet": "## Troubleshooting\n\nThe following sections describe common deployment problems and how to resolve them, grouped by the component where the symptom first appears.\n\n"
+            },
+            {
+              "page_id": "guides/integrations/koog",
+              "section": 6,
+              "title": "Koog",
+              "heading": "Troubleshooting",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/koog",
+              "snippet": "## Troubleshooting\n\nIf your Koog agent isn't exporting traces as expected, check the following:\n\n* If traces are missing, first verify that `WEAVE_API_KEY`, `WEAVE_ENTITY`, and `WEAVE_PROJECT_NAME` are set correctly.\n* Confirm your environment can reach `https://trace.wandb.ai` and that the exporter is configured as shown in the preceding examples.\n* For additional troubleshooting and sampling guidance, see Koog's [OpenTelemetry support](https://docs.koog.ai/opentelemetry-support/).\n"
+            },
+            {
+              "page_id": "guides/integrations/agents/openclaw-harness",
+              "section": 6,
+              "title": "OpenClaw plugin",
+              "heading": "Troubleshooting",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/agents/openclaw-harness",
+              "snippet": "## Troubleshooting\n\nIf traces aren't reaching Weave or content fields are empty, use the following sections to diagnose the most common causes.\n\nThe gateway log is the terminal output from the process running `openclaw`, or your process manager's log stream if you daemonized it.\n\n"
+            },
+            {
+              "page_id": "guides/integrations/js",
+              "section": 5,
+              "title": "TypeScript SDK: third-party integration guide",
+              "heading": "Advanced usage and troubleshooting",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/js",
+              "snippet": "## Advanced usage and troubleshooting\n\nThe following sections cover edge cases and workarounds for when the TypeScript SDK's automatic patching doesn't work as expected. For example, ESM-only environments, bundler setups such as Next.js, or constrained runtime environments may cause issues. If you see missing traces or integration issues, start here.\n\n"
+            },
+            {
+              "page_id": "guides/integrations/agents/codex-harness",
+              "section": 9,
+              "title": "Codex plugin",
+              "heading": "Troubleshooting",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/agents/codex-harness",
+              "snippet": "## Troubleshooting\n\nThe following sections describe common issues and how to resolve them. The collector log at `~/.weave-codex/logs/collector.log` is the primary diagnostic source. The plugin always logs errors regardless of the `debug` setting.\n\n"
+            },
+            {
+              "page_id": "guides/evaluation/remote-scorers",
+              "section": 10,
+              "title": "Score Calls with remote scorers",
+              "heading": "Troubleshooting",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/remote-scorers",
+              "snippet": "## Troubleshooting\n\n| Symptom | What to check |\n| - | - |\n| Remote scorer options don't appear in the UI | Remote scoring is enabled in the owning organization's **Remote scoring** settings, or by your deployment administrator. |\n| The endpoint URL is rejected | The scorer host, and the token endpoint host for OAuth, are in the allowed hosts. Check for a port mismatch, a non-HTTPS URL, or a private or internal address. |\n| The endpoint returns `401` or `403` | The secret name, the OAuth client credentials, audience, and scope, and your endpoint's token validation. |\n| The token request succeeds but scoring fails, or the reverse | Each URL separately. The token endpoint and scorer endpoint are validated independently and can use different hosts. |\n| No feedback appears | Scoring is asynchronous. Confirm the Call matched the monitor's operation, filter, and sampling rate. Weave records every attempt as a scorer Call in the **Traces** tab. A failed attempt appears as an errored scorer Call that carries the failure reason. |\n| No feedback after a `200` response | The response's `schema_v"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "weave.init quickstart track calls weave.op"
+        },
+        "result": {
+          "query": "weave.init quickstart track calls weave.op",
+          "results": [
+            {
+              "page_id": "guides/tracking/create-call",
+              "section": 2,
+              "title": "Trace your code",
+              "heading": "Track custom functions",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-call",
+              "snippet": "## Track custom functions\n\nLLM applications often have additional logic, such as pre-processing and post-processing, prompts, and more, that you want to track. Use this approach when you want Weave to capture your own functions alongside the LLM calls it traces automatically.\n\n**Python**\n\nWeave lets you manually track these Calls using the [`@weave.op`](https://docs.coreweave.com/products/wandb/weave/reference/python-sdk#function-op) decorator. For example:\n\n```python lines theme={\"system\"}\nimport weave\n\n# Initialize Weave Tracing\nweave.init('intro-example')\n\n# Decorate your function\n@weave.op\ndef my_function(name: str):\n    return f\"Hello, {name}!\"\n\n# Call your function -- Weave will automatically track inputs and outputs\nprint(my_function(\"World\"))\n```\n\nYou can also track [methods on classes](#track-class-and-object-methods).\n\n**TypeScript**\n\nWeave lets you manually track these Calls by wrapping your function with [`weave.op`](https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/functions/op). For example:\n\n```typescript twoslash lines theme={\"system\"}\n// @noErr"
+            },
+            {
+              "page_id": "guides/integrations/cohere",
+              "section": 0,
+              "title": "Cohere",
+              "heading": "Cohere",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/cohere",
+              "snippet": "# Cohere\n\n> Use Weave to automatically track and log LLM calls made through the Cohere Python library\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/master/weave/docs/quickstart_cohere.ipynb)\n\nWeave automatically tracks and logs LLM calls made through the [Cohere Python library](https://github.com/cohere-ai/cohere-python) after you call `weave.init()`.\n\n"
+            },
+            {
+              "page_id": "guides/integrations/litellm",
+              "section": 0,
+              "title": "LiteLLM",
+              "heading": "LiteLLM",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/litellm",
+              "snippet": "# LiteLLM\n\n> Automatically track and log LLM calls made through LiteLLM\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/master/weave/docs/quickstart_litellm.ipynb)\n\nWeave automatically tracks and logs LLM calls made through LiteLLM after you call `weave.init()`. This guide explains how to use Weave with LiteLLM to capture traces, wrap calls in versioned ops, organize experiments with a `Model`, and track function-calling behavior. Use it when you're building LLM applications and want observability across the multiple model providers that LiteLLM supports.\n\n"
+            },
+            {
+              "page_id": "concepts/what-is-weave",
+              "section": 4,
+              "title": "What is Weave?",
+              "heading": "Instrument and trace functions",
+              "url": "https://docs.coreweave.com/products/wandb/weave/concepts/what-is-weave",
+              "snippet": "### Instrument and trace functions\n\nTo trace individual function calls, application code, or custom logic, use Weave Ops and Calls. Add one line to any function to track inputs, outputs, cost, token count, and latency. You can also:\n\n* Track end-to-end how data flows through your LLM application.\n* See source documents used to produce the LLM feedback.\n* Drill down into specific prompts and how answers are produced.\n\nTo trace individual functions, follow the Weave [Op tracing quickstart](https://docs.coreweave.com/products/wandb/weave/quickstart.md) or learn to use the Weave [Ops and Calls](https://docs.coreweave.com/products/wandb/weave/guides/tracking/tracing.md).\n\nThe Weave SDK also autopatches with many different frameworks and LLM providers to automatically capture traces from LLM calls in your code. See [Integrations](https://docs.coreweave.com/products/wandb/weave/guides/integrations.md) for all supported providers and frameworks.\n\n"
+            },
+            {
+              "page_id": "quickstart",
+              "section": 0,
+              "title": "Quickstart: Instrument and trace functions",
+              "heading": "Quickstart: Instrument and trace functions",
+              "url": "https://docs.coreweave.com/products/wandb/weave/quickstart",
+              "snippet": "# Quickstart: Instrument and trace functions\n\n> Get started with W&B Weave by adding tracing to your LLM application to debug and monitor model interactions.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/quickstart.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/quickstart.ipynb)\n\nLearn how to track LLM calls with Weave by adding tracing to your code. This quickstart walks you through tracing a request to OpenAI and viewing the results in the Weights & Biases UI. It's for developers who are new to Weave and want to instrument an LLM application for debugging and monitoring.\n\n"
+            },
+            {
+              "page_id": "index",
+              "section": 0,
+              "title": "W&B Weave",
+              "heading": "W&B Weave",
+              "url": "https://docs.coreweave.com/products/wandb/weave",
+              "snippet": "# W&B Weave\n\n> Track, test, and improve language model apps with W&B Weave\n\nW\\&B Weave is an observability and evaluation platform that helps you track, evaluate, and improve your agents and LLM applications. With Weave, you can:\n\n* [Trace and collect metrics about your agents](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md) built with popular SDKs and harnesses using Weave OTel-compatible SDK\n* [Manually instrument your application's LLM calls and arbitrary functions](https://docs.coreweave.com/products/wandb/weave/quickstart.md) to trace, version, and collect feedback about your application\n* [Evaluate](https://docs.coreweave.com/products/wandb/weave/tutorial-eval.md) your agent's or application's responses using LLM judges and custom scorers\n\n"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "flush pending calls before exit"
+        },
+        "result": {
+          "query": "flush pending calls before exit",
+          "results": [
+            {
+              "page_id": "reference/typescript-sdk/interfaces/weaveclient",
+              "section": 23,
+              "title": "WeaveClient",
+              "heading": "flush()",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/weaveclient",
+              "snippet": "### flush()\n\n> **flush**(): `Promise`\\<`void`>\n\nDeliver all buffered calls to the server. Await before `process.exit()`.\n\n"
+            },
+            {
+              "page_id": "reference/typescript-sdk/functions/flushotel",
+              "section": 0,
+              "title": "flushOTel",
+              "heading": "flushOTel",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/functions/flushotel",
+              "snippet": "# flushOTel\n\n> TypeScript SDK reference\n\n```ts theme={\"system\"}\nflushOTel(): Promise<void>\n```\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/genai/flush.ts#L15)\n\nForce-flush any GenAI spans buffered by the active span processor.\n\nResolves immediately if `weave.init()` has not been called. Otherwise\ndelegates to `BasicTracerProvider.forceFlush()`, which waits for the\nunderlying span processor to drain its queue and complete its OTLP export\nround-trip.\n\nCall before process exit when using `'simple'` or any other processor that\nmay have in-flight work, or in tests that need to observe exported spans\nsynchronously.\n\n"
+            },
+            {
+              "page_id": "reference/python-sdk/trace/weave_client",
+              "section": 27,
+              "title": "weave_client",
+              "heading": "<kbd>method</kbd> `flush`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/weave_client",
+              "snippet": "### <kbd>method</kbd> `flush`\n\n```python theme={\"system\"}\nflush() \u2192 None\n```\n\nFlushes background asynchronous tasks, safe to call multiple times.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/telemetry/trace_sentry.py#L568)\n\n"
+            },
+            {
+              "page_id": "guides/tracking/trace-agents-otel",
+              "section": 5,
+              "title": "Send OpenTelemetry spans to the Agents view",
+              "heading": "Example: emit agent spans without the Weave SDK",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-otel",
+              "snippet": "## Example: emit agent spans without the Weave SDK\n\nThe following example instruments a minimal agent turn using only OTel packages. It emits an `invoke_agent` span for the turn, a `chat` span for the LLM call, and an `execute_tool` span for a tool call, then exports them to the Weave agents endpoint.\n\nFirst, install the required dependencies:\n\n```bash Python theme={\"system\"}\npip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http\n```\n\n```bash TypeScript theme={\"system\"}\nnpm install @opentelemetry/api @opentelemetry/sdk-trace-node @opentelemetry/sdk-trace-base @opentelemetry/resources @opentelemetry/exporter-trace-otlp-proto\n```\n\nThen set the `WANDB_API_KEY`, `ENTITY`, and `PROJECT` values in the following code, and then run it:\n\n```python Python lines highlight=\"8,9,14\" theme={\"system\"}\nimport os\nfrom opentelemetry import trace\nfrom opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter\nfrom opentelemetry.sdk import trace as trace_sdk\nfrom opentelemetry.sdk.resources import Resource\nfrom opentelemetry.sdk.trace.export import BatchSpanProcessor\n\nEN"
+            },
+            {
+              "page_id": "guides/tracking/otel",
+              "section": 4,
+              "title": "Send OpenTelemetry Traces to Weave",
+              "heading": "OpenInference instrumentation",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/otel",
+              "snippet": "### OpenInference instrumentation\n\n[OpenInference](https://github.com/Arize-ai/openinference) is an open source instrumentation library from Arize AI that captures LLM calls as OpenTelemetry spans. This example shows how to use the OpenAI instrumentation. Additional instrumentations are available in the [official repository](https://github.com/Arize-ai/openinference).\n\n> [!NOTE]\n>\n> OpenInference spans render in the **Traces** view only, not the **Agents** view. The Agents view builds conversations, turns, and tool calls from spans that follow the [OTel GenAI semantic conventions](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-otel.md#shape-spans-for-the-agents-view).\n\nFirst, install the required dependencies:\n\n**Python**\n\n```bash theme={\"system\"}\npip install openai openinference-instrumentation-openai opentelemetry-exporter-otlp-proto-http\n```\n\n**TypeScript**\n\n```bash theme={\"system\"}\nnpm install openai @opentelemetry/sdk-trace-node @opentelemetry/sdk-trace-base @opentelemetry/resources @opentelemetry/exporter-trace-otlp-proto @arizeai/openinference-ins"
+            },
+            {
+              "page_id": "guides/integrations/openai-realtime-audio",
+              "section": 7,
+              "title": "OpenAI Realtime API",
+              "heading": "Run a realtime voice assistant with WebSockets",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/openai-realtime-audio",
+              "snippet": "ame', '')}\")\n   >\n   >         # Function call argument deltas - accumulate.\n   >         elif event_type == \"response.function_call_arguments.delta\":\n   >             item_id = event.get(\"item_id\", \"\")\n   >             if item_id in pending_calls:\n   >                 pending_calls[item_id][\"arguments\"] += event.get(\"delta\", \"\")\n   >\n   >         elif event_type == \"response.function_call_arguments.done\":\n   >             item_id = event.get(\"item_id\", \"\")\n   >             call_info = pending_calls.pop(item_id, None)\n   >             if call_info is None:\n   >                 # Fallback: use data directly from the done event.\n   >                 call_info = {\n   >                     \"call_id\": event.get(\"call_id\"),\n   >                     \"name\": event.get(\"name\"),\n   >                     \"arguments\": event.get(\"arguments\"),\n   >                 }\n   >             try:\n   >                 await handle_function_call(\n   >                     ws,\n   >                     call_info[\"call_id\"],\n   >                     call_info[\"name\"],\n   >                     call_info[\"argument"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/create-call",
+          "section": 2
+        },
+        "result": {
+          "source_id": "S1",
+          "page_id": "guides/tracking/create-call",
+          "section": 2,
+          "title": "Trace your code",
+          "heading": "Track custom functions",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-call",
+          "page_sha256": "a072092a9701139504707ba608e5cd9215d7640b24b88b801006cda3a697f490",
+          "text": "## Track custom functions\n\nLLM applications often have additional logic, such as pre-processing and post-processing, prompts, and more, that you want to track. Use this approach when you want Weave to capture your own functions alongside the LLM calls it traces automatically.\n\n**Python**\n\nWeave lets you manually track these Calls using the [`@weave.op`](https://docs.coreweave.com/products/wandb/weave/reference/python-sdk#function-op) decorator. For example:\n\n```python lines theme={\"system\"}\nimport weave\n\n# Initialize Weave Tracing\nweave.init('intro-example')\n\n# Decorate your function\n@weave.op\ndef my_function(name: str):\n    return f\"Hello, {name}!\"\n\n# Call your function -- Weave will automatically track inputs and outputs\nprint(my_function(\"World\"))\n```\n\nYou can also track [methods on classes](#track-class-and-object-methods).\n\n**TypeScript**\n\nWeave lets you manually track these Calls by wrapping your function with [`weave.op`](https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/functions/op). For example:\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nawait weave.init('intro-example')\n\nfunction myFunction(name: string) {\n    return `Hello, ${name}!`\n}\n\nconst myFunctionOp = weave.op(myFunction)\n```\n\nYou can also define the wrapping inline:\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nconst myFunctionOp = weave.op((name: string) => `Hello, ${name}!`)\n```\n\nThis works for both functions and methods on classes:\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nclass MyClass {\n    constructor() {\n        this.myMethod = weave.op(this.myMethod)\n    }\n\n    myMethod(name: string) {\n        return `Hello, ${name}!`\n    }\n}\n```\n\n",
+          "page_context": "# Trace your code\n\n> Instrument your running code so its execution appears as detailed traces in Weave.\n\nThis guide shows you how to instrument your application so that its execution appears as detailed traces in Weave. Traces help you debug, evaluate, and monitor LLM-powered code by capturing inputs, outputs, and the structure of each operation as a Call.\n\nTo see your running code as detailed traces in Weave, you create Calls. The following sections describe the three main ways to do this, from least to most manual:\n\n* Automatic tracking of LLM library calls.\n* Tracking of custom functions with `weave.op`.\n* Manual Call tracking using the API directly.\n\nChoose the approach that fits how much control you need over what gets traced.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Trace your code"
+            },
+            {
+              "section": 1,
+              "heading": "Automatic tracking of LLM library calls"
+            },
+            {
+              "section": 2,
+              "heading": "Track custom functions"
+            },
+            {
+              "section": 3,
+              "heading": "Track class and object methods"
+            },
+            {
+              "section": 4,
+              "heading": "Trace parallel (multi-threaded) function calls"
+            },
+            {
+              "section": 5,
+              "heading": "Manual Call tracking"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "outgoing_links": [
+            {
+              "page_id": "reference/python-sdk",
+              "title": "weave"
+            },
+            {
+              "page_id": "reference/typescript-sdk/functions/op",
+              "title": "op"
+            }
+          ],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/otel",
+          "section": 4
+        },
+        "result": {
+          "source_id": "S2",
+          "page_id": "guides/tracking/otel",
+          "section": 4,
+          "title": "Send OpenTelemetry Traces to Weave",
+          "heading": "OpenInference instrumentation",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/otel",
+          "page_sha256": "2b27bfb5db158afe1cb0e04dae99926154f64ccbe8cf8ca527e185315a62348c",
+          "text": "### OpenInference instrumentation\n\n[OpenInference](https://github.com/Arize-ai/openinference) is an open source instrumentation library from Arize AI that captures LLM calls as OpenTelemetry spans. This example shows how to use the OpenAI instrumentation. Additional instrumentations are available in the [official repository](https://github.com/Arize-ai/openinference).\n\n> [!NOTE]\n>\n> OpenInference spans render in the **Traces** view only, not the **Agents** view. The Agents view builds conversations, turns, and tool calls from spans that follow the [OTel GenAI semantic conventions](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-otel.md#shape-spans-for-the-agents-view).\n\nFirst, install the required dependencies:\n\n**Python**\n\n```bash theme={\"system\"}\npip install openai openinference-instrumentation-openai opentelemetry-exporter-otlp-proto-http\n```\n\n**TypeScript**\n\n```bash theme={\"system\"}\nnpm install openai @opentelemetry/sdk-trace-node @opentelemetry/sdk-trace-base @opentelemetry/resources @opentelemetry/exporter-trace-otlp-proto @arizeai/openinference-instrumentation-openai @opentelemetry/api\n```\n\n> [!WARNING]\n>\n> **Performance recommendation**: Always use `BatchSpanProcessor` instead of `SimpleSpanProcessor` when sending traces to Weave. `SimpleSpanProcessor` exports spans synchronously, which can impact the performance of other workloads. These examples illustrate `BatchSpanProcessor`, which is recommended in production because it batches spans asynchronously and efficiently.\n\n**Python**\n\nPaste the following code into a Python file such as `openinference_example.py`:\n\n```python lines theme={\"system\"}\nimport os\nimport openai\nfrom opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter\nfrom opentelemetry.sdk import trace as trace_sdk\nfrom opentelemetry.sdk.resources import Resource\nfrom opentelemetry.sdk.trace.export import ConsoleSpanExporter, BatchSpanProcessor\nfrom openinference.instrumentation.openai import OpenAIInstrumentor\n\nOPENAI_API_KEY = \"[REDACTED_SECRET]\"\nWANDB_BASE_URL = \"https://trace.wandb.ai\"\nENTITY = \"<your-team-name>\"\nPROJECT = \"<your-project-name>\"\n\nWEAVE_OTLP_ENDPOINT = f\"{WANDB_BASE_URL}/otel/v1/traces\"\n\n# Create an API key at https://forge.coreweave.com/settings\nWANDB_API_KEY = os.environ[\"WANDB_API_KEY\"]\n\nexporter = OTLPSpanExporter(\n    endpoint=WEAVE_OTLP_ENDPOINT,\n    headers={\"wandb-api-key\": WANDB_API_KEY},\n)\n\ntracer_provider = trace_sdk.TracerProvider(resource=Resource({\n    \"wandb.entity\": ENTITY,\n    \"wandb.project\": PROJECT,\n}))\ntracer_provider.add_span_processor(BatchSpanProcessor(exporter))\n\n# Optionally, print the spans to the console.\ntracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))\n\nOpenAIInstrumentor().instrument(tracer_provider=tracer_provider)\n\ndef main():\n    client = openai.OpenAI(api_key=OPENAI_API_KEY)\n    response = client.chat.completions.create(\n        model=\"gpt-3.5-turbo\",\n        messages=[{\"role\": \"user\", \"content\": \"Describe OTel in a single sentence.\"}],\n        max_tokens=20,\n        stream=True,\n        stream_options={\"include_usage\": True},\n    )\n    for chunk in response:\n        if chunk.choices and (content := chunk.choices[0].delta.content):\n            print(content, end=\"\")\n\nif __name__ == \"__main__\":\n    main()\n```\n\nRun the code:\n\n```bash theme={\"system\"}\npython openinference_example.py\n```\n\n**TypeScript**\n\nThe TypeScript implementation of this example contains the following key differences from the Python implementation:\n\n* OpenAI must be imported before registering instrumentation (ESM modules require this).\n* Uses `@opentelemetry/exporter-trace-otlp-proto` (protobuf format) instead of the HTTP exporter, since the Weights & Biases endpoint only accepts protobuf.\n* Requires explicit `provider.shutdown()` with a delay before shutdown to ensure spans are flushed, since `BatchSpanProcessor` flushes asynchronously.\n\nPaste the following code into a TypeScript file such as `openinference_example.ts`:\n\n```typescript lines {11,12} theme={\"system\"}\n// IMPORTANT: Import OpenAI FIRST so instrumentation can patch it\nimport OpenAI from \"openai\";\nimport { NodeTracerProvider } from \"@opentelemetry/sdk-trace-node\";\nimport { BatchSpanProcessor } from \"@opentelemetry/sdk-trace-base\";\nimport { OTLPTraceExporter } from \"@opentelemetry/exporter-trace-otlp-proto\";\nimport { resourceFromAttributes } from \"@opentelemetry/resources\";\nimport { OpenAIInstrumentation, isPatched } from \"@arizeai/openinference-instrumentation-openai\";\n\nconst OPENAI_API_KEY = [REDACTED_SECRET];\nconst WANDB_BASE_URL = \"https://trace.wandb.ai\";\nconst ENTITY = \"<your-team-name>\";\nconst PROJECT = \"<your-project-name>\";\n\nconst WEAVE_OTLP_ENDPOINT = `${WANDB_BASE_URL}/otel/v1/traces`;\n\n// Create an API key at https://forge.coreweave.com/settings\nconst WANDB_API_KEY = [REDACTED_SECRET];\n\nconst exporter = new OTLPTraceExporter({\n  url: WEAVE_OTLP_ENDPOINT,\n  headers: { \"wandb-api-key\": [REDACTED_SECRET] },\n});\n\nconst provider = new NodeTracerProvider({\n  resource: resourceFromAttributes({\n    \"wandb.entity\": ENTITY,\n    \"wandb.project\": PROJECT,\n  }),\n  spanProcessors: [\n    new BatchSpanProcessor(exporter)\n  ],\n});\n\nprovider.register();\n\n// Register the OpenAI instrumentation with the tracer provider\nconst openAIInstrumentation = new OpenAIInstrumentation();\nopenAIInstrumentation.setTracerProvider(provider);\n\n// Manually instrument OpenAI since we're using ESM\nopenAIInstrumentation.manuallyInstrument(OpenAI);\n\nasync function main() {\n  console.log(\"OpenAI is patched?\", isPatched());\n\n  const client = new OpenAI({ apiKey: [REDACTED_SECRET] });\n\n  console.log(\"Making OpenAI API call...\");\n  const response = await client.chat.completions.create({\n    model: \"gpt-3.5-turbo\",\n    messages: [{ role: \"user\", content: \"Describe OTel in a single sentence.\" }],\n    max_tokens: 50,\n  });\n\n  console.log(\"Response:\", response.choices[0]?.message?.content);\n  console.log(\"Waiting for spans to flush...\");\n}\n\n(async () => {\n  await main();\n\n  // Give spans time to flush\n  console.log(\"Waiting 2 seconds for spans to flush...\");\n  await new Promise(resolve => setTimeout(resolve, 2000));\n\n  await provider.shutdown(); // flush all pending spans before exit\n  console.log(\"Shutdown complete\");\n})();\n```\n\nRun the code:\n\n```bash theme={\"system\"}\nnpx ts-node openinference_example.ts\n```\n\n",
+          "page_context": "# Send OpenTelemetry Traces to Weave\n\n> Import OpenTelemetry compatible trace data through a dedicated endpoint\n\n> [!WARNING]\n>\n> This page documents W\\&B Weave's legacy OTel workflow. If you are new to Weave and are building agentic applications, we **highly recommend** [sending your traces to the new endpoint](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-otel.md), `/agents/otel/v1/traces`. The new endpoint lets you send OTLP trace data from any OpenTelemetry pipeline to both W\\&B Weave and [Agent Lens](https://docs.coreweave.com/products/agent-lens/what-is-agent-lens.md), an agent-focused tracing and observability platform.\n\nWeave supports import of OpenTelemetry compatible trace data through a dedicated endpoint. This endpoint lets you send OTLP (OpenTelemetry Protocol) formatted trace data directly to your Weave project. Use this integration when you want to instrument your application with the OpenTelemetry standard and have those traces appear alongside your other Weave data, without replacing your existing OTel-based observability pipeline.\n\nThis page covers the endpoint details, authentication, end-to-end examples in Python and TypeScript, how to forward traces through an OpenTelemetry Collector, how to organize traces into Weave threads, and the attribute mappings Weave applies to incoming spans.\n\n> [!NOTE]\n>\n> This endpoint feeds the **Traces** and **Threads** views. To send OTel spans from a multi-turn agent to the **Agents** view, use the agents endpoint instead. See [Send OpenTelemetry spans to the Agents view](https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-agents-otel.md).\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Send OpenTelemetry Traces to Weave"
+            },
+            {
+              "section": 1,
+              "heading": "Endpoint details"
+            },
+            {
+              "section": 2,
+              "heading": "Authentication and routing"
+            },
+            {
+              "section": 3,
+              "heading": "Examples"
+            },
+            {
+              "section": 4,
+              "heading": "OpenInference instrumentation"
+            },
+            {
+              "section": 5,
+              "heading": "OpenLLMetry instrumentation"
+            },
+            {
+              "section": 6,
+              "heading": "Without instrumentation"
+            },
+            {
+              "section": 7,
+              "heading": "Use an OpenTelemetry Collector"
+            },
+            {
+              "section": 8,
+              "heading": "Set up a collector"
+            },
+            {
+              "section": 9,
+              "heading": "Organize OTel traces into threads"
+            },
+            {
+              "section": 10,
+              "heading": "Organize OTel traces into threads"
+            },
+            {
+              "section": 11,
+              "heading": "Organize OTel traces into threads"
+            },
+            {
+              "section": 12,
+              "heading": "Attribute mappings"
+            },
+            {
+              "section": 13,
+              "heading": "Supported frameworks"
+            },
+            {
+              "section": 14,
+              "heading": "Attribute reference"
+            },
+            {
+              "section": 15,
+              "heading": "Limitations"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "credential_redacted": true,
+          "outgoing_links": [
+            {
+              "page_id": "guides/tracking/trace-agents-otel",
+              "title": "Send OpenTelemetry spans to the Agents view"
+            }
+          ],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "reference/typescript-sdk/interfaces/weaveclient",
+          "section": 23
+        },
+        "result": {
+          "source_id": "S3",
+          "page_id": "reference/typescript-sdk/interfaces/weaveclient",
+          "section": 23,
+          "title": "WeaveClient",
+          "heading": "flush()",
+          "url": "https://docs.coreweave.com/products/wandb/weave/reference/typescript-sdk/interfaces/weaveclient",
+          "page_sha256": "562a114529705c6d97ad328cc554eb177c9dc389917f342cf3178cdc66897156",
+          "text": "### flush()\n\n> **flush**(): `Promise`\\<`void`>\n\nDeliver all buffered calls to the server. Await before `process.exit()`.\n\n",
+          "page_context": "# WeaveClient\n\n> TypeScript SDK reference\n\n[GitHub source](https://github.com/wandb/weave/blob/7c9efdc9fe05ffcaf2430dd652ef9bc5b3ffdfaa/sdks/node/src/weaveClient.ts#L519)\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "WeaveClient"
+            },
+            {
+              "section": 1,
+              "heading": "Properties"
+            },
+            {
+              "section": 2,
+              "heading": "projectId"
+            },
+            {
+              "section": 3,
+              "heading": "settings"
+            },
+            {
+              "section": 4,
+              "heading": "attributes"
+            },
+            {
+              "section": 5,
+              "heading": "genai"
+            },
+            {
+              "section": 6,
+              "heading": "printCallLink"
+            },
+            {
+              "section": 7,
+              "heading": "useCallsComplete"
+            },
+            {
+              "section": 8,
+              "heading": "useOTelV2"
+            },
+            {
+              "section": 9,
+              "heading": "traceServerApi"
+            },
+            {
+              "section": 10,
+              "heading": "Methods"
+            },
+            {
+              "section": 11,
+              "heading": "addScore()"
+            },
+            {
+              "section": 12,
+              "heading": "Parameters"
+            },
+            {
+              "section": 13,
+              "heading": "Returns"
+            },
+            {
+              "section": 14,
+              "heading": "createCall()"
+            },
+            {
+              "section": 15,
+              "heading": "Parameters"
+            },
+            {
+              "section": 16,
+              "heading": "Returns"
+            },
+            {
+              "section": 17,
+              "heading": "finishCall()"
+            },
+            {
+              "section": 18,
+              "heading": "Parameters"
+            },
+            {
+              "section": 19,
+              "heading": "Returns"
+            },
+            {
+              "section": 20,
+              "heading": "finishCallWithException()"
+            },
+            {
+              "section": 21,
+              "heading": "Parameters"
+            },
+            {
+              "section": 22,
+              "heading": "Returns"
+            },
+            {
+              "section": 23,
+              "heading": "flush()"
+            },
+            {
+              "section": 24,
+              "heading": "Returns"
+            },
+            {
+              "section": 25,
+              "heading": "get()"
+            },
+            {
+              "section": 26,
+              "heading": "Parameters"
+            },
+            {
+              "section": 27,
+              "heading": "Returns"
+            },
+            {
+              "section": 28,
+              "heading": "getAgentCustomAttributes()"
+            },
+            {
+              "section": 29,
+              "heading": "Parameters"
+            },
+            {
+              "section": 30,
+              "heading": "Returns"
+            },
+            {
+              "section": 31,
+              "heading": "Example"
+            },
+            {
+              "section": 32,
+              "heading": "getAgents()"
+            },
+            {
+              "section": 33,
+              "heading": "Parameters"
+            },
+            {
+              "section": 34,
+              "heading": "Returns"
+            },
+            {
+              "section": 35,
+              "heading": "Example"
+            },
+            {
+              "section": 36,
+              "heading": "getAgentSpans()"
+            },
+            {
+              "section": 37,
+              "heading": "Parameters"
+            },
+            {
+              "section": 38,
+              "heading": "Returns"
+            },
+            {
+              "section": 39,
+              "heading": "Examples"
+            },
+            {
+              "section": 40,
+              "heading": "getAgentSpanStats()"
+            },
+            {
+              "section": 41,
+              "heading": "Parameters"
+            },
+            {
+              "section": 42,
+              "heading": "Returns"
+            },
+            {
+              "section": 43,
+              "heading": "Example"
+            },
+            {
+              "section": 44,
+              "heading": "getAgentTurn()"
+            },
+            {
+              "section": 45,
+              "heading": "Parameters"
+            },
+            {
+              "section": 46,
+              "heading": "Returns"
+            },
+            {
+              "section": 47,
+              "heading": "Example"
+            },
+            {
+              "section": 48,
+              "heading": "getAgentTurns()"
+            },
+            {
+              "section": 49,
+              "heading": "Parameters"
+            },
+            {
+              "section": 50,
+              "heading": "Returns"
+            },
+            {
+              "section": 51,
+              "heading": "Example"
+            },
+            {
+              "section": 52,
+              "heading": "getAgentVersions()"
+            },
+            {
+              "section": 53,
+              "heading": "Parameters"
+            },
+            {
+              "section": 54,
+              "heading": "Returns"
+            },
+            {
+              "section": 55,
+              "heading": "Example"
+            },
+            {
+              "section": 56,
+              "heading": "getCall()"
+            },
+            {
+              "section": 57,
+              "heading": "Parameters"
+            },
+            {
+              "section": 58,
+              "heading": "Returns"
+            },
+            {
+              "section": 59,
+              "heading": "getCalls()"
+            },
+            {
+              "section": 60,
+              "heading": "Call Signature"
+            },
+            {
+              "section": 61,
+              "heading": "Call Signature"
+            },
+            {
+              "section": 62,
+              "heading": "getCallsIterator()"
+            },
+            {
+              "section": 63,
+              "heading": "Call Signature"
+            },
+            {
+              "section": 64,
+              "heading": "Call Signature"
+            },
+            {
+              "section": 65,
+              "heading": "getCallStack()"
+            },
+            {
+              "section": 66,
+              "heading": "Returns"
+            },
+            {
+              "section": 67,
+              "heading": "getCurrentAttributes()"
+            },
+            {
+              "section": 68,
+              "heading": "Returns"
+            },
+            {
+              "section": 69,
+              "heading": "linkPromptToRegistry()"
+            },
+            {
+              "section": 70,
+              "heading": "Parameters"
+            },
+            {
+              "section": 71,
+              "heading": "Returns"
+            },
+            {
+              "section": 72,
+              "heading": "pendingCallCount()"
+            },
+            {
+              "section": 73,
+              "heading": "Returns"
+            },
+            {
+              "section": 74,
+              "heading": "publish()"
+            },
+            {
+              "section": 75,
+              "heading": "Parameters"
+            },
+            {
+              "section": 76,
+              "heading": "Returns"
+            },
+            {
+              "section": 77,
+              "heading": "pushNewCall()"
+            },
+            {
+              "section": 78,
+              "heading": "Returns"
+            },
+            {
+              "section": 79,
+              "heading": "registerCustomRuntime()"
+            },
+            {
+              "section": 80,
+              "heading": "Parameters"
+            },
+            {
+              "section": 81,
+              "heading": "Returns"
+            },
+            {
+              "section": 82,
+              "heading": "runWithAttributes()"
+            },
+            {
+              "section": 83,
+              "heading": "Type Parameters"
+            },
+            {
+              "section": 84,
+              "heading": "Parameters"
+            },
+            {
+              "section": 85,
+              "heading": "Returns"
+            },
+            {
+              "section": 86,
+              "heading": "runWithCallStack()"
+            },
+            {
+              "section": 87,
+              "heading": "Type Parameters"
+            },
+            {
+              "section": 88,
+              "heading": "Parameters"
+            },
+            {
+              "section": 89,
+              "heading": "Returns"
+            },
+            {
+              "section": 90,
+              "heading": "saveCallEnd()"
+            },
+            {
+              "section": 91,
+              "heading": "Parameters"
+            },
+            {
+              "section": 92,
+              "heading": "Returns"
+            },
+            {
+              "section": 93,
+              "heading": "saveCallStart()"
+            },
+            {
+              "section": 94,
+              "heading": "Parameters"
+            },
+            {
+              "section": 95,
+              "heading": "Returns"
+            },
+            {
+              "section": 96,
+              "heading": "saveOp()"
+            },
+            {
+              "section": 97,
+              "heading": "Parameters"
+            },
+            {
+              "section": 98,
+              "heading": "Returns"
+            },
+            {
+              "section": 99,
+              "heading": "searchAgents()"
+            },
+            {
+              "section": 100,
+              "heading": "Parameters"
+            },
+            {
+              "section": 101,
+              "heading": "Returns"
+            },
+            {
+              "section": 102,
+              "heading": "Example"
+            },
+            {
+              "section": 103,
+              "heading": "serializeAudio()"
+            },
+            {
+              "section": 104,
+              "heading": "Parameters"
+            },
+            {
+              "section": 105,
+              "heading": "Returns"
+            },
+            {
+              "section": 106,
+              "heading": "updateCall()"
+            },
+            {
+              "section": 107,
+              "heading": "Parameters"
+            },
+            {
+              "section": 108,
+              "heading": "Returns"
+            },
+            {
+              "section": 109,
+              "heading": "waitForBatchProcessing()"
+            },
+            {
+              "section": 110,
+              "heading": "Returns"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "outgoing_links": [],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/integrations/js",
+          "section": 5
+        },
+        "result": {
+          "source_id": "S4",
+          "page_id": "guides/integrations/js",
+          "section": 5,
+          "title": "TypeScript SDK: third-party integration guide",
+          "heading": "Advanced usage and troubleshooting",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/js",
+          "page_sha256": "b68a24af4db8b9eb3e233c1936034feb1c27a695b0ef963adc6e331111edfe8e",
+          "text": "## Advanced usage and troubleshooting\n\nThe following sections cover edge cases and workarounds for when the TypeScript SDK's automatic patching doesn't work as expected. For example, ESM-only environments, bundler setups such as Next.js, or constrained runtime environments may cause issues. If you see missing traces or integration issues, start here.\n\n",
+          "page_context": "# TypeScript SDK: third-party integration guide\n\n> Integrate third-party libraries with the Weave TypeScript SDK\n\nThis guide describes how to integrate third-party libraries (for example, OpenAI) with the Weave TypeScript SDK. It's intended for TypeScript developers who want Weave to automatically trace calls to supported libraries in their application.\n\nWeave supports automatic instrumentation, which streamlines setup and reduces the need for manual configuration.\n\n> [!WARNING]\n>\n> **What changed?**\n> As of [PR #4554](https://github.com/wandb/weave/pull/4554), Weave automatically patches supported libraries such as OpenAI when it loads. You no longer need to manually wrap them:\n>\n> ```ts twoslash lines theme={\"system\"}\n> // @noErrors\n> weave.wrapOpenAI(new OpenAI());\n> ```\n>\n> Weave handles this automatically in most cases. However, [edge cases](#advanced-usage) may occur.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "TypeScript SDK: third-party integration guide"
+            },
+            {
+              "section": 1,
+              "heading": "Use Weave integrations with your TypeScript project"
+            },
+            {
+              "section": 2,
+              "heading": "If you're unsure which type of project you have"
+            },
+            {
+              "section": 3,
+              "heading": "Set up a CommonJS project"
+            },
+            {
+              "section": 4,
+              "heading": "Set up an ESM project"
+            },
+            {
+              "section": 5,
+              "heading": "Advanced usage and troubleshooting"
+            },
+            {
+              "section": 6,
+              "heading": "Use `NODE_OPTIONS` (only for ESM)"
+            },
+            {
+              "section": 7,
+              "heading": "Bundler compatibility"
+            },
+            {
+              "section": 8,
+              "heading": "Manual patching (fallback option)"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "outgoing_links": [],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/create-call",
+          "section": 1
+        },
+        "result": {
+          "source_id": "S5",
+          "page_id": "guides/tracking/create-call",
+          "section": 1,
+          "title": "Trace your code",
+          "heading": "Automatic tracking of LLM library calls",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-call",
+          "page_sha256": "a072092a9701139504707ba608e5cd9215d7640b24b88b801006cda3a697f490",
+          "text": "## Automatic tracking of LLM library calls\n\nWeave integrates automatically with many common libraries and frameworks, such as `openai`, `anthropic`, `cohere`, `mistral`, and `LangChain`. Import the LLM or framework library and initialize your Weave project. Weave then automatically traces all Calls made to the LLM or platform to your project without any additional code changes. For a complete list of supported library integrations, see [Integrations overview](https://docs.coreweave.com/products/wandb/weave/guides/integrations.md).\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nfrom openai import OpenAI\nclient = OpenAI()\n\n# Initialize Weave Tracing\nweave.init('intro-example')\n\nresponse = client.chat.completions.create(\n    model=\"gpt-4\",\n    messages=[\n        {\n            \"role\": \"user\",\n            \"content\": \"How are you?\"\n        }\n    ],\n    temperature=0.8,\n    max_tokens=64,\n    top_p=1,\n)\n```\n\n**TypeScript**\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport OpenAI from 'openai'\nimport * as weave from 'weave'\n\nconst client = new OpenAI()\n\n// Initialize Weave Tracing\nawait weave.init('intro-example')\n\nconst response = await client.chat.completions.create({\n  model: 'gpt-4',\n  messages: [\n    {\n      role: 'user',\n      content: 'How are you?',\n    },\n  ],\n  temperature: 0.8,\n  max_tokens: 64,\n  top_p: 1,\n});\n```\n\nFor a complete setup guide for JavaScript and TypeScript projects, see the [TypeScript SDK: Third-Party Integration Guide](https://docs.coreweave.com/products/wandb/weave/guides/integrations/js.md).\n\nIf you want more control over automatic behavior, see [Configure automatic LLM call tracking](https://docs.coreweave.com/products/wandb/weave/guides/integrations/autopatching.md).\n\n",
+          "page_context": "# Trace your code\n\n> Instrument your running code so its execution appears as detailed traces in Weave.\n\nThis guide shows you how to instrument your application so that its execution appears as detailed traces in Weave. Traces help you debug, evaluate, and monitor LLM-powered code by capturing inputs, outputs, and the structure of each operation as a Call.\n\nTo see your running code as detailed traces in Weave, you create Calls. The following sections describe the three main ways to do this, from least to most manual:\n\n* Automatic tracking of LLM library calls.\n* Tracking of custom functions with `weave.op`.\n* Manual Call tracking using the API directly.\n\nChoose the approach that fits how much control you need over what gets traced.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Trace your code"
+            },
+            {
+              "section": 1,
+              "heading": "Automatic tracking of LLM library calls"
+            },
+            {
+              "section": 2,
+              "heading": "Track custom functions"
+            },
+            {
+              "section": 3,
+              "heading": "Track class and object methods"
+            },
+            {
+              "section": 4,
+              "heading": "Trace parallel (multi-threaded) function calls"
+            },
+            {
+              "section": 5,
+              "heading": "Manual Call tracking"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "outgoing_links": [
+            {
+              "page_id": "guides/integrations",
+              "title": "Integrations overview"
+            },
+            {
+              "page_id": "guides/integrations/js",
+              "title": "TypeScript SDK: third-party integration guide"
+            },
+            {
+              "page_id": "guides/integrations/autopatching",
+              "title": "Control automatic LLM call tracking"
+            }
+          ],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "reference/python-sdk/trace/weave_client",
+          "section": 27
+        },
+        "result": {
+          "source_id": "S6",
+          "page_id": "reference/python-sdk/trace/weave_client",
+          "section": 27,
+          "title": "weave_client",
+          "heading": "<kbd>method</kbd> `flush`",
+          "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/weave_client",
+          "page_sha256": "4a55edebc27f64ad25e1c39375938004b243bebecfb6b9e95d4902f1020bf5a7",
+          "text": "### <kbd>method</kbd> `flush`\n\n```python theme={\"system\"}\nflush() \u2192 None\n```\n\nFlushes background asynchronous tasks, safe to call multiple times.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/telemetry/trace_sentry.py#L568)\n\n",
+          "page_context": "# weave_client\n\n> Python SDK reference for weave.trace.weave_client\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "weave_client"
+            },
+            {
+              "section": 1,
+              "heading": "API Overview"
+            },
+            {
+              "section": 2,
+              "heading": "<kbd>class</kbd> `CrossProjectRefError`"
+            },
+            {
+              "section": 3,
+              "heading": "<kbd>class</kbd> `FlushStatus`"
+            },
+            {
+              "section": 4,
+              "heading": "<kbd>class</kbd> `NoInternalProjectIDError`"
+            },
+            {
+              "section": 5,
+              "heading": "<kbd>class</kbd> `PendingJobCounts`"
+            },
+            {
+              "section": 6,
+              "heading": "<kbd>class</kbd> `WeaveClient`"
+            },
+            {
+              "section": 7,
+              "heading": "<kbd>method</kbd> `__init__`"
+            },
+            {
+              "section": 8,
+              "heading": "<kbd>property</kbd> num\\_outstanding\\_jobs"
+            },
+            {
+              "section": 9,
+              "heading": "<kbd>property</kbd> project\\_id"
+            },
+            {
+              "section": 10,
+              "heading": "<kbd>method</kbd> `add_calls_to_annotation_queue`"
+            },
+            {
+              "section": 11,
+              "heading": "<kbd>method</kbd> `add_cost`"
+            },
+            {
+              "section": 12,
+              "heading": "<kbd>method</kbd> `add_tags`"
+            },
+            {
+              "section": 13,
+              "heading": "<kbd>method</kbd> `clear_wandb_run_context`"
+            },
+            {
+              "section": 14,
+              "heading": "<kbd>method</kbd> `create_annotation_queue`"
+            },
+            {
+              "section": 15,
+              "heading": "<kbd>method</kbd> `create_call`"
+            },
+            {
+              "section": 16,
+              "heading": "<kbd>method</kbd> `delete_all_object_versions`"
+            },
+            {
+              "section": 17,
+              "heading": "<kbd>method</kbd> `delete_all_op_versions`"
+            },
+            {
+              "section": 18,
+              "heading": "<kbd>method</kbd> `delete_annotation_queue`"
+            },
+            {
+              "section": 19,
+              "heading": "<kbd>method</kbd> `delete_call`"
+            },
+            {
+              "section": 20,
+              "heading": "<kbd>method</kbd> `delete_calls`"
+            },
+            {
+              "section": 21,
+              "heading": "<kbd>method</kbd> `delete_object_version`"
+            },
+            {
+              "section": 22,
+              "heading": "<kbd>method</kbd> `delete_object_versions`"
+            },
+            {
+              "section": 23,
+              "heading": "<kbd>method</kbd> `delete_op_version`"
+            },
+            {
+              "section": 24,
+              "heading": "<kbd>method</kbd> `fail_call`"
+            },
+            {
+              "section": 25,
+              "heading": "<kbd>method</kbd> `finish`"
+            },
+            {
+              "section": 26,
+              "heading": "<kbd>method</kbd> `finish_call`"
+            },
+            {
+              "section": 27,
+              "heading": "<kbd>method</kbd> `flush`"
+            },
+            {
+              "section": 28,
+              "heading": "<kbd>method</kbd> `get`"
+            },
+            {
+              "section": 29,
+              "heading": "<kbd>method</kbd> `get_agent_custom_attributes`"
+            },
+            {
+              "section": 30,
+              "heading": "<kbd>method</kbd> `get_agent_span_stats`"
+            },
+            {
+              "section": 31,
+              "heading": "<kbd>method</kbd> `get_agent_spans`"
+            },
+            {
+              "section": 32,
+              "heading": "<kbd>method</kbd> `get_agent_turn`"
+            },
+            {
+              "section": 33,
+              "heading": "<kbd>method</kbd> `get_agent_turns`"
+            },
+            {
+              "section": 34,
+              "heading": "<kbd>method</kbd> `get_agent_versions`"
+            },
+            {
+              "section": 35,
+              "heading": "<kbd>method</kbd> `get_agents`"
+            },
+            {
+              "section": 36,
+              "heading": "<kbd>method</kbd> `get_aliases`"
+            },
+            {
+              "section": 37,
+              "heading": "<kbd>method</kbd> `get_annotation_queue`"
+            },
+            {
+              "section": 38,
+              "heading": "<kbd>method</kbd> `get_annotation_queue_stats`"
+            },
+            {
+              "section": 39,
+              "heading": "<kbd>method</kbd> `get_call`"
+            },
+            {
+              "section": 40,
+              "heading": "<kbd>method</kbd> `get_calls`"
+            },
+            {
+              "section": 41,
+              "heading": "<kbd>method</kbd> `get_evaluation`"
+            },
+            {
+              "section": 42,
+              "heading": "<kbd>method</kbd> `get_evaluations`"
+            },
+            {
+              "section": 43,
+              "heading": "<kbd>method</kbd> `get_feedback`"
+            },
+            {
+              "section": 44,
+              "heading": "<kbd>method</kbd> `get_tags`"
+            },
+            {
+              "section": 45,
+              "heading": "<kbd>method</kbd> `get_tags_and_aliases`"
+            },
+            {
+              "section": 46,
+              "heading": "<kbd>method</kbd> `link_prompt_to_registry`"
+            },
+            {
+              "section": 47,
+              "heading": "<kbd>method</kbd> `list_aliases`"
+            },
+            {
+              "section": 48,
+              "heading": "<kbd>method</kbd> `list_annotation_queue_items`"
+            },
+            {
+              "section": 49,
+              "heading": "<kbd>method</kbd> `list_annotation_queues`"
+            },
+            {
+              "section": 50,
+              "heading": "<kbd>method</kbd> `list_tags`"
+            },
+            {
+              "section": 51,
+              "heading": "<kbd>method</kbd> `purge_costs`"
+            },
+            {
+              "section": 52,
+              "heading": "<kbd>method</kbd> `query_costs`"
+            },
+            {
+              "section": 53,
+              "heading": "<kbd>method</kbd> `remove_aliases`"
+            },
+            {
+              "section": 54,
+              "heading": "<kbd>method</kbd> `remove_tags`"
+            },
+            {
+              "section": 55,
+              "heading": "<kbd>method</kbd> `save`"
+            },
+            {
+              "section": 56,
+              "heading": "<kbd>method</kbd> `search_agents`"
+            },
+            {
+              "section": 57,
+              "heading": "<kbd>method</kbd> `set_aliases`"
+            },
+            {
+              "section": 58,
+              "heading": "<kbd>method</kbd> `set_wandb_run_context`"
+            },
+            {
+              "section": 59,
+              "heading": "<kbd>method</kbd> `update_annotation_queue`"
+            },
+            {
+              "section": 60,
+              "heading": "<kbd>function</kbd> `get_obj_name`"
+            },
+            {
+              "section": 61,
+              "heading": "<kbd>function</kbd> `get_parallelism_settings`"
+            },
+            {
+              "section": 62,
+              "heading": "<kbd>function</kbd> `map_to_refs`"
+            },
+            {
+              "section": 63,
+              "heading": "<kbd>function</kbd> `print_call_link`"
+            },
+            {
+              "section": 64,
+              "heading": "<kbd>function</kbd> `redact_sensitive_keys`"
+            },
+            {
+              "section": 65,
+              "heading": "<kbd>function</kbd> `sanitize_object_name`"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "outgoing_links": [],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "kind": "clarification",
+          "answer": "I can't say for sure yet, because the fix depends on how you send traces. **How are you tracing: the Python SDK, the TypeScript SDK, OpenTelemetry (OTel, an open tracing standard), or an agent plugin?** Each one fails in different ways.\n\nIn the meantime, these are the most common causes:\n\n- **`weave.init()` was never called.** Weave only traces calls to supported LLM libraries (such as `openai` or `anthropic`) after you import the library and initialize your project with `weave.init('your-project')` [S5].\n- **Your own functions aren't marked for tracing.** Custom code only shows up if you decorate it with `@weave.op` in Python or wrap it with `weave.op(...)` in TypeScript [S1].\n- **The program exits before traces are sent.** Weave sends data in the background. In TypeScript, await `client.flush()` before `process.exit()` [S3]. In Python, `flush()` finishes background tasks and is safe to call more than once [S6].\n- **TypeScript automatic tracing isn't working.** Projects that use ES modules (ESM), bundlers such as Next.js, or restricted runtimes can stop Weave from attaching to libraries automatically. The integration guide's troubleshooting section covers fixes [S4].\n- **OTel spans are going to a different view.** Spans sent to the older OTel endpoint, including OpenInference spans, appear under **Traces**, not **Agents**. For the Agents view, use the `/agents/otel/v1/traces` endpoint [S2]. Also check that your entity (team name), project and `wandb-api-key` header are set. In TypeScript, call `provider.shutdown()` before exit so pending spans get sent [S2].\n\nTell me your setup and which view you're checking (**Traces** or **Agents**), and I'll narrow it down.",
+          "source_ids": [
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "S6"
+          ]
+        },
+        "result": {
+          "passed": false,
+          "issues": [
+            "The OTel bullet is misleading. It groups OpenInference spans with the legacy endpoint, then says to use `/agents/otel/v1/traces` for the Agents view. That suggests switching endpoints would make OpenInference spans appear in Agents. S2 says OpenInference spans render in the Traces view only, and that the Agents view is built from spans that follow the OTel GenAI semantic conventions. Correction: say the legacy endpoint feeds the Traces and Threads views. Also say that for the Agents view you need both the agents endpoint and spans shaped to the GenAI semantic conventions. OpenInference spans show only in Traces either way."
+          ],
+          "missing_parts": [],
+          "mode": "support",
+          "status": "failed"
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "kind": "clarification",
+          "answer": "I can't say for sure yet, because the fix depends on how you send traces. **How are you tracing: the Python SDK, the TypeScript SDK, OpenTelemetry (OTel, an open tracing standard), or an agent plugin? And which view are you checking, Traces or Agents?** Each setup fails in different ways.\n\nIn the meantime, these are the most common causes:\n\n- **`weave.init()` was never called.** Weave only traces calls to supported LLM libraries (such as `openai` or `anthropic`) after you import the library and initialize your project with `weave.init('your-project')` [S5].\n- **Your own functions aren't marked for tracing.** Custom code only shows up if you decorate it with `@weave.op` in Python or wrap it with `weave.op(...)` in TypeScript [S1].\n- **The program exits before traces are sent.** Weave sends data in the background. In TypeScript, await `client.flush()` before `process.exit()` [S3]. In Python, `flush()` finishes background tasks and is safe to call more than once [S6].\n- **TypeScript automatic tracing isn't working.** Projects that use ES modules (ESM), bundlers such as Next.js, or restricted runtimes can stop Weave from attaching to libraries automatically. The integration guide's troubleshooting section covers fixes [S4].\n- **OTel spans are going to a different view.** The older OTel endpoint feeds the **Traces** and **Threads** views. The **Agents** view needs two things: the agents endpoint, and spans that follow the OTel GenAI semantic conventions (a standard naming scheme for AI spans). OpenInference spans appear only in **Traces**, whichever endpoint you use [S2]. Also check that your entity (team name), project and `wandb-api-key` header are set. In TypeScript, call `provider.shutdown()` before exit so pending spans get sent [S2].\n\nTell me your setup and I'll narrow it down.",
+          "source_ids": [
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "S6"
+          ]
+        },
+        "result": {
+          "passed": false,
+          "issues": [
+            "Asking about the setup is justified here, but the claim that custom code 'only shows up' with `@weave.op` / `weave.op(...)` goes too far. S1's page context also lists manual Call tracking through the API as a third way to create traces. Drop 'only' or mention manual Call tracking.",
+            "The claim that OpenInference spans appear only in Traces 'whichever endpoint you use' isn't supported. S2's note sits on the legacy-endpoint page and doesn't cover what happens when OpenInference spans go to the agents endpoint. Remove 'whichever endpoint you use', or read the agents-endpoint page (guides/tracking/trace-agents-otel) to back it up."
+          ],
+          "missing_parts": [],
+          "mode": "support",
+          "status": "failed"
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "kind": "clarification",
+          "answer": "I can't say for sure yet, because the fix depends on how you send traces. **How are you tracing: the Python SDK, the TypeScript SDK, OpenTelemetry (OTel, an open tracing standard), or an agent plugin? And which view are you checking, Traces or Agents?** Each setup fails in different ways.\n\nIn the meantime, these are the most common causes:\n\n- **`weave.init()` was never called.** Weave only traces calls to supported LLM libraries (such as `openai` or `anthropic`) after you import the library and initialize your project with `weave.init('your-project')` [S5].\n- **Your own functions aren't marked for tracing.** To trace custom code, decorate it with `@weave.op` in Python or wrap it with `weave.op(...)` in TypeScript. You can also create Calls manually through the API [S1].\n- **The program exits before traces are sent.** Weave sends data in the background. In TypeScript, await `client.flush()` before `process.exit()` [S3]. In Python, `flush()` finishes background tasks and is safe to call more than once [S6].\n- **TypeScript automatic tracing isn't working.** Projects that use ES modules (ESM), bundlers such as Next.js, or restricted runtimes can stop Weave from attaching to libraries automatically. The integration guide's troubleshooting section covers fixes [S4].\n- **OTel spans are going to a different view.** The older OTel endpoint feeds the **Traces** and **Threads** views, and OpenInference spans sent there appear in **Traces**, not **Agents**. The Agents view builds conversations from spans that follow the OTel GenAI semantic conventions (a standard naming scheme for AI spans), sent to the agents endpoint [S2]. Also check that your entity (team name), project and `wandb-api-key` header are set. In TypeScript, call `provider.shutdown()` before exit so pending spans get sent [S2].\n\nTell me your setup and I'll narrow it down.",
+          "source_ids": [
+            "S1",
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "S6"
+          ]
+        },
+        "result": {
+          "passed": true,
+          "issues": [],
+          "missing_parts": [],
+          "mode": "support",
+          "status": "passed"
+        },
+        "origin": "provider_tool_call"
+      }
+    ],
+    "task_complete": false,
+    "missing_outcomes": [],
+    "completion_status": "awaiting_user",
+    "review_reason": "none",
+    "conversation_context": [],
+    "conversation_id": "c96edcd7-f63b-4aae-8a7c-bfbe109ad78a",
+    "trace_id": "b5f1b5b875659598e43bfacece1f66a5",
+    "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/c96edcd7-f63b-4aae-8a7c-bfbe109ad78a",
+    "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+    "source_sha256": "b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0",
+    "prompt_sha256": "0db790fffbb9edc24333d987516f479c1bd7cab6aaf0ad382a836264c6a00a9c",
+    "config_sha256": "40d8a7bacd0c2eb781964747644ff5335f6e517841b0105821b87cc0fd0b42ca",
+    "citation_contract_version": 3,
+    "verification_contract_version": 6,
+    "verify_mode": "support",
+    "cache_enabled": true,
+    "model": "claude-opus-5-5",
+    "elapsed_seconds": 63.2,
+    "metrics": {
+      "calls": [
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgXNuMQgvjTzHjaMQER6E",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 133
+            },
+            "cache_creation_input_tokens": 133,
+            "cache_read_input_tokens": 2171,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 111,
+            "output_tokens_details": {
+              "thinking_tokens": 51
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.0175,
+          "estimated_usd": 0.0033352
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgXNuVdo5RiGzJbZdtqrh",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1784
+            },
+            "cache_creation_input_tokens": 1784,
+            "cache_read_input_tokens": 2304,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 160,
+            "output_tokens_details": {
+              "thinking_tokens": 44
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.2807,
+          "estimated_usd": 0.0125968
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgXNufWcRe79kqGzyfnzn",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 5191
+            },
+            "cache_creation_input_tokens": 5191,
+            "cache_read_input_tokens": 4088,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 325,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 4.0386,
+          "estimated_usd": 0.0332886
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgXNuxoRqhznhod2Lf7Gv",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 9851
+            },
+            "cache_creation_input_tokens": 9851,
+            "cache_read_input_tokens": 9279,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 201,
+            "output_tokens_details": {
+              "thinking_tokens": 39
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.857,
+          "estimated_usd": 0.0551468
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgXNvBFGhrpAi9i8rnNE2",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 4461
+            },
+            "cache_creation_input_tokens": 4461,
+            "cache_read_input_tokens": 19130,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 822,
+            "output_tokens_details": {
+              "thinking_tokens": 98
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 8.7243,
+          "estimated_usd": 0.042587
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgXNvpWd2qJKWLa9FPQvn",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 21328
+            },
+            "cache_creation_input_tokens": 21328,
+            "cache_read_input_tokens": 1663,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 1108,
+            "output_tokens_details": {
+              "thinking_tokens": 794
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 11.3513,
+          "estimated_usd": 0.1291486
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgXNwfPiZQ8XuEhkQ6mGo",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1132
+            },
+            "cache_creation_input_tokens": 1132,
+            "cache_read_input_tokens": 23591,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 764,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 6.3264,
+          "estimated_usd": 0.0256742
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgXNx884N2EAeJRmwb4LN",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 21364
+            },
+            "cache_creation_input_tokens": 21364,
+            "cache_read_input_tokens": 1663,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 1087,
+            "output_tokens_details": {
+              "thinking_tokens": 761
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 11.5143,
+          "estimated_usd": 0.1289086
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgXNxyJ1tGuSdzMY1fEcN",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1081
+            },
+            "cache_creation_input_tokens": 1081,
+            "cache_read_input_tokens": 24723,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 775,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 6.0139,
+          "estimated_usd": 0.0258656
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgXNyR5ZY2bGJDfrD73jH",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 21375
+            },
+            "cache_creation_input_tokens": 21375,
+            "cache_read_input_tokens": 1663,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 679,
+            "output_tokens_details": {
+              "thinking_tokens": 579
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 7.9953,
+          "estimated_usd": 0.1208036
+        }
+      ],
+      "model_calls": 10,
+      "tokens": {
+        "input_tokens": 40,
+        "output_tokens": 6032,
+        "cache_creation_input_tokens": 87700,
+        "cache_read_input_tokens": 90275
+      },
+      "total_input_tokens": 178015,
+      "estimated_usd": 0.577355,
+      "known_estimated_usd": 0.577355,
+      "unpriced_calls": 0,
+      "by_purpose": {
+        "planner": {
+          "calls": 7,
+          "known_estimated_usd": 0.19849419999999998
+        },
+        "verification": {
+          "calls": 3,
+          "known_estimated_usd": 0.3788608
+        }
+      },
+      "research": {
+        "searches": 3,
+        "passage_reads": 6,
+        "distinct_pages_read": 5,
+        "repeated_tool_requests": 0,
+        "drafts_submitted": 3,
+        "code_runs": 0
+      },
+      "pricing": {
+        "checked_at": "2026-10-25",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "rates": {
+          "claude-sonnet-5-5": {
+            "input": 2,
+            "output": 10,
+            "write_5m": 2.5,
+            "write_1h": 4,
+            "read": 0.1
+          },
+          "claude-opus-5-5": {
+            "input": 4,
+            "output": 20,
+            "write_5m": 5,
+            "write_1h": 8,
+            "read": 0.2
+          }
+        }
+      },
+      "scope": "Estimated from Claude's reported usage and published prices. Includes research and answer checks. Excludes Weave Signals, separate evaluation runs, hosting, taxes and any usage missing after failed requests or retries. We count requests made by the app, not every network attempt. Your final bill may differ."
+    },
+    "error_type": null
+  }
+}

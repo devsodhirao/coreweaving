@@ -1,0 +1,1678 @@
+{
+  "answer_id": "7a9a060e-2bc4-4616-9df9-b17db16190aa",
+  "question": "I changed both my assistant's instructions and its model settings. How do I keep those app revisions identifiable in Weave and inspect which individual test answers improved or regressed?",
+  "answer": "Put the assistant's instructions and model settings into a `weave.Model`. Then run the same `Evaluation` (a fixed set of test examples plus scoring functions) on each version, and compare the runs in the **Compare evaluations** view.\n\n**1. Keep each version identifiable**\n- A Weave `Model` combines settings (data) with the code that uses them. To create one, write a class that inherits from `weave.Model`, give every parameter a type, and add a typed `predict` method decorated with `@weave.op()`. Weave then records the model's settings, inputs and outputs each time you call `predict()` [S3].\n- When you change the model's parameters or code, Weave logs the change and creates a new version. You can then compare predictions across versions, which suits prompt changes and LLM swaps [S1].\n\n```python\nimport asyncio\nimport weave\n\nclass Assistant(weave.Model):\n    system_prompt: str\n    model_name: str\n    temperature: float\n\n    @weave.op()\n    def predict(self, question: str) -> dict:\n        # Call your LLM here using self.system_prompt, self.model_name, self.temperature\n        return {\"generated_text\": \"<MODEL_OUTPUT>\"}\n\nweave.init(\"<YOUR_PROJECT>\")\nevaluation = weave.Evaluation(dataset=examples, scorers=[my_scorer])  # placeholders\n\nv1 = Assistant(system_prompt=\"<OLD_INSTRUCTIONS>\", model_name=\"<OLD_MODEL>\", temperature=0.2)\nv2 = Assistant(system_prompt=\"<NEW_INSTRUCTIONS>\", model_name=\"<NEW_MODEL>\", temperature=0.7)\nasyncio.run(evaluation.evaluate(v1))\nasyncio.run(evaluation.evaluate(v2))\n```\nEach `.evaluate()` call runs `predict` on every example and scores each output with every scoring function [S6].\n\n**2. See which test answers improved or regressed**\n1. In the project sidebar, select **Evals**. Tick the checkbox for both runs, then select **Compare**. The leftmost run is the baseline, and every other run is compared against it [S5]. To use a different run as the reference, choose **Make baseline** from that run's action menu [S7].\n2. Open the **Dataset results** tab [S2]. Each row is one test example, showing its input next to each run's output and scores. Select a row to see the outputs side by side [S4].\n3. When you compare exactly two runs, the tab also shows scatter plots. Each point is one example, so examples whose scores differ between the runs stand out. Drag across a region of points to filter the table to those examples, and use the **Dimension** menu to choose which score each plot shows [S4].\n\n**Requirement:** both runs must use at least some of the same dataset rows. If they share no rows, the per-example table doesn't appear [S4]. Reusing one `Evaluation` dataset for both versions avoids this.",
+  "kind": "answer",
+  "source_ids": [
+    "S1",
+    "S2",
+    "S3",
+    "S4",
+    "S5",
+    "S6",
+    "S7"
+  ],
+  "sources": [
+    {
+      "source_id": "S1",
+      "page_id": "guides/core-types/models",
+      "section": 1,
+      "title": "Track application versions with models",
+      "heading": "Automatic versioning of models",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/models",
+      "page_sha256": "d0d388502c16b448a383256b1c9b0a882c681e769248bff61569e8b2cdf7e381",
+      "text": "## Automatic versioning of models\n\nWhen you change the parameters or the code that defines your model, Weave logs these changes and updates the version.\nThis lets you compare predictions across versions of your model. Use this to iterate on prompts or to try a different LLM and compare predictions across settings.\n\nFor example, here you create a new model:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='howdy', attribute2=10)\nmodel.predict('world')\n```\n\nAfter calling this, you see that you now have two versions of this model in the UI, each with different tracked calls.\n\n",
+      "page_context": "# Track application versions with models\n\n> Track versions of your application with structured models that combine data and code.\n\nA `Model` is a combination of data (which can include configuration, trained model weights, or other information) and code that defines how the model operates. By structuring your code to be compatible with this API, you benefit from a structured way to version your application so you can more systematically keep track of your experiments.\n\nThis guide shows you how to define a Weave `Model`, call it to capture inputs and outputs, take advantage of automatic versioning when your code or parameters change, serve the model behind a local API, and tag production calls for filtering. It's for developers who build LLM-powered applications with Weave and want a repeatable way to track and compare iterations of their app.\n\n**Python**\n\nTo create a model in Weave, you need the following:\n\n* A class that inherits from `weave.Model`\n* Type definitions on all parameters\n* A typed `predict` function with `@weave.op()` decorator\n\n```python lines theme={\"system\"}\nfrom weave import Model\nimport weave\n\nclass YourModel(Model):\n    attribute1: str\n    attribute2: int\n\n    @weave.op()\n    def predict(self, input_data: str) -> dict:\n        # Model logic goes here\n        prediction = self.attribute1 + ' ' + input_data\n        return {'pred': prediction}\n```\n\nYou can call the model as usual with:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='hello', attribute2=5)\nmodel.predict('world')\n```\n\nThis tracks the model settings along with the inputs and outputs anytime you call `predict()`. You now have a versioned Weave `Model` that records every prediction it makes, which the following sections build on.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Track application versions with models"
+        },
+        {
+          "section": 1,
+          "heading": "Automatic versioning of models"
+        },
+        {
+          "section": 2,
+          "heading": "Serve models"
+        },
+        {
+          "section": 3,
+          "heading": "Track production calls"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/evaluation/compare_evals",
+      "section": 2,
+      "title": "Compare evaluations",
+      "heading": "Review the comparison",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+      "page_sha256": "008f050d4af72f73cef23b5e4bf1a5e9f4335b39f5b9a0c20e1e9e3e8471bd98",
+      "text": "## Review the comparison\n\nThe Compare evaluations view has two tabs:\n\n* **Summary**: Aggregate charts for each metric on the compared evaluations, followed by a properties and metrics table.\n* **Dataset results**: A per-example results table for comparing outputs row by row, plus scatter plots for spotting divergences when you compare two evaluations.\n\n![Compare evaluations view comparing three evaluations. The Summary tab shows aggregate charts across the top and a properties and metrics table below.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/eval-compare.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=505481ff695757c31aed9975eb3df795)\n\n",
+      "page_context": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Compare evaluations"
+        },
+        {
+          "section": 1,
+          "heading": "Access the Compare evaluations view"
+        },
+        {
+          "section": 2,
+          "heading": "Review the comparison"
+        },
+        {
+          "section": 3,
+          "heading": "Summary tab"
+        },
+        {
+          "section": 4,
+          "heading": "Dataset results tab"
+        },
+        {
+          "section": 5,
+          "heading": "Customize the Compare evaluations view"
+        },
+        {
+          "section": 6,
+          "heading": "Set a baseline"
+        },
+        {
+          "section": 7,
+          "heading": "Change the comparison order"
+        },
+        {
+          "section": 8,
+          "heading": "Remove from comparison"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "guides/core-types/models",
+      "section": 0,
+      "title": "Track application versions with models",
+      "heading": "Track application versions with models",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/models",
+      "page_sha256": "d0d388502c16b448a383256b1c9b0a882c681e769248bff61569e8b2cdf7e381",
+      "text": "# Track application versions with models\n\n> Track versions of your application with structured models that combine data and code.\n\nA `Model` is a combination of data (which can include configuration, trained model weights, or other information) and code that defines how the model operates. By structuring your code to be compatible with this API, you benefit from a structured way to version your application so you can more systematically keep track of your experiments.\n\nThis guide shows you how to define a Weave `Model`, call it to capture inputs and outputs, take advantage of automatic versioning when your code or parameters change, serve the model behind a local API, and tag production calls for filtering. It's for developers who build LLM-powered applications with Weave and want a repeatable way to track and compare iterations of their app.\n\n**Python**\n\nTo create a model in Weave, you need the following:\n\n* A class that inherits from `weave.Model`\n* Type definitions on all parameters\n* A typed `predict` function with `@weave.op()` decorator\n\n```python lines theme={\"system\"}\nfrom weave import Model\nimport weave\n\nclass YourModel(Model):\n    attribute1: str\n    attribute2: int\n\n    @weave.op()\n    def predict(self, input_data: str) -> dict:\n        # Model logic goes here\n        prediction = self.attribute1 + ' ' + input_data\n        return {'pred': prediction}\n```\n\nYou can call the model as usual with:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='hello', attribute2=5)\nmodel.predict('world')\n```\n\nThis tracks the model settings along with the inputs and outputs anytime you call `predict()`. You now have a versioned Weave `Model` that records every prediction it makes, which the following sections build on.\n\n",
+      "page_context": "# Track application versions with models\n\n> Track versions of your application with structured models that combine data and code.\n\nA `Model` is a combination of data (which can include configuration, trained model weights, or other information) and code that defines how the model operates. By structuring your code to be compatible with this API, you benefit from a structured way to version your application so you can more systematically keep track of your experiments.\n\nThis guide shows you how to define a Weave `Model`, call it to capture inputs and outputs, take advantage of automatic versioning when your code or parameters change, serve the model behind a local API, and tag production calls for filtering. It's for developers who build LLM-powered applications with Weave and want a repeatable way to track and compare iterations of their app.\n\n**Python**\n\nTo create a model in Weave, you need the following:\n\n* A class that inherits from `weave.Model`\n* Type definitions on all parameters\n* A typed `predict` function with `@weave.op()` decorator\n\n```python lines theme={\"system\"}\nfrom weave import Model\nimport weave\n\nclass YourModel(Model):\n    attribute1: str\n    attribute2: int\n\n    @weave.op()\n    def predict(self, input_data: str) -> dict:\n        # Model logic goes here\n        prediction = self.attribute1 + ' ' + input_data\n        return {'pred': prediction}\n```\n\nYou can call the model as usual with:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='hello', attribute2=5)\nmodel.predict('world')\n```\n\nThis tracks the model settings along with the inputs and outputs anytime you call `predict()`. You now have a versioned Weave `Model` that records every prediction it makes, which the following sections build on.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Track application versions with models"
+        },
+        {
+          "section": 1,
+          "heading": "Automatic versioning of models"
+        },
+        {
+          "section": 2,
+          "heading": "Serve models"
+        },
+        {
+          "section": 3,
+          "heading": "Track production calls"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S4",
+      "page_id": "guides/evaluation/compare_evals",
+      "section": 4,
+      "title": "Compare evaluations",
+      "heading": "Dataset results tab",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+      "page_sha256": "008f050d4af72f73cef23b5e4bf1a5e9f4335b39f5b9a0c20e1e9e3e8471bd98",
+      "text": "### Dataset results tab\n\nSelect **Dataset results** to compare individual dataset examples across the selected evaluations. Each row corresponds to one dataset example and shows the dataset input alongside each evaluation's output and scorer metrics, so you can inspect where a specific example diverges. Select a row to open a side-by-side detail view.\n\nWhen you compare exactly two evaluations, the tab shows two scatter plots above the table. In each plot, a point represents a dataset example, positioned by its metric value in each of the two evaluations, so examples where the evaluations diverge stand out. Select (brush) a region of points to filter the examples shown in the table, and use the **Dimension** menu on each plot to choose which metric it plots.\n\nThe Dataset results tab requires that the compared evaluations share dataset rows. If their datasets have no rows in common, no results table is displayed.\n\n",
+      "page_context": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Compare evaluations"
+        },
+        {
+          "section": 1,
+          "heading": "Access the Compare evaluations view"
+        },
+        {
+          "section": 2,
+          "heading": "Review the comparison"
+        },
+        {
+          "section": 3,
+          "heading": "Summary tab"
+        },
+        {
+          "section": 4,
+          "heading": "Dataset results tab"
+        },
+        {
+          "section": 5,
+          "heading": "Customize the Compare evaluations view"
+        },
+        {
+          "section": 6,
+          "heading": "Set a baseline"
+        },
+        {
+          "section": 7,
+          "heading": "Change the comparison order"
+        },
+        {
+          "section": 8,
+          "heading": "Remove from comparison"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S5",
+      "page_id": "guides/evaluation/compare_evals",
+      "section": 1,
+      "title": "Compare evaluations",
+      "heading": "Access the Compare evaluations view",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+      "page_sha256": "008f050d4af72f73cef23b5e4bf1a5e9f4335b39f5b9a0c20e1e9e3e8471bd98",
+      "text": "## Access the Compare evaluations view\n\nTo open the Compare evaluations view:\n\n1. In the Weave project sidebar, select **Evals**.\n2. In the evaluations table, select the checkboxes for two or more evaluations that you want to compare.\n3. In the evaluation table toolbar, select **Compare**.\n\n![Evaluations table with three evaluations selected. The Compare action is highlighted in the evaluation table toolbar.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/eval-compare-select.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=7d5a3c7bdd130ca55e48aa0c8a065707)\n\nThe **Compare evaluations** view opens with each selected evaluation displayed as a token in the *comparison bar* at the top of the page. The leftmost evaluation is the baseline by default, and each other evaluation is compared against it.\n\n",
+      "page_context": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Compare evaluations"
+        },
+        {
+          "section": 1,
+          "heading": "Access the Compare evaluations view"
+        },
+        {
+          "section": 2,
+          "heading": "Review the comparison"
+        },
+        {
+          "section": 3,
+          "heading": "Summary tab"
+        },
+        {
+          "section": 4,
+          "heading": "Dataset results tab"
+        },
+        {
+          "section": 5,
+          "heading": "Customize the Compare evaluations view"
+        },
+        {
+          "section": 6,
+          "heading": "Set a baseline"
+        },
+        {
+          "section": 7,
+          "heading": "Change the comparison order"
+        },
+        {
+          "section": 8,
+          "heading": "Remove from comparison"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S6",
+      "page_id": "guides/core-types/evaluations",
+      "section": 8,
+      "title": "Evaluations overview",
+      "heading": "Define a model or function to evaluate",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+      "page_sha256": "d8b701427b175b5c29906e40d24de0c1aa1bdb8c7ce862f8adfd68602e986b15",
+      "text": "## Define a model or function to evaluate\n\n**Python**\n\nTo evaluate a `Model`, call `.evaluate()` using an `Evaluation`. Use `Model` objects when you have parameters that you want to experiment with and capture in Weave.\n\n```python lines theme={\"system\"}\nfrom weave import Model, Evaluation\nimport asyncio\n\nclass MyModel(Model):\n    prompt: str\n\n    @weave.op()\n    def predict(self, question: str):\n        # here's where you would add your LLM call and return the output\n        return {'generated_text': 'Hello, ' + self.prompt}\n\nmodel = MyModel(prompt='World')\n\nevaluation = Evaluation(\n    dataset=examples, scorers=[match_score1]\n)\nweave.init('intro-example') # begin tracking results with weave\nasyncio.run(evaluation.evaluate(model))\n```\n\nThis runs `predict` on each example and scores the output with each scoring function.\n\n",
+      "page_context": "# Evaluations overview\n\n> Evaluation-driven LLM application development to systematically improve applications\n\n*Evaluation-driven LLM application development* helps you systematically improve LLM applications by measuring their behavior using consistent, curated examples.\n\nThis guide shows you how to set up and run evaluations in Weave so you can measure your LLM application's performance against repeatable test cases, compare changes over time, and identify regressions. It's intended for developers building LLM applications who want to move beyond ad hoc testing into a structured, measurable workflow.\n\n**Python**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or list of dictionaries for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n* Optional configuration like [input preprocessing](#format-dataset-rows-before-evaluating).\n\nOnce you've defined the `Evaluation`, you can run it against a [`Model`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/models) object or any custom function containing LLM application logic. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and each run as a measurement of how your application performs under that setup.\n\n**TypeScript**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or array of objects for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n\nOnce you've defined the `Evaluation`, you can run it against any function wrapped with `weave.op`. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and eac",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Evaluations overview"
+        },
+        {
+          "section": 1,
+          "heading": "Create an `Evaluation` object"
+        },
+        {
+          "section": 2,
+          "heading": "Optional: Custom naming"
+        },
+        {
+          "section": 3,
+          "heading": "Name the `Evaluation` object"
+        },
+        {
+          "section": 4,
+          "heading": "Name individual evaluation runs"
+        },
+        {
+          "section": 5,
+          "heading": "Define a dataset of test examples"
+        },
+        {
+          "section": 6,
+          "heading": "Define scoring functions"
+        },
+        {
+          "section": 7,
+          "heading": "Optional: Define a custom `Scorer` class"
+        },
+        {
+          "section": 8,
+          "heading": "Define a model or function to evaluate"
+        },
+        {
+          "section": 9,
+          "heading": "Optional: Define a function to evaluate"
+        },
+        {
+          "section": 10,
+          "heading": "Run the evaluation"
+        },
+        {
+          "section": 11,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 12,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 13,
+          "heading": "Full evaluation code example"
+        },
+        {
+          "section": 14,
+          "heading": "Advanced evaluation usage"
+        },
+        {
+          "section": 15,
+          "heading": "Format dataset rows before evaluating"
+        },
+        {
+          "section": 16,
+          "heading": "Use HuggingFace datasets with evaluations"
+        },
+        {
+          "section": 17,
+          "heading": "Saved views"
+        },
+        {
+          "section": 18,
+          "heading": "Imperative evaluations (`EvaluationLogger`)"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/datasets",
+          "title": "Collect and track datasets"
+        },
+        {
+          "page_id": "guides/evaluation/scorers",
+          "title": "Scoring overview"
+        },
+        {
+          "page_id": "guides/core-types/models",
+          "title": "Track application versions with models"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S7",
+      "page_id": "guides/evaluation/compare_evals",
+      "section": 6,
+      "title": "Compare evaluations",
+      "heading": "Set a baseline",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+      "page_sha256": "008f050d4af72f73cef23b5e4bf1a5e9f4335b39f5b9a0c20e1e9e3e8471bd98",
+      "text": "### Set a baseline\n\nBy default, the leftmost evaluation in the comparison bar is the baseline, and every other evaluation is compared against it. You can designate a different evaluation as the baseline when you want a specific evaluation as the reference point for all comparisons.\n\nTo set an evaluation as the baseline:\n\n1. In the comparison bar, hold the pointer over the evaluation that you want to set as the baseline.\n\n2. Click the **action ()** menu to the right of the ID.\n\n   ![Compare evaluations view showing the Make baseline option for the selected evaluation in the comparison bar.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/comparison-evals-baseline.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=10298683a2c51934364eefaf670fe759)\n\n3. In the list, select **Make baseline**. The UI refreshes with the baseline evaluation in the leftmost position in the comparison bar and `Baseline` next to the ID.\n\n   ![Compare evaluations view showing the selected baseline evaluation in the leftmost position of the comparison bar.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/comparison-evals-baseline-set.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=cbf25c81ea0e6ffd6e4529fe3d78446f)\n\n",
+      "page_context": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Compare evaluations"
+        },
+        {
+          "section": 1,
+          "heading": "Access the Compare evaluations view"
+        },
+        {
+          "section": 2,
+          "heading": "Review the comparison"
+        },
+        {
+          "section": 3,
+          "heading": "Summary tab"
+        },
+        {
+          "section": 4,
+          "heading": "Dataset results tab"
+        },
+        {
+          "section": 5,
+          "heading": "Customize the Compare evaluations view"
+        },
+        {
+          "section": 6,
+          "heading": "Set a baseline"
+        },
+        {
+          "section": 7,
+          "heading": "Change the comparison order"
+        },
+        {
+          "section": 8,
+          "heading": "Remove from comparison"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "all_read_evidence": [
+    {
+      "source_id": "S1",
+      "page_id": "guides/core-types/models",
+      "section": 1,
+      "title": "Track application versions with models",
+      "heading": "Automatic versioning of models",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/models",
+      "page_sha256": "d0d388502c16b448a383256b1c9b0a882c681e769248bff61569e8b2cdf7e381",
+      "text": "## Automatic versioning of models\n\nWhen you change the parameters or the code that defines your model, Weave logs these changes and updates the version.\nThis lets you compare predictions across versions of your model. Use this to iterate on prompts or to try a different LLM and compare predictions across settings.\n\nFor example, here you create a new model:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='howdy', attribute2=10)\nmodel.predict('world')\n```\n\nAfter calling this, you see that you now have two versions of this model in the UI, each with different tracked calls.\n\n",
+      "page_context": "# Track application versions with models\n\n> Track versions of your application with structured models that combine data and code.\n\nA `Model` is a combination of data (which can include configuration, trained model weights, or other information) and code that defines how the model operates. By structuring your code to be compatible with this API, you benefit from a structured way to version your application so you can more systematically keep track of your experiments.\n\nThis guide shows you how to define a Weave `Model`, call it to capture inputs and outputs, take advantage of automatic versioning when your code or parameters change, serve the model behind a local API, and tag production calls for filtering. It's for developers who build LLM-powered applications with Weave and want a repeatable way to track and compare iterations of their app.\n\n**Python**\n\nTo create a model in Weave, you need the following:\n\n* A class that inherits from `weave.Model`\n* Type definitions on all parameters\n* A typed `predict` function with `@weave.op()` decorator\n\n```python lines theme={\"system\"}\nfrom weave import Model\nimport weave\n\nclass YourModel(Model):\n    attribute1: str\n    attribute2: int\n\n    @weave.op()\n    def predict(self, input_data: str) -> dict:\n        # Model logic goes here\n        prediction = self.attribute1 + ' ' + input_data\n        return {'pred': prediction}\n```\n\nYou can call the model as usual with:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='hello', attribute2=5)\nmodel.predict('world')\n```\n\nThis tracks the model settings along with the inputs and outputs anytime you call `predict()`. You now have a versioned Weave `Model` that records every prediction it makes, which the following sections build on.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Track application versions with models"
+        },
+        {
+          "section": 1,
+          "heading": "Automatic versioning of models"
+        },
+        {
+          "section": 2,
+          "heading": "Serve models"
+        },
+        {
+          "section": 3,
+          "heading": "Track production calls"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/evaluation/compare_evals",
+      "section": 2,
+      "title": "Compare evaluations",
+      "heading": "Review the comparison",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+      "page_sha256": "008f050d4af72f73cef23b5e4bf1a5e9f4335b39f5b9a0c20e1e9e3e8471bd98",
+      "text": "## Review the comparison\n\nThe Compare evaluations view has two tabs:\n\n* **Summary**: Aggregate charts for each metric on the compared evaluations, followed by a properties and metrics table.\n* **Dataset results**: A per-example results table for comparing outputs row by row, plus scatter plots for spotting divergences when you compare two evaluations.\n\n![Compare evaluations view comparing three evaluations. The Summary tab shows aggregate charts across the top and a properties and metrics table below.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/eval-compare.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=505481ff695757c31aed9975eb3df795)\n\n",
+      "page_context": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Compare evaluations"
+        },
+        {
+          "section": 1,
+          "heading": "Access the Compare evaluations view"
+        },
+        {
+          "section": 2,
+          "heading": "Review the comparison"
+        },
+        {
+          "section": 3,
+          "heading": "Summary tab"
+        },
+        {
+          "section": 4,
+          "heading": "Dataset results tab"
+        },
+        {
+          "section": 5,
+          "heading": "Customize the Compare evaluations view"
+        },
+        {
+          "section": 6,
+          "heading": "Set a baseline"
+        },
+        {
+          "section": 7,
+          "heading": "Change the comparison order"
+        },
+        {
+          "section": 8,
+          "heading": "Remove from comparison"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "guides/core-types/models",
+      "section": 0,
+      "title": "Track application versions with models",
+      "heading": "Track application versions with models",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/models",
+      "page_sha256": "d0d388502c16b448a383256b1c9b0a882c681e769248bff61569e8b2cdf7e381",
+      "text": "# Track application versions with models\n\n> Track versions of your application with structured models that combine data and code.\n\nA `Model` is a combination of data (which can include configuration, trained model weights, or other information) and code that defines how the model operates. By structuring your code to be compatible with this API, you benefit from a structured way to version your application so you can more systematically keep track of your experiments.\n\nThis guide shows you how to define a Weave `Model`, call it to capture inputs and outputs, take advantage of automatic versioning when your code or parameters change, serve the model behind a local API, and tag production calls for filtering. It's for developers who build LLM-powered applications with Weave and want a repeatable way to track and compare iterations of their app.\n\n**Python**\n\nTo create a model in Weave, you need the following:\n\n* A class that inherits from `weave.Model`\n* Type definitions on all parameters\n* A typed `predict` function with `@weave.op()` decorator\n\n```python lines theme={\"system\"}\nfrom weave import Model\nimport weave\n\nclass YourModel(Model):\n    attribute1: str\n    attribute2: int\n\n    @weave.op()\n    def predict(self, input_data: str) -> dict:\n        # Model logic goes here\n        prediction = self.attribute1 + ' ' + input_data\n        return {'pred': prediction}\n```\n\nYou can call the model as usual with:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='hello', attribute2=5)\nmodel.predict('world')\n```\n\nThis tracks the model settings along with the inputs and outputs anytime you call `predict()`. You now have a versioned Weave `Model` that records every prediction it makes, which the following sections build on.\n\n",
+      "page_context": "# Track application versions with models\n\n> Track versions of your application with structured models that combine data and code.\n\nA `Model` is a combination of data (which can include configuration, trained model weights, or other information) and code that defines how the model operates. By structuring your code to be compatible with this API, you benefit from a structured way to version your application so you can more systematically keep track of your experiments.\n\nThis guide shows you how to define a Weave `Model`, call it to capture inputs and outputs, take advantage of automatic versioning when your code or parameters change, serve the model behind a local API, and tag production calls for filtering. It's for developers who build LLM-powered applications with Weave and want a repeatable way to track and compare iterations of their app.\n\n**Python**\n\nTo create a model in Weave, you need the following:\n\n* A class that inherits from `weave.Model`\n* Type definitions on all parameters\n* A typed `predict` function with `@weave.op()` decorator\n\n```python lines theme={\"system\"}\nfrom weave import Model\nimport weave\n\nclass YourModel(Model):\n    attribute1: str\n    attribute2: int\n\n    @weave.op()\n    def predict(self, input_data: str) -> dict:\n        # Model logic goes here\n        prediction = self.attribute1 + ' ' + input_data\n        return {'pred': prediction}\n```\n\nYou can call the model as usual with:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='hello', attribute2=5)\nmodel.predict('world')\n```\n\nThis tracks the model settings along with the inputs and outputs anytime you call `predict()`. You now have a versioned Weave `Model` that records every prediction it makes, which the following sections build on.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Track application versions with models"
+        },
+        {
+          "section": 1,
+          "heading": "Automatic versioning of models"
+        },
+        {
+          "section": 2,
+          "heading": "Serve models"
+        },
+        {
+          "section": 3,
+          "heading": "Track production calls"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S4",
+      "page_id": "guides/evaluation/compare_evals",
+      "section": 4,
+      "title": "Compare evaluations",
+      "heading": "Dataset results tab",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+      "page_sha256": "008f050d4af72f73cef23b5e4bf1a5e9f4335b39f5b9a0c20e1e9e3e8471bd98",
+      "text": "### Dataset results tab\n\nSelect **Dataset results** to compare individual dataset examples across the selected evaluations. Each row corresponds to one dataset example and shows the dataset input alongside each evaluation's output and scorer metrics, so you can inspect where a specific example diverges. Select a row to open a side-by-side detail view.\n\nWhen you compare exactly two evaluations, the tab shows two scatter plots above the table. In each plot, a point represents a dataset example, positioned by its metric value in each of the two evaluations, so examples where the evaluations diverge stand out. Select (brush) a region of points to filter the examples shown in the table, and use the **Dimension** menu on each plot to choose which metric it plots.\n\nThe Dataset results tab requires that the compared evaluations share dataset rows. If their datasets have no rows in common, no results table is displayed.\n\n",
+      "page_context": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Compare evaluations"
+        },
+        {
+          "section": 1,
+          "heading": "Access the Compare evaluations view"
+        },
+        {
+          "section": 2,
+          "heading": "Review the comparison"
+        },
+        {
+          "section": 3,
+          "heading": "Summary tab"
+        },
+        {
+          "section": 4,
+          "heading": "Dataset results tab"
+        },
+        {
+          "section": 5,
+          "heading": "Customize the Compare evaluations view"
+        },
+        {
+          "section": 6,
+          "heading": "Set a baseline"
+        },
+        {
+          "section": 7,
+          "heading": "Change the comparison order"
+        },
+        {
+          "section": 8,
+          "heading": "Remove from comparison"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S5",
+      "page_id": "guides/evaluation/compare_evals",
+      "section": 1,
+      "title": "Compare evaluations",
+      "heading": "Access the Compare evaluations view",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+      "page_sha256": "008f050d4af72f73cef23b5e4bf1a5e9f4335b39f5b9a0c20e1e9e3e8471bd98",
+      "text": "## Access the Compare evaluations view\n\nTo open the Compare evaluations view:\n\n1. In the Weave project sidebar, select **Evals**.\n2. In the evaluations table, select the checkboxes for two or more evaluations that you want to compare.\n3. In the evaluation table toolbar, select **Compare**.\n\n![Evaluations table with three evaluations selected. The Compare action is highlighted in the evaluation table toolbar.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/eval-compare-select.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=7d5a3c7bdd130ca55e48aa0c8a065707)\n\nThe **Compare evaluations** view opens with each selected evaluation displayed as a token in the *comparison bar* at the top of the page. The leftmost evaluation is the baseline by default, and each other evaluation is compared against it.\n\n",
+      "page_context": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Compare evaluations"
+        },
+        {
+          "section": 1,
+          "heading": "Access the Compare evaluations view"
+        },
+        {
+          "section": 2,
+          "heading": "Review the comparison"
+        },
+        {
+          "section": 3,
+          "heading": "Summary tab"
+        },
+        {
+          "section": 4,
+          "heading": "Dataset results tab"
+        },
+        {
+          "section": 5,
+          "heading": "Customize the Compare evaluations view"
+        },
+        {
+          "section": 6,
+          "heading": "Set a baseline"
+        },
+        {
+          "section": 7,
+          "heading": "Change the comparison order"
+        },
+        {
+          "section": 8,
+          "heading": "Remove from comparison"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S6",
+      "page_id": "guides/core-types/evaluations",
+      "section": 8,
+      "title": "Evaluations overview",
+      "heading": "Define a model or function to evaluate",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+      "page_sha256": "d8b701427b175b5c29906e40d24de0c1aa1bdb8c7ce862f8adfd68602e986b15",
+      "text": "## Define a model or function to evaluate\n\n**Python**\n\nTo evaluate a `Model`, call `.evaluate()` using an `Evaluation`. Use `Model` objects when you have parameters that you want to experiment with and capture in Weave.\n\n```python lines theme={\"system\"}\nfrom weave import Model, Evaluation\nimport asyncio\n\nclass MyModel(Model):\n    prompt: str\n\n    @weave.op()\n    def predict(self, question: str):\n        # here's where you would add your LLM call and return the output\n        return {'generated_text': 'Hello, ' + self.prompt}\n\nmodel = MyModel(prompt='World')\n\nevaluation = Evaluation(\n    dataset=examples, scorers=[match_score1]\n)\nweave.init('intro-example') # begin tracking results with weave\nasyncio.run(evaluation.evaluate(model))\n```\n\nThis runs `predict` on each example and scores the output with each scoring function.\n\n",
+      "page_context": "# Evaluations overview\n\n> Evaluation-driven LLM application development to systematically improve applications\n\n*Evaluation-driven LLM application development* helps you systematically improve LLM applications by measuring their behavior using consistent, curated examples.\n\nThis guide shows you how to set up and run evaluations in Weave so you can measure your LLM application's performance against repeatable test cases, compare changes over time, and identify regressions. It's intended for developers building LLM applications who want to move beyond ad hoc testing into a structured, measurable workflow.\n\n**Python**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or list of dictionaries for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n* Optional configuration like [input preprocessing](#format-dataset-rows-before-evaluating).\n\nOnce you've defined the `Evaluation`, you can run it against a [`Model`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/models) object or any custom function containing LLM application logic. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and each run as a measurement of how your application performs under that setup.\n\n**TypeScript**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or array of objects for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n\nOnce you've defined the `Evaluation`, you can run it against any function wrapped with `weave.op`. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and eac",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Evaluations overview"
+        },
+        {
+          "section": 1,
+          "heading": "Create an `Evaluation` object"
+        },
+        {
+          "section": 2,
+          "heading": "Optional: Custom naming"
+        },
+        {
+          "section": 3,
+          "heading": "Name the `Evaluation` object"
+        },
+        {
+          "section": 4,
+          "heading": "Name individual evaluation runs"
+        },
+        {
+          "section": 5,
+          "heading": "Define a dataset of test examples"
+        },
+        {
+          "section": 6,
+          "heading": "Define scoring functions"
+        },
+        {
+          "section": 7,
+          "heading": "Optional: Define a custom `Scorer` class"
+        },
+        {
+          "section": 8,
+          "heading": "Define a model or function to evaluate"
+        },
+        {
+          "section": 9,
+          "heading": "Optional: Define a function to evaluate"
+        },
+        {
+          "section": 10,
+          "heading": "Run the evaluation"
+        },
+        {
+          "section": 11,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 12,
+          "heading": "Optional: Run multiple trials"
+        },
+        {
+          "section": 13,
+          "heading": "Full evaluation code example"
+        },
+        {
+          "section": 14,
+          "heading": "Advanced evaluation usage"
+        },
+        {
+          "section": 15,
+          "heading": "Format dataset rows before evaluating"
+        },
+        {
+          "section": 16,
+          "heading": "Use HuggingFace datasets with evaluations"
+        },
+        {
+          "section": 17,
+          "heading": "Saved views"
+        },
+        {
+          "section": 18,
+          "heading": "Imperative evaluations (`EvaluationLogger`)"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/datasets",
+          "title": "Collect and track datasets"
+        },
+        {
+          "page_id": "guides/evaluation/scorers",
+          "title": "Scoring overview"
+        },
+        {
+          "page_id": "guides/core-types/models",
+          "title": "Track application versions with models"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S7",
+      "page_id": "guides/evaluation/compare_evals",
+      "section": 6,
+      "title": "Compare evaluations",
+      "heading": "Set a baseline",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+      "page_sha256": "008f050d4af72f73cef23b5e4bf1a5e9f4335b39f5b9a0c20e1e9e3e8471bd98",
+      "text": "### Set a baseline\n\nBy default, the leftmost evaluation in the comparison bar is the baseline, and every other evaluation is compared against it. You can designate a different evaluation as the baseline when you want a specific evaluation as the reference point for all comparisons.\n\nTo set an evaluation as the baseline:\n\n1. In the comparison bar, hold the pointer over the evaluation that you want to set as the baseline.\n\n2. Click the **action ()** menu to the right of the ID.\n\n   ![Compare evaluations view showing the Make baseline option for the selected evaluation in the comparison bar.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/comparison-evals-baseline.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=10298683a2c51934364eefaf670fe759)\n\n3. In the list, select **Make baseline**. The UI refreshes with the baseline evaluation in the leftmost position in the comparison bar and `Baseline` next to the ID.\n\n   ![Compare evaluations view showing the selected baseline evaluation in the leftmost position of the comparison bar.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/comparison-evals-baseline-set.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=cbf25c81ea0e6ffd6e4529fe3d78446f)\n\n",
+      "page_context": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Compare evaluations"
+        },
+        {
+          "section": 1,
+          "heading": "Access the Compare evaluations view"
+        },
+        {
+          "section": 2,
+          "heading": "Review the comparison"
+        },
+        {
+          "section": 3,
+          "heading": "Summary tab"
+        },
+        {
+          "section": 4,
+          "heading": "Dataset results tab"
+        },
+        {
+          "section": 5,
+          "heading": "Customize the Compare evaluations view"
+        },
+        {
+          "section": 6,
+          "heading": "Set a baseline"
+        },
+        {
+          "section": 7,
+          "heading": "Change the comparison order"
+        },
+        {
+          "section": 8,
+          "heading": "Remove from comparison"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "verification": {
+    "passed": true,
+    "issues": [],
+    "missing_parts": [],
+    "mode": "support",
+    "status": "passed"
+  },
+  "verification_attempts": [
+    {
+      "candidate": {
+        "source_ids": [
+          "S1",
+          "S2",
+          "S3",
+          "S4",
+          "S5",
+          "S6",
+          "S7"
+        ],
+        "answer": "Put the assistant's instructions and model settings into a `weave.Model`. Then run the same `Evaluation` (a fixed set of test examples plus scoring functions) on each version, and compare the runs in the **Compare evaluations** view.\n\n**1. Keep each version identifiable**\n- A Weave `Model` combines settings (data) with the code that uses them. To create one, write a class that inherits from `weave.Model`, give every parameter a type, and add a typed `predict` method decorated with `@weave.op()`. Weave then records the model's settings, inputs and outputs each time you call `predict()` [S3].\n- When you change the model's parameters or code, Weave logs the change and creates a new version. You can then compare predictions across versions, which suits prompt changes and LLM swaps [S1].\n\n```python\nimport asyncio\nimport weave\n\nclass Assistant(weave.Model):\n    system_prompt: str\n    model_name: str\n    temperature: float\n\n    @weave.op()\n    def predict(self, question: str) -> dict:\n        # Call your LLM here using self.system_prompt, self.model_name, self.temperature\n        return {\"generated_text\": \"<MODEL_OUTPUT>\"}\n\nweave.init(\"<YOUR_PROJECT>\")\nevaluation = weave.Evaluation(dataset=examples, scorers=[my_scorer])  # placeholders\n\nv1 = Assistant(system_prompt=\"<OLD_INSTRUCTIONS>\", model_name=\"<OLD_MODEL>\", temperature=0.2)\nv2 = Assistant(system_prompt=\"<NEW_INSTRUCTIONS>\", model_name=\"<NEW_MODEL>\", temperature=0.7)\nasyncio.run(evaluation.evaluate(v1))\nasyncio.run(evaluation.evaluate(v2))\n```\nEach `.evaluate()` call runs `predict` on every example and scores each output with every scoring function [S6].\n\n**2. See which test answers improved or regressed**\n1. In the project sidebar, select **Evals**. Tick the checkbox for both runs, then select **Compare**. The leftmost run is the baseline, and every other run is compared against it [S5]. To use a different run as the reference, choose **Make baseline** from that run's action menu [S7].\n2. Open the **Dataset results** tab [S2]. Each row is one test example, showing its input next to each run's output and scores. Select a row to see the outputs side by side [S4].\n3. When you compare exactly two runs, the tab also shows scatter plots. Each point is one example, so examples whose scores differ between the runs stand out. Drag across a region of points to filter the table to those examples, and use the **Dimension** menu to choose which score each plot shows [S4].\n\n**Requirement:** both runs must use at least some of the same dataset rows. If they share no rows, the per-example table doesn't appear [S4]. Reusing one `Evaluation` dataset for both versions avoids this.",
+        "kind": "answer"
+      },
+      "passed": true,
+      "issues": [],
+      "missing_parts": [],
+      "mode": "support",
+      "status": "passed"
+    }
+  ],
+  "actions": [
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "weave.Model versioning attributes prompt model settings"
+      },
+      "result": {
+        "query": "weave.Model versioning attributes prompt model settings",
+        "results": [
+          {
+            "page_id": "cookbooks/chain_of_density",
+            "section": 7,
+            "title": "Chain Of Density",
+            "heading": "Create a Weave Model",
+            "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/chain_of_density",
+            "snippet": "## Create a Weave Model\n\nWith the summarization functions in place, the next step is to package them as a Weave Model so that runs, parameters, and versions are tracked together. Now, wrap the summarization pipeline in a Weave Model:\n\n![Weave Model configuration interface for Chain of Density summarization with model settings and parameters](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/model.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=bc5684332ae6201770d4531c8d08651a)\n\n```python lines theme={\"system\"}\n# Weave Model\nclass ArxivChainOfDensityPipeline(weave.Model):\n    model: str = \"claude-3-sonnet-20240229\"\n    density_iterations: int = 3\n\n    @weave.op()\n    def predict(self, paper: ArxivPaper, instruction: str) -> dict:\n        text = load_pdf(paper.pdf_url)\n        result = chain_of_density_summarization(\n            text,\n            instruction,\n            model=self.model,\n            density_iterations=self.density_iterations,\n        )\n        return result\n```\n\nThis `ArxivChainOfDensityPipeline` class encapsulates the summariza"
+          },
+          {
+            "page_id": "guides/core-types/models",
+            "section": 1,
+            "title": "Track application versions with models",
+            "heading": "Automatic versioning of models",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/models",
+            "snippet": "## Automatic versioning of models\n\nWhen you change the parameters or the code that defines your model, Weave logs these changes and updates the version.\nThis lets you compare predictions across versions of your model. Use this to iterate on prompts or to try a different LLM and compare predictions across settings.\n\nFor example, here you create a new model:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='howdy', attribute2=10)\nmodel.predict('world')\n```\n\nAfter calling this, you see that you now have two versions of this model in the UI, each with different tracked calls.\n\n"
+          },
+          {
+            "page_id": "cookbooks/codegen",
+            "section": 5,
+            "title": "Codegen",
+            "heading": "Define the `CodeGenerationPipeline`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/codegen",
+            "snippet": "## Define the `CodeGenerationPipeline`\n\n![Weave trace of a code generation pipeline run](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/codegen_trace.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=64962d510f16e2fe9ec02c0fa8a8df48)\n\nWith the formatter in place, the next step is to implement the core code generation logic that ties the prompt, the LLM call, and the formatter together.\n\nThis example uses a `weave.Model` so that the model is automatically versioned when it changes. The `model_name` is kept as an attribute so that you can experiment with it and diff and compare it in Weave. Function calls are tracked with `@weave.op` so the inputs and outputs are logged to help with error tracking and debugging.\n\n```python lines theme={\"system\"}\nclass CodeGenerationPipeline(weave.Model):\n    model_name: str\n    formatter: CodeFormatter\n\n    def __init__(\n        self, model_name: str = \"gpt-4o\", formatter: CodeFormatter | None = None\n    ):\n        if formatter is None:\n            formatter = CodeFormatter()\n        super().__init__(model_name="
+          },
+          {
+            "page_id": "tutorial-tracing_2",
+            "section": 3,
+            "title": "Trace nested functions",
+            "heading": "What's next",
+            "url": "https://docs.coreweave.com/products/wandb/weave/tutorial-tracing_2",
+            "snippet": "## What's next\n\n* Follow the [App Versioning tutorial](https://docs.coreweave.com/products/wandb/weave/tutorial-weave_models.md) to capture, version, and organize ad-hoc prompt, model, and application changes.\n"
+          },
+          {
+            "page_id": "guides/tools/playground",
+            "section": 16,
+            "title": "Use the Playground to experiment with prompts",
+            "heading": "Save a model",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tools/playground",
+            "snippet": "### Save a model\n\nYou can create and configure a reusable model preset for your workflow. Saving a model lets you quickly load it with your preferred settings, parameters, and function hooks.\n\n1. In the prompt header (top of main panel), in the **Select a model** dropdown, select a provider and model.\n2. In the prompt header, click the **Chat settings ()** button to open the **Chat settings** panel.\n3. In the **Chat settings** panel:\n   * **Model Name** (required): Enter a name for your saved model.\n   * Adjust parameters as desired. You can also toggle Weave call tracking on or off, and [add a function](#add-a-function).\n4. Click **Publish model**. The model is saved and accessible from **Saved Models** in the **Select a model** dropdown. You can then [use](#use-a-saved-model) and [update](#update-a-saved-model) the saved model.\n\n"
+          },
+          {
+            "page_id": "tutorial-weave_models",
+            "section": 0,
+            "title": "Tutorial: App versioning",
+            "heading": "Tutorial: App versioning",
+            "url": "https://docs.coreweave.com/products/wandb/weave/tutorial-weave_models",
+            "snippet": "# Tutorial: App versioning\n\n> Learn how to use Weave Model to track and version your application and its parameters\n\nTracking [inputs, outputs, and metadata](https://docs.coreweave.com/products/wandb/weave/quickstart.md), along with [data flowing through your app](https://docs.coreweave.com/products/wandb/weave/tutorial-tracing_2.md), is essential to understanding your system's performance. Versioning your app over time is equally important, because it shows how changes to your code or parameters affect your outputs. Weave's `Model` class tracks these changes for you.\n\nThis tutorial is for developers who want to compare and reproduce results across different versions of an LLM application. By the end, you'll have a versioned Weave `Model` that captures your application's parameters and code. You'll also know how to retrieve and reuse a previous version.\n\nIn this tutorial, you'll learn:\n\n* How to use Weave `Model` to track and version your application and its parameters.\n* How to export, modify, and reuse a Weave `Model` already logged.\n\n"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "compare evaluations per-example regressions"
+      },
+      "result": {
+        "query": "compare evaluations per-example regressions",
+        "results": [
+          {
+            "page_id": "guides/evaluation/compare_evals",
+            "section": 0,
+            "title": "Compare evaluations",
+            "heading": "Compare evaluations",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+            "snippet": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n"
+          },
+          {
+            "page_id": "guides/evaluation/compare_evals",
+            "section": 2,
+            "title": "Compare evaluations",
+            "heading": "Review the comparison",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+            "snippet": "## Review the comparison\n\nThe Compare evaluations view has two tabs:\n\n* **Summary**: Aggregate charts for each metric on the compared evaluations, followed by a properties and metrics table.\n* **Dataset results**: A per-example results table for comparing outputs row by row, plus scatter plots for spotting divergences when you compare two evaluations.\n\n![Compare evaluations view comparing three evaluations. The Summary tab shows aggregate charts across the top and a properties and metrics table below.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/eval-compare.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=505481ff695757c31aed9975eb3df795)\n\n"
+          },
+          {
+            "page_id": "guides/core-types/leaderboards",
+            "section": 0,
+            "title": "Compare and rank models",
+            "heading": "Compare and rank models",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/leaderboards",
+            "snippet": "# Compare and rank models\n\n> Compare and rank different model versions based on evaluation metrics\n\nUse Weave Leaderboards to evaluate and compare multiple models across multiple metrics and measure accuracy, generation quality, latency, or custom evaluation logic. A leaderboard helps you visualize model performance in a central location, track changes over time, and align on team-wide benchmarks.\n\nThis guide shows you how to create, configure, and publish a leaderboard so your team can compare model versions against shared benchmarks.\n\nLeaderboards are ideal for:\n\n* Tracking model performance regressions.\n* Coordinating shared evaluation workflows.\n\n> [!NOTE]\n>\n> Leaderboard creation is only available for the Weights & Biases UI and Weave Python SDK. TypeScript users can create and manage leaderboards using the [Weights & Biases UI](#use-the-ui).\n\n"
+          },
+          {
+            "page_id": "guides/integrations/inference",
+            "section": 9,
+            "title": "Serverless Inference",
+            "heading": "Usage examples",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/inference",
+            "snippet": "## Usage examples\n\nThe following sections provide several examples demonstrating how to use Serverless Inference with Weave. Start with the basic example to trace a single model call, then move on to the advanced example to evaluate and compare multiple models.\n\n* [Basic example: Trace Llama 3.1 8B with Weave](#basic-example-trace-llama-31-8b-with-weave)\n* [Advanced example: Use Weave Evaluations and Leaderboards with the Inference service](#advanced-example-use-weave-evaluations-and-leaderboards-with-the-inference-service)\n\n"
+          },
+          {
+            "page_id": "tutorial-eval",
+            "section": 0,
+            "title": "Build an evaluation",
+            "heading": "Build an evaluation",
+            "url": "https://docs.coreweave.com/products/wandb/weave/tutorial-eval",
+            "snippet": "# Build an evaluation\n\n> Learn how to build an evaluation pipeline with Weave Models and Evaluations\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/tutorial-eval.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/tutorial-eval.ipynb)\n\nThis tutorial walks you through building an end-to-end evaluation pipeline in Weave so you can measure and track the quality of an LLM application as you iterate on it. Evaluations help you compare changes against a consistent set of examples and detect regressions before they reach users. This tutorial targets developers who build LLM-powered applications and want a repeatable way to test them.\n\nWeave provides built-in support for tracking evaluations with [`Model`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/models) and [`Evaluation`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations) classes. The APIs make minimal assumptions, so they fit a range of use cases.\n\n![Evals hero](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8f"
+          },
+          {
+            "page_id": "agent-evals",
+            "section": 5,
+            "title": "Evaluate your AI agent with Weave",
+            "heading": "Organize and compare evaluations",
+            "url": "https://docs.coreweave.com/products/wandb/weave/agent-evals",
+            "snippet": "## Organize and compare evaluations\n\nYou improve an agent by changing its application and checking whether the change helped. The system prompt, the tools, the control flow, and the underlying LLM are all considered part of the model version. To compare two versions, run the evaluation again on the changed agent, labeled as a new version.\n\nRe-run with a different `model` label:\n\n```python lines highlight=\"4\" theme={\"system\"}\n# v2: the same tasks and loop, running a changed agent (e.g. a revised system prompt).\nev = weave.EvaluationLogger(\n    name=\"support-agent-eval\",\n    model=\"v2\",                     # Label for this version of the agent under test.\n    dataset=\"support-refund-tasks\",\n)\n# ... same loop as v1, running the changed agent ...\n```\n\nWeave lets you [Compare evaluations](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals.md), so you can see whether v2 improved or regressed against v1 on the scores you logged, plus latency and cost.\n\n"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/core-types/models",
+        "section": 1
+      },
+      "result": {
+        "source_id": "S1",
+        "page_id": "guides/core-types/models",
+        "section": 1,
+        "title": "Track application versions with models",
+        "heading": "Automatic versioning of models",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/models",
+        "page_sha256": "d0d388502c16b448a383256b1c9b0a882c681e769248bff61569e8b2cdf7e381",
+        "text": "## Automatic versioning of models\n\nWhen you change the parameters or the code that defines your model, Weave logs these changes and updates the version.\nThis lets you compare predictions across versions of your model. Use this to iterate on prompts or to try a different LLM and compare predictions across settings.\n\nFor example, here you create a new model:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='howdy', attribute2=10)\nmodel.predict('world')\n```\n\nAfter calling this, you see that you now have two versions of this model in the UI, each with different tracked calls.\n\n",
+        "page_context": "# Track application versions with models\n\n> Track versions of your application with structured models that combine data and code.\n\nA `Model` is a combination of data (which can include configuration, trained model weights, or other information) and code that defines how the model operates. By structuring your code to be compatible with this API, you benefit from a structured way to version your application so you can more systematically keep track of your experiments.\n\nThis guide shows you how to define a Weave `Model`, call it to capture inputs and outputs, take advantage of automatic versioning when your code or parameters change, serve the model behind a local API, and tag production calls for filtering. It's for developers who build LLM-powered applications with Weave and want a repeatable way to track and compare iterations of their app.\n\n**Python**\n\nTo create a model in Weave, you need the following:\n\n* A class that inherits from `weave.Model`\n* Type definitions on all parameters\n* A typed `predict` function with `@weave.op()` decorator\n\n```python lines theme={\"system\"}\nfrom weave import Model\nimport weave\n\nclass YourModel(Model):\n    attribute1: str\n    attribute2: int\n\n    @weave.op()\n    def predict(self, input_data: str) -> dict:\n        # Model logic goes here\n        prediction = self.attribute1 + ' ' + input_data\n        return {'pred': prediction}\n```\n\nYou can call the model as usual with:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='hello', attribute2=5)\nmodel.predict('world')\n```\n\nThis tracks the model settings along with the inputs and outputs anytime you call `predict()`. You now have a versioned Weave `Model` that records every prediction it makes, which the following sections build on.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Track application versions with models"
+          },
+          {
+            "section": 1,
+            "heading": "Automatic versioning of models"
+          },
+          {
+            "section": 2,
+            "heading": "Serve models"
+          },
+          {
+            "section": 3,
+            "heading": "Track production calls"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/evaluation/compare_evals",
+        "section": 2
+      },
+      "result": {
+        "source_id": "S2",
+        "page_id": "guides/evaluation/compare_evals",
+        "section": 2,
+        "title": "Compare evaluations",
+        "heading": "Review the comparison",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+        "page_sha256": "008f050d4af72f73cef23b5e4bf1a5e9f4335b39f5b9a0c20e1e9e3e8471bd98",
+        "text": "## Review the comparison\n\nThe Compare evaluations view has two tabs:\n\n* **Summary**: Aggregate charts for each metric on the compared evaluations, followed by a properties and metrics table.\n* **Dataset results**: A per-example results table for comparing outputs row by row, plus scatter plots for spotting divergences when you compare two evaluations.\n\n![Compare evaluations view comparing three evaluations. The Summary tab shows aggregate charts across the top and a properties and metrics table below.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/eval-compare.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=505481ff695757c31aed9975eb3df795)\n\n",
+        "page_context": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Compare evaluations"
+          },
+          {
+            "section": 1,
+            "heading": "Access the Compare evaluations view"
+          },
+          {
+            "section": 2,
+            "heading": "Review the comparison"
+          },
+          {
+            "section": 3,
+            "heading": "Summary tab"
+          },
+          {
+            "section": 4,
+            "heading": "Dataset results tab"
+          },
+          {
+            "section": 5,
+            "heading": "Customize the Compare evaluations view"
+          },
+          {
+            "section": 6,
+            "heading": "Set a baseline"
+          },
+          {
+            "section": 7,
+            "heading": "Change the comparison order"
+          },
+          {
+            "section": 8,
+            "heading": "Remove from comparison"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/core-types/models",
+        "section": 0
+      },
+      "result": {
+        "source_id": "S3",
+        "page_id": "guides/core-types/models",
+        "section": 0,
+        "title": "Track application versions with models",
+        "heading": "Track application versions with models",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/models",
+        "page_sha256": "d0d388502c16b448a383256b1c9b0a882c681e769248bff61569e8b2cdf7e381",
+        "text": "# Track application versions with models\n\n> Track versions of your application with structured models that combine data and code.\n\nA `Model` is a combination of data (which can include configuration, trained model weights, or other information) and code that defines how the model operates. By structuring your code to be compatible with this API, you benefit from a structured way to version your application so you can more systematically keep track of your experiments.\n\nThis guide shows you how to define a Weave `Model`, call it to capture inputs and outputs, take advantage of automatic versioning when your code or parameters change, serve the model behind a local API, and tag production calls for filtering. It's for developers who build LLM-powered applications with Weave and want a repeatable way to track and compare iterations of their app.\n\n**Python**\n\nTo create a model in Weave, you need the following:\n\n* A class that inherits from `weave.Model`\n* Type definitions on all parameters\n* A typed `predict` function with `@weave.op()` decorator\n\n```python lines theme={\"system\"}\nfrom weave import Model\nimport weave\n\nclass YourModel(Model):\n    attribute1: str\n    attribute2: int\n\n    @weave.op()\n    def predict(self, input_data: str) -> dict:\n        # Model logic goes here\n        prediction = self.attribute1 + ' ' + input_data\n        return {'pred': prediction}\n```\n\nYou can call the model as usual with:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='hello', attribute2=5)\nmodel.predict('world')\n```\n\nThis tracks the model settings along with the inputs and outputs anytime you call `predict()`. You now have a versioned Weave `Model` that records every prediction it makes, which the following sections build on.\n\n",
+        "page_context": "# Track application versions with models\n\n> Track versions of your application with structured models that combine data and code.\n\nA `Model` is a combination of data (which can include configuration, trained model weights, or other information) and code that defines how the model operates. By structuring your code to be compatible with this API, you benefit from a structured way to version your application so you can more systematically keep track of your experiments.\n\nThis guide shows you how to define a Weave `Model`, call it to capture inputs and outputs, take advantage of automatic versioning when your code or parameters change, serve the model behind a local API, and tag production calls for filtering. It's for developers who build LLM-powered applications with Weave and want a repeatable way to track and compare iterations of their app.\n\n**Python**\n\nTo create a model in Weave, you need the following:\n\n* A class that inherits from `weave.Model`\n* Type definitions on all parameters\n* A typed `predict` function with `@weave.op()` decorator\n\n```python lines theme={\"system\"}\nfrom weave import Model\nimport weave\n\nclass YourModel(Model):\n    attribute1: str\n    attribute2: int\n\n    @weave.op()\n    def predict(self, input_data: str) -> dict:\n        # Model logic goes here\n        prediction = self.attribute1 + ' ' + input_data\n        return {'pred': prediction}\n```\n\nYou can call the model as usual with:\n\n```python lines theme={\"system\"}\nimport weave\nweave.init('intro-example')\n\nmodel = YourModel(attribute1='hello', attribute2=5)\nmodel.predict('world')\n```\n\nThis tracks the model settings along with the inputs and outputs anytime you call `predict()`. You now have a versioned Weave `Model` that records every prediction it makes, which the following sections build on.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Track application versions with models"
+          },
+          {
+            "section": 1,
+            "heading": "Automatic versioning of models"
+          },
+          {
+            "section": 2,
+            "heading": "Serve models"
+          },
+          {
+            "section": 3,
+            "heading": "Track production calls"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/evaluation/compare_evals",
+        "section": 4
+      },
+      "result": {
+        "source_id": "S4",
+        "page_id": "guides/evaluation/compare_evals",
+        "section": 4,
+        "title": "Compare evaluations",
+        "heading": "Dataset results tab",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+        "page_sha256": "008f050d4af72f73cef23b5e4bf1a5e9f4335b39f5b9a0c20e1e9e3e8471bd98",
+        "text": "### Dataset results tab\n\nSelect **Dataset results** to compare individual dataset examples across the selected evaluations. Each row corresponds to one dataset example and shows the dataset input alongside each evaluation's output and scorer metrics, so you can inspect where a specific example diverges. Select a row to open a side-by-side detail view.\n\nWhen you compare exactly two evaluations, the tab shows two scatter plots above the table. In each plot, a point represents a dataset example, positioned by its metric value in each of the two evaluations, so examples where the evaluations diverge stand out. Select (brush) a region of points to filter the examples shown in the table, and use the **Dimension** menu on each plot to choose which metric it plots.\n\nThe Dataset results tab requires that the compared evaluations share dataset rows. If their datasets have no rows in common, no results table is displayed.\n\n",
+        "page_context": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Compare evaluations"
+          },
+          {
+            "section": 1,
+            "heading": "Access the Compare evaluations view"
+          },
+          {
+            "section": 2,
+            "heading": "Review the comparison"
+          },
+          {
+            "section": 3,
+            "heading": "Summary tab"
+          },
+          {
+            "section": 4,
+            "heading": "Dataset results tab"
+          },
+          {
+            "section": 5,
+            "heading": "Customize the Compare evaluations view"
+          },
+          {
+            "section": 6,
+            "heading": "Set a baseline"
+          },
+          {
+            "section": 7,
+            "heading": "Change the comparison order"
+          },
+          {
+            "section": 8,
+            "heading": "Remove from comparison"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/evaluation/compare_evals",
+        "section": 1
+      },
+      "result": {
+        "source_id": "S5",
+        "page_id": "guides/evaluation/compare_evals",
+        "section": 1,
+        "title": "Compare evaluations",
+        "heading": "Access the Compare evaluations view",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+        "page_sha256": "008f050d4af72f73cef23b5e4bf1a5e9f4335b39f5b9a0c20e1e9e3e8471bd98",
+        "text": "## Access the Compare evaluations view\n\nTo open the Compare evaluations view:\n\n1. In the Weave project sidebar, select **Evals**.\n2. In the evaluations table, select the checkboxes for two or more evaluations that you want to compare.\n3. In the evaluation table toolbar, select **Compare**.\n\n![Evaluations table with three evaluations selected. The Compare action is highlighted in the evaluation table toolbar.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/eval-compare-select.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=7d5a3c7bdd130ca55e48aa0c8a065707)\n\nThe **Compare evaluations** view opens with each selected evaluation displayed as a token in the *comparison bar* at the top of the page. The leftmost evaluation is the baseline by default, and each other evaluation is compared against it.\n\n",
+        "page_context": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Compare evaluations"
+          },
+          {
+            "section": 1,
+            "heading": "Access the Compare evaluations view"
+          },
+          {
+            "section": 2,
+            "heading": "Review the comparison"
+          },
+          {
+            "section": 3,
+            "heading": "Summary tab"
+          },
+          {
+            "section": 4,
+            "heading": "Dataset results tab"
+          },
+          {
+            "section": 5,
+            "heading": "Customize the Compare evaluations view"
+          },
+          {
+            "section": 6,
+            "heading": "Set a baseline"
+          },
+          {
+            "section": 7,
+            "heading": "Change the comparison order"
+          },
+          {
+            "section": 8,
+            "heading": "Remove from comparison"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "Evaluation evaluate model dataset scorers asyncio"
+      },
+      "result": {
+        "query": "Evaluation evaluate model dataset scorers asyncio",
+        "results": [
+          {
+            "page_id": "guides/core-types/evaluations",
+            "section": 10,
+            "title": "Evaluations overview",
+            "heading": "Run the evaluation",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+            "snippet": "## Run the evaluation\n\nWith your `Evaluation` object, dataset, scorers, and model defined, you're ready to execute the evaluation and capture results in Weave. To run an evaluation, call `.evaluate()` on the `Evaluation` object.\n\n**Python**\n\nAssuming an `Evaluation` object called `evaluation` and a `Model` object to evaluate called `model`, the following code instantiates an evaluation run:\n\n```python lines theme={\"system\"}\nasyncio.run(evaluation.evaluate(model))\n```\n\n"
+          },
+          {
+            "page_id": "guides/core-types/evaluations",
+            "section": 8,
+            "title": "Evaluations overview",
+            "heading": "Define a model or function to evaluate",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+            "snippet": "## Define a model or function to evaluate\n\n**Python**\n\nTo evaluate a `Model`, call `.evaluate()` using an `Evaluation`. Use `Model` objects when you have parameters that you want to experiment with and capture in Weave.\n\n```python lines theme={\"system\"}\nfrom weave import Model, Evaluation\nimport asyncio\n\nclass MyModel(Model):\n    prompt: str\n\n    @weave.op()\n    def predict(self, question: str):\n        # here's where you would add your LLM call and return the output\n        return {'generated_text': 'Hello, ' + self.prompt}\n\nmodel = MyModel(prompt='World')\n\nevaluation = Evaluation(\n    dataset=examples, scorers=[match_score1]\n)\nweave.init('intro-example') # begin tracking results with weave\nasyncio.run(evaluation.evaluate(model))\n```\n\nThis runs `predict` on each example and scores the output with each scoring function.\n\n"
+          },
+          {
+            "page_id": "guides/evaluation/builtin_scorers",
+            "section": 7,
+            "title": "Use builtin scorers",
+            "heading": "`ValidXMLScorer`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers",
+            "snippet": "## `ValidXMLScorer`\n\nThe `ValidXMLScorer` checks whether the AI system's output is valid XML. Use it when you expect XML-formatted outputs.\n\n```python lines theme={\"system\"}\nfrom weave.scorers import ValidXMLScorer\n\nxml_scorer = ValidXMLScorer()\n```\n\nThe following example uses `ValidXMLScorer` in the context of an evaluation:\n\n```python lines theme={\"system\"}\nimport asyncio\nimport weave\nfrom weave.scorers import ValidXMLScorer\n\nclass XMLModel(weave.Model):\n    @weave.op()\n    async def predict(self, input: str) -> str:\n        # This is a placeholder. In a real scenario, this would generate XML.\n        return '<root><element>value</element></root>'\n\nmodel = XMLModel()\nxml_scorer = ValidXMLScorer()\n\ndataset = [\n    {\"input\": \"Generate a valid XML with a root element\"},\n    {\"input\": \"Create an invalid XML\"}\n]\n\nevaluation = weave.Evaluation(dataset=dataset, scorers=[xml_scorer])\nresults = asyncio.run(evaluation.evaluate(model))\nprint(results)\n# Example output:\n# {'ValidXMLScorer': {'xml_valid': {'true_count': 2, 'true_fraction': 1.0}}, 'model_latency': {'mean': ...}}\n```\n\n***\n\n"
+          },
+          {
+            "page_id": "tutorial-eval",
+            "section": 7,
+            "title": "Build an evaluation",
+            "heading": "Use a built-in scorer and run the evaluation",
+            "url": "https://docs.coreweave.com/products/wandb/weave/tutorial-eval",
+            "snippet": "## Use a built-in scorer and run the evaluation\n\nWith the model, dataset, and a custom scorer in place, you're ready to wire everything together into an evaluation run.\n\nAlong with custom scoring functions, you can also use [Weave's built-in scorers](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers.md). In the following evaluation, `weave.Evaluation()` uses the `fruit_name_score` function defined in the previous section and the built-in `MultiTaskBinaryClassificationF1` scorer, which computes [F1 scores](https://en.wikipedia.org/wiki/F-score).\n\nThe following example runs an evaluation of `ExtractFruitsModel` on the `fruits` dataset using the two scoring functions and logs the results to Weave.\n\n**Python**\n\n```python lines {3-10} theme={\"system\"}\nweave.init('eval_pipeline_quickstart')\n\nevaluation = weave.Evaluation(\n    name='fruit_eval',\n    dataset=dataset, \n    scorers=[\n        MultiTaskBinaryClassificationF1(class_names=[\"fruit\", \"color\", \"flavor\"]), \n        fruit_name_score\n    ],\n)\nprint(asyncio.run(evaluation.evaluate(model)))\n# if you're in a"
+          },
+          {
+            "page_id": "guides/evaluation/builtin_scorers",
+            "section": 6,
+            "title": "Use builtin scorers",
+            "heading": "`ValidJSONScorer`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/builtin_scorers",
+            "snippet": "## `ValidJSONScorer`\n\nThe `ValidJSONScorer` checks whether the AI system's output is valid JSON. This scorer is useful when you expect the output to be in JSON format and need to verify its validity.\n\n```python lines theme={\"system\"}\nfrom weave.scorers import ValidJSONScorer\n\njson_scorer = ValidJSONScorer()\n```\n\nThe following example uses `ValidJSONScorer` in the context of an evaluation:\n\n```python lines theme={\"system\"}\nimport asyncio\nimport weave\nfrom weave.scorers import ValidJSONScorer\n\nclass JSONModel(weave.Model):\n    @weave.op()\n    async def predict(self, input: str) -> str:\n        # This is a placeholder.\n        # In a real scenario, this would generate JSON.\n        return '{\"key\": \"value\"}'\n\nmodel = JSONModel()\njson_scorer = ValidJSONScorer()\n\ndataset = [\n    {\"input\": \"Generate a JSON object with a key and value\"},\n    {\"input\": \"Create an invalid JSON\"}\n]\n\nevaluation = weave.Evaluation(dataset=dataset, scorers=[json_scorer])\nresults = asyncio.run(evaluation.evaluate(model))\nprint(results)\n# Example output:\n# {'ValidJSONScorer': {'json_valid': {'true_count': 2, 'true_f"
+          },
+          {
+            "page_id": "reference/python-sdk",
+            "section": 82,
+            "title": "weave",
+            "heading": "<kbd>class</kbd> `Evaluation`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+            "snippet": "## <kbd>class</kbd> `Evaluation`\n\nSets up an evaluation which includes a set of scorers and a dataset.\n\nCalling evaluation.evaluate(model) will pass in rows from a dataset into a model matching  the names of the columns of the dataset to the argument names in model.predict.\n\nThen it will call all of the scorers and save the results in weave.\n\nIf you want to preprocess the rows from the dataset you can pass in a function to preprocess\\_model\\_input.\n\n**Examples:**\n\n```python theme={\"system\"}\n# Collect your examples\nexamples = [\n     {\"question\": \"What is the capital of France?\", \"expected\": \"Paris\"},\n     {\"question\": \"Who wrote 'To Kill a Mockingbird'?\", \"expected\": \"Harper Lee\"},\n     {\"question\": \"What is the square root of 64?\", \"expected\": \"8\"},\n]\n\n# Define any custom scoring function\n@weave.op\ndef match_score1(expected: str, model_output: dict) -> dict:\n     # Here is where you'd define the logic to score the model output\n     return {'match': expected == model_output['generated_text']}\n\n@weave.op\ndef function_to_evaluate(question: str):\n     # here's where you would add your LL"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/core-types/evaluations",
+        "section": 8
+      },
+      "result": {
+        "source_id": "S6",
+        "page_id": "guides/core-types/evaluations",
+        "section": 8,
+        "title": "Evaluations overview",
+        "heading": "Define a model or function to evaluate",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/evaluations",
+        "page_sha256": "d8b701427b175b5c29906e40d24de0c1aa1bdb8c7ce862f8adfd68602e986b15",
+        "text": "## Define a model or function to evaluate\n\n**Python**\n\nTo evaluate a `Model`, call `.evaluate()` using an `Evaluation`. Use `Model` objects when you have parameters that you want to experiment with and capture in Weave.\n\n```python lines theme={\"system\"}\nfrom weave import Model, Evaluation\nimport asyncio\n\nclass MyModel(Model):\n    prompt: str\n\n    @weave.op()\n    def predict(self, question: str):\n        # here's where you would add your LLM call and return the output\n        return {'generated_text': 'Hello, ' + self.prompt}\n\nmodel = MyModel(prompt='World')\n\nevaluation = Evaluation(\n    dataset=examples, scorers=[match_score1]\n)\nweave.init('intro-example') # begin tracking results with weave\nasyncio.run(evaluation.evaluate(model))\n```\n\nThis runs `predict` on each example and scores the output with each scoring function.\n\n",
+        "page_context": "# Evaluations overview\n\n> Evaluation-driven LLM application development to systematically improve applications\n\n*Evaluation-driven LLM application development* helps you systematically improve LLM applications by measuring their behavior using consistent, curated examples.\n\nThis guide shows you how to set up and run evaluations in Weave so you can measure your LLM application's performance against repeatable test cases, compare changes over time, and identify regressions. It's intended for developers building LLM applications who want to move beyond ad hoc testing into a structured, measurable workflow.\n\n**Python**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or list of dictionaries for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n* Optional configuration like [input preprocessing](#format-dataset-rows-before-evaluating).\n\nOnce you've defined the `Evaluation`, you can run it against a [`Model`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/models) object or any custom function containing LLM application logic. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and each run as a measurement of how your application performs under that setup.\n\n**TypeScript**\n\nIn Weave, the core of the workflow is the *`Evaluation` object*, which defines:\n\n* A [`Dataset`](https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets) or array of objects for test examples.\n* One or more [scoring functions](https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers.md).\n\nOnce you've defined the `Evaluation`, you can run it against any function wrapped with `weave.op`. Each call to `.evaluate()` triggers an *evaluation run*. Think of the `Evaluation` object as a blueprint, and eac",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Evaluations overview"
+          },
+          {
+            "section": 1,
+            "heading": "Create an `Evaluation` object"
+          },
+          {
+            "section": 2,
+            "heading": "Optional: Custom naming"
+          },
+          {
+            "section": 3,
+            "heading": "Name the `Evaluation` object"
+          },
+          {
+            "section": 4,
+            "heading": "Name individual evaluation runs"
+          },
+          {
+            "section": 5,
+            "heading": "Define a dataset of test examples"
+          },
+          {
+            "section": 6,
+            "heading": "Define scoring functions"
+          },
+          {
+            "section": 7,
+            "heading": "Optional: Define a custom `Scorer` class"
+          },
+          {
+            "section": 8,
+            "heading": "Define a model or function to evaluate"
+          },
+          {
+            "section": 9,
+            "heading": "Optional: Define a function to evaluate"
+          },
+          {
+            "section": 10,
+            "heading": "Run the evaluation"
+          },
+          {
+            "section": 11,
+            "heading": "Optional: Run multiple trials"
+          },
+          {
+            "section": 12,
+            "heading": "Optional: Run multiple trials"
+          },
+          {
+            "section": 13,
+            "heading": "Full evaluation code example"
+          },
+          {
+            "section": 14,
+            "heading": "Advanced evaluation usage"
+          },
+          {
+            "section": 15,
+            "heading": "Format dataset rows before evaluating"
+          },
+          {
+            "section": 16,
+            "heading": "Use HuggingFace datasets with evaluations"
+          },
+          {
+            "section": 17,
+            "heading": "Saved views"
+          },
+          {
+            "section": 18,
+            "heading": "Imperative evaluations (`EvaluationLogger`)"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/datasets",
+            "title": "Collect and track datasets"
+          },
+          {
+            "page_id": "guides/evaluation/scorers",
+            "title": "Scoring overview"
+          },
+          {
+            "page_id": "guides/core-types/models",
+            "title": "Track application versions with models"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/evaluation/compare_evals",
+        "section": 6
+      },
+      "result": {
+        "source_id": "S7",
+        "page_id": "guides/evaluation/compare_evals",
+        "section": 6,
+        "title": "Compare evaluations",
+        "heading": "Set a baseline",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/compare_evals",
+        "page_sha256": "008f050d4af72f73cef23b5e4bf1a5e9f4335b39f5b9a0c20e1e9e3e8471bd98",
+        "text": "### Set a baseline\n\nBy default, the leftmost evaluation in the comparison bar is the baseline, and every other evaluation is compared against it. You can designate a different evaluation as the baseline when you want a specific evaluation as the reference point for all comparisons.\n\nTo set an evaluation as the baseline:\n\n1. In the comparison bar, hold the pointer over the evaluation that you want to set as the baseline.\n\n2. Click the **action ()** menu to the right of the ID.\n\n   ![Compare evaluations view showing the Make baseline option for the selected evaluation in the comparison bar.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/comparison-evals-baseline.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=10298683a2c51934364eefaf670fe759)\n\n3. In the list, select **Make baseline**. The UI refreshes with the baseline evaluation in the leftmost position in the comparison bar and `Baseline` next to the ID.\n\n   ![Compare evaluations view showing the selected baseline evaluation in the leftmost position of the comparison bar.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/comparison-evals-baseline-set.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=cbf25c81ea0e6ffd6e4529fe3d78446f)\n\n",
+        "page_context": "# Compare evaluations\n\n> Visually compare two or more evaluations to spot regressions, improvements, and scoring differences across runs\n\nThe Weave **Compare evaluations** view lets you inspect two or more logged evaluations side by side. Use it to see how metrics move between runs when you change a prompt, model, or scorer, and to catch dataset or scorer inconsistencies before you draw conclusions from the results.\n\nThis guide is for Weave users who want to compare logged evaluations in the Weights & Biases UI. It covers how to open the Compare evaluations view, what appears in the summary charts and results tables, and the actions you can take to tailor the comparison, including setting a baseline, reordering evaluations, and removing an evaluation from the comparison.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Compare evaluations"
+          },
+          {
+            "section": 1,
+            "heading": "Access the Compare evaluations view"
+          },
+          {
+            "section": 2,
+            "heading": "Review the comparison"
+          },
+          {
+            "section": 3,
+            "heading": "Summary tab"
+          },
+          {
+            "section": 4,
+            "heading": "Dataset results tab"
+          },
+          {
+            "section": 5,
+            "heading": "Customize the Compare evaluations view"
+          },
+          {
+            "section": 6,
+            "heading": "Set a baseline"
+          },
+          {
+            "section": 7,
+            "heading": "Change the comparison order"
+          },
+          {
+            "section": 8,
+            "heading": "Remove from comparison"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "answer": "Put the assistant's instructions and model settings into a `weave.Model`. Then run the same `Evaluation` (a fixed set of test examples plus scoring functions) on each version, and compare the runs in the **Compare evaluations** view.\n\n**1. Keep each version identifiable**\n- A Weave `Model` combines settings (data) with the code that uses them. To create one, write a class that inherits from `weave.Model`, give every parameter a type, and add a typed `predict` method decorated with `@weave.op()`. Weave then records the model's settings, inputs and outputs each time you call `predict()` [S3].\n- When you change the model's parameters or code, Weave logs the change and creates a new version. You can then compare predictions across versions, which suits prompt changes and LLM swaps [S1].\n\n```python\nimport asyncio\nimport weave\n\nclass Assistant(weave.Model):\n    system_prompt: str\n    model_name: str\n    temperature: float\n\n    @weave.op()\n    def predict(self, question: str) -> dict:\n        # Call your LLM here using self.system_prompt, self.model_name, self.temperature\n        return {\"generated_text\": \"<MODEL_OUTPUT>\"}\n\nweave.init(\"<YOUR_PROJECT>\")\nevaluation = weave.Evaluation(dataset=examples, scorers=[my_scorer])  # placeholders\n\nv1 = Assistant(system_prompt=\"<OLD_INSTRUCTIONS>\", model_name=\"<OLD_MODEL>\", temperature=0.2)\nv2 = Assistant(system_prompt=\"<NEW_INSTRUCTIONS>\", model_name=\"<NEW_MODEL>\", temperature=0.7)\nasyncio.run(evaluation.evaluate(v1))\nasyncio.run(evaluation.evaluate(v2))\n```\nEach `.evaluate()` call runs `predict` on every example and scores each output with every scoring function [S6].\n\n**2. See which test answers improved or regressed**\n1. In the project sidebar, select **Evals**. Tick the checkbox for both runs, then select **Compare**. The leftmost run is the baseline, and every other run is compared against it [S5]. To use a different run as the reference, choose **Make baseline** from that run's action menu [S7].\n2. Open the **Dataset results** tab [S2]. Each row is one test example, showing its input next to each run's output and scores. Select a row to see the outputs side by side [S4].\n3. When you compare exactly two runs, the tab also shows scatter plots. Each point is one example, so examples whose scores differ between the runs stand out. Drag across a region of points to filter the table to those examples, and use the **Dimension** menu to choose which score each plot shows [S4].\n\n**Requirement:** both runs must use at least some of the same dataset rows. If they share no rows, the per-example table doesn't appear [S4]. Reusing one `Evaluation` dataset for both versions avoids this.",
+        "source_ids": [
+          "S1",
+          "S2",
+          "S3",
+          "S4",
+          "S5",
+          "S6",
+          "S7"
+        ]
+      },
+      "result": {
+        "passed": true,
+        "issues": [],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "passed"
+      },
+      "origin": "provider_tool_call"
+    }
+  ],
+  "task_complete": true,
+  "missing_outcomes": [],
+  "completion_status": "complete",
+  "review_reason": "none",
+  "conversation_context": [],
+  "conversation_id": "eed35915-c016-4eb6-9ac3-72edb4de2397",
+  "trace_id": "b4cc07c5ed33b19f2e0ed0e6d5e20f7a",
+  "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/eed35915-c016-4eb6-9ac3-72edb4de2397",
+  "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+  "source_sha256": "b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0",
+  "prompt_sha256": "0db790fffbb9edc24333d987516f479c1bd7cab6aaf0ad382a836264c6a00a9c",
+  "config_sha256": "40d8a7bacd0c2eb781964747644ff5335f6e517841b0105821b87cc0fd0b42ca",
+  "citation_contract_version": 3,
+  "verification_contract_version": 6,
+  "verify_mode": "support",
+  "cache_enabled": true,
+  "model": "claude-opus-5-5",
+  "elapsed_seconds": 22.8,
+  "metrics": {
+    "calls": [
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWEXBxcDpc3J5t46RKQs",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 2341,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 187,
+          "output_tokens_details": {
+            "thinking_tokens": 66
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.3344,
+        "estimated_usd": 0.0042242
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWEXMEDtsZKwDRB7k1dB",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 5338
+          },
+          "cache_creation_input_tokens": 5338,
+          "cache_read_input_tokens": 2341,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 230,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.0202,
+        "estimated_usd": 0.0317742
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWEXVvc2Wn43DEfhi8rW",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 4086
+          },
+          "cache_creation_input_tokens": 4086,
+          "cache_read_input_tokens": 7679,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 249,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.3077,
+        "estimated_usd": 0.0269618
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWEXfqQZMaHuL8nD2CmD",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 5648
+          },
+          "cache_creation_input_tokens": 5648,
+          "cache_read_input_tokens": 11765,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 159,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 1.5925,
+        "estimated_usd": 0.033789
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWEXnt5B6mZdZPcSoAzA",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 3460
+          },
+          "cache_creation_input_tokens": 3460,
+          "cache_read_input_tokens": 17413,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 1119,
+          "output_tokens_details": {
+            "thinking_tokens": 51
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 9.9899,
+        "estimated_usd": 0.0431786
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWEYXSvAdeLeVgXMPdVS",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 19013
+          },
+          "cache_creation_input_tokens": 19013,
+          "cache_read_input_tokens": 1663,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 469,
+          "output_tokens_details": {
+            "thinking_tokens": 369
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 4.5146,
+        "estimated_usd": 0.1047936
+      }
+    ],
+    "model_calls": 6,
+    "tokens": {
+      "input_tokens": 24,
+      "output_tokens": 2413,
+      "cache_creation_input_tokens": 37545,
+      "cache_read_input_tokens": 43202
+    },
+    "total_input_tokens": 80771,
+    "estimated_usd": 0.2447214,
+    "known_estimated_usd": 0.2447214,
+    "unpriced_calls": 0,
+    "by_purpose": {
+      "planner": {
+        "calls": 5,
+        "known_estimated_usd": 0.1399278
+      },
+      "verification": {
+        "calls": 1,
+        "known_estimated_usd": 0.1047936
+      }
+    },
+    "research": {
+      "searches": 3,
+      "passage_reads": 7,
+      "distinct_pages_read": 3,
+      "repeated_tool_requests": 0,
+      "drafts_submitted": 1,
+      "code_runs": 0
+    },
+    "pricing": {
+      "checked_at": "2026-10-25",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": {
+        "claude-sonnet-5-5": {
+          "input": 2,
+          "output": 10,
+          "write_5m": 2.5,
+          "write_1h": 4,
+          "read": 0.1
+        },
+        "claude-opus-5-5": {
+          "input": 4,
+          "output": 20,
+          "write_5m": 5,
+          "write_1h": 8,
+          "read": 0.2
+        }
+      }
+    },
+    "scope": "Estimated from Claude's reported usage and published prices. Includes research and answer checks. Excludes Weave Signals, separate evaluation runs, hosting, taxes and any usage missing after failed requests or retries. We count requests made by the app, not every network attempt. Your final bill may differ."
+  },
+  "error_type": null
+}

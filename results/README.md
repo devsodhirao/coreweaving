@@ -1,8 +1,20 @@
 # Evidence index
 
-Start with the [simplified runtime review](essence-v2/README.md) for current validation and this index for the underlying receipts. Recorded answers, failed attempts and labeled fixtures remain unchanged.
+Start with the [decision guide](../docs/DECISIONS.md) for engineering judgment and use the versioned runs below for measurements. Recorded answers, failed attempts and labeled fixtures remain unchanged.
 
-## Current simplified runtime: `522c320`
+## Current full regression: `a07e5da` / source `b312a2c9a081`
+
+The [presentation regression](presentation-regression-retry-v1/README.md) completed all 13 cases: **12/13 judge-recorded passes, 47/48 assertions**, no missing grades. The failure is an uncited product menu in a clarification; the answer checker accepted it. Median engine time was 31.46 seconds across 15 turns; returned-usage estimate $5.2549. Readback matches 15 turn roots, 97 agent responses and 13 indexed evaluation rows with their judge receipts. The runtime remains unchanged for the demo.
+
+The [first attempt](presentation-regression-v1/README.md) timed out in its first judge call and produced no valid grades. Preserve its $0.24075 known estimate, one unpriced request and incomplete Agent delivery. The complete retry uses the same code, data, seed and rubric. It does not erase that operational failure or establish independent grading, broader accuracy or auditor value.
+
+## Later wording and decision review: source `b312a2c9a081`
+
+The [two-turn live walkthrough](decision-walkthrough-v1/README.md) records the current overview preset and contextual follow-up, desktop/mobile screenshots, 430 local tests, and remote delivery of both turns and 20 provider responses. Cost was $1.0136. The overview required three audits and still used imprecise Signal-scoring language; both responses were long. These observations do not replace the earlier regression or establish clarification accuracy.
+
+The separately authorized [paired hybrid experiment](retrieval-live-v3/README.md) completed 24 answers on six existing questions. Both methods had 12/12 judge-recorded task passes, 20 searches and 70 model requests. Time/cost were mixed; retain BM25 provisionally. Total estimated model use was $7.6281, including one invalid grade and its disclosed retry. All 24 turns, 140 agent responses and 25 judge responses reconcile remotely. These are targeted development results, separate from the original pilot and full regression.
+
+## Earlier full regression: `522c320`
 
 Start with the [current packet](essence-v2/README.md). Source `bd74bb83b9fd34273acb50edcec66ea4ba0a5cf865ae867b2fc04cd84229a839`, verification contract 6 and unchanged rubric 2.3. One bounded research/check loop replaces separate planning, workflow facets, terminal recovery and the SQLite library.
 

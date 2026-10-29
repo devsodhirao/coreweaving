@@ -1,0 +1,2054 @@
+{
+  "case_id": "21-followup-e01-op-postprocessors--t2--hybrid",
+  "prediction_id": "c2f7ee24-12ae-45b3-95fd-741066379f0d",
+  "trial_index": 2,
+  "example_id": null,
+  "verify_mode": "support",
+  "prompts": [
+    "I am adding postprocess_inputs and postprocess_output to a Python @weave.op. What types go into and out of each hook, and which representation is saved in the trace?"
+  ],
+  "output": {
+    "answer_id": "c2f7ee24-12ae-45b3-95fd-741066379f0d",
+    "question": "I am adding postprocess_inputs and postprocess_output to a Python @weave.op. What types go into and out of each hook, and which representation is saved in the trace?",
+    "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a changed version. The trace saves the **changed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"` [S1].\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1].\n- The sections I read don't say whether code that calls your op gets the original return value or the changed one. If that matters, test it in your project.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: str) -> str:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+    "kind": "answer",
+    "source_ids": [
+      "S1",
+      "S2"
+    ],
+    "sources": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/ops",
+        "section": 3,
+        "title": "Customize Ops",
+        "heading": "Customize logged inputs and outputs",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+        "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+        "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: str\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=hide_me)\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+        "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Customize Ops"
+          },
+          {
+            "section": 1,
+            "heading": "Customize display names"
+          },
+          {
+            "section": 2,
+            "heading": "Apply kinds and colors"
+          },
+          {
+            "section": 3,
+            "heading": "Customize logged inputs and outputs"
+          },
+          {
+            "section": 4,
+            "heading": "Control sampling rate"
+          },
+          {
+            "section": 5,
+            "heading": "Control Call link output"
+          },
+          {
+            "section": 6,
+            "heading": "Delete an Op"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S2",
+        "page_id": "reference/python-sdk/trace/op",
+        "section": 19,
+        "title": "op",
+        "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+        "page_sha256": "4677e9143e450d3790b2b1ef6604722e653fa4109522da4875ac8a93beedc5d8",
+        "text": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than batched.  Useful for long-running operations like evaluations that should  be visible in the UI immediately.\n\n**Args:**\n\n* **`d`**: Optional existing WeaveKwargs dict to update.\n* **`op`**: Op to extract kind and color from.\n\n**Returns:**\nWeaveKwargs dict with attributes, display\\_name, and optionally kind/color set.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L422)\n\n",
+        "page_context": "# op\n\n> Python SDK reference for weave.trace.op\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "op"
+          },
+          {
+            "section": 1,
+            "heading": "API Overview"
+          },
+          {
+            "section": 2,
+            "heading": "<kbd>class</kbd> `DisplayNameFuncError`"
+          },
+          {
+            "section": 3,
+            "heading": "<kbd>class</kbd> `OpCallError`"
+          },
+          {
+            "section": 4,
+            "heading": "<kbd>class</kbd> `OpKwargs`"
+          },
+          {
+            "section": 5,
+            "heading": "<kbd>class</kbd> `Sentinel`"
+          },
+          {
+            "section": 6,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 7,
+            "heading": "<kbd>class</kbd> `WeaveKwargs`"
+          },
+          {
+            "section": 8,
+            "heading": "<kbd>function</kbd> `as_op`"
+          },
+          {
+            "section": 9,
+            "heading": "<kbd>function</kbd> `call`"
+          },
+          {
+            "section": 10,
+            "heading": "<kbd>function</kbd> `calls`"
+          },
+          {
+            "section": 11,
+            "heading": "<kbd>function</kbd> `get_captured_code`"
+          },
+          {
+            "section": 12,
+            "heading": "<kbd>function</kbd> `is_op`"
+          },
+          {
+            "section": 13,
+            "heading": "<kbd>function</kbd> `is_placeholder_call`"
+          },
+          {
+            "section": 14,
+            "heading": "<kbd>function</kbd> `is_tracing_setting_disabled`"
+          },
+          {
+            "section": 15,
+            "heading": "<kbd>function</kbd> `maybe_bind_method`"
+          },
+          {
+            "section": 16,
+            "heading": "<kbd>function</kbd> `maybe_unbind_method`"
+          },
+          {
+            "section": 17,
+            "heading": "<kbd>function</kbd> `op`"
+          },
+          {
+            "section": 18,
+            "heading": "<kbd>function</kbd> `placeholder_call`"
+          },
+          {
+            "section": 19,
+            "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`"
+          },
+          {
+            "section": 20,
+            "heading": "<kbd>function</kbd> `should_skip_tracing_for_op`"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      }
+    ],
+    "all_read_evidence": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/ops",
+        "section": 3,
+        "title": "Customize Ops",
+        "heading": "Customize logged inputs and outputs",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+        "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+        "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: str\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=hide_me)\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+        "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Customize Ops"
+          },
+          {
+            "section": 1,
+            "heading": "Customize display names"
+          },
+          {
+            "section": 2,
+            "heading": "Apply kinds and colors"
+          },
+          {
+            "section": 3,
+            "heading": "Customize logged inputs and outputs"
+          },
+          {
+            "section": 4,
+            "heading": "Control sampling rate"
+          },
+          {
+            "section": 5,
+            "heading": "Control Call link output"
+          },
+          {
+            "section": 6,
+            "heading": "Delete an Op"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S2",
+        "page_id": "reference/python-sdk/trace/op",
+        "section": 19,
+        "title": "op",
+        "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+        "page_sha256": "4677e9143e450d3790b2b1ef6604722e653fa4109522da4875ac8a93beedc5d8",
+        "text": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than batched.  Useful for long-running operations like evaluations that should  be visible in the UI immediately.\n\n**Args:**\n\n* **`d`**: Optional existing WeaveKwargs dict to update.\n* **`op`**: Op to extract kind and color from.\n\n**Returns:**\nWeaveKwargs dict with attributes, display\\_name, and optionally kind/color set.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L422)\n\n",
+        "page_context": "# op\n\n> Python SDK reference for weave.trace.op\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "op"
+          },
+          {
+            "section": 1,
+            "heading": "API Overview"
+          },
+          {
+            "section": 2,
+            "heading": "<kbd>class</kbd> `DisplayNameFuncError`"
+          },
+          {
+            "section": 3,
+            "heading": "<kbd>class</kbd> `OpCallError`"
+          },
+          {
+            "section": 4,
+            "heading": "<kbd>class</kbd> `OpKwargs`"
+          },
+          {
+            "section": 5,
+            "heading": "<kbd>class</kbd> `Sentinel`"
+          },
+          {
+            "section": 6,
+            "heading": "<kbd>method</kbd> `__init__`"
+          },
+          {
+            "section": 7,
+            "heading": "<kbd>class</kbd> `WeaveKwargs`"
+          },
+          {
+            "section": 8,
+            "heading": "<kbd>function</kbd> `as_op`"
+          },
+          {
+            "section": 9,
+            "heading": "<kbd>function</kbd> `call`"
+          },
+          {
+            "section": 10,
+            "heading": "<kbd>function</kbd> `calls`"
+          },
+          {
+            "section": 11,
+            "heading": "<kbd>function</kbd> `get_captured_code`"
+          },
+          {
+            "section": 12,
+            "heading": "<kbd>function</kbd> `is_op`"
+          },
+          {
+            "section": 13,
+            "heading": "<kbd>function</kbd> `is_placeholder_call`"
+          },
+          {
+            "section": 14,
+            "heading": "<kbd>function</kbd> `is_tracing_setting_disabled`"
+          },
+          {
+            "section": 15,
+            "heading": "<kbd>function</kbd> `maybe_bind_method`"
+          },
+          {
+            "section": 16,
+            "heading": "<kbd>function</kbd> `maybe_unbind_method`"
+          },
+          {
+            "section": 17,
+            "heading": "<kbd>function</kbd> `op`"
+          },
+          {
+            "section": 18,
+            "heading": "<kbd>function</kbd> `placeholder_call`"
+          },
+          {
+            "section": 19,
+            "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`"
+          },
+          {
+            "section": 20,
+            "heading": "<kbd>function</kbd> `should_skip_tracing_for_op`"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      }
+    ],
+    "verification": {
+      "passed": true,
+      "issues": [],
+      "missing_parts": [],
+      "mode": "support",
+      "status": "passed"
+    },
+    "verification_attempts": [
+      {
+        "candidate": {
+          "source_ids": [
+            "S1",
+            "S2"
+          ],
+          "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a replacement value. The trace saves the **transformed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"`. The return type doesn't have to match, though [S1].\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1]. My reading of that (not stated directly): your code still gets the original, unchanged return value. Only the logged copy is redacted.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: Any) -> Any:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nAlso note that this feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+          "kind": "answer"
+        },
+        "passed": false,
+        "issues": [
+          "The claim that postprocess_output's return type does not have to match the original output type is not supported by S1. S1 only says the hook takes any value the function would normally return and returns the transformed output, and its example returns the same type (CustomObject). Remove this claim or cite a source that states it.",
+          "The inference that the caller still receives the original, unredacted return value, with only the logged copy changed, is not established by the cited text. S1's phrase \"without modifying the original function\" refers to not editing the function itself, and S2 only says the hooks transform data \"before logging\". Either find documentation that describes the caller's return value or clearly mark this as unverified."
+        ],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "failed"
+      },
+      {
+        "candidate": {
+          "source_ids": [
+            "S1",
+            "S2"
+          ],
+          "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a changed version. The trace saves the **changed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"` [S1]. Keeping the same type, as in that example, is the safest choice.\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1].\n- The sections I read don't say whether code that calls your op gets the original return value or the changed one. If that matters, test it in your project.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: str) -> str:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+          "kind": "answer"
+        },
+        "passed": false,
+        "issues": [
+          "The advice that keeping the same output type \"is the safest choice\" has no source support. S1 only says postprocess_output \"returns the transformed output\"; its example happens to return the same type but sets no type requirement and gives no safety guidance. Remove the sentence, or plainly label it as untested personal advice that the docs don't address."
+        ],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "failed"
+      },
+      {
+        "candidate": {
+          "source_ids": [
+            "S1",
+            "S2"
+          ],
+          "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a changed version. The trace saves the **changed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"` [S1].\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1].\n- The sections I read don't say whether code that calls your op gets the original return value or the changed one. If that matters, test it in your project.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: str) -> str:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+          "kind": "answer"
+        },
+        "passed": true,
+        "issues": [],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "passed"
+      }
+    ],
+    "actions": [
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "postprocess_inputs postprocess_output op"
+        },
+        "result": {
+          "query": "postprocess_inputs postprocess_output op",
+          "results": [
+            {
+              "page_id": "guides/tracking/ops",
+              "section": 3,
+              "title": "Customize Ops",
+              "heading": "Customize logged inputs and outputs",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+              "snippet": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: str\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return C"
+            },
+            {
+              "page_id": "reference/python-sdk/trace/op",
+              "section": 17,
+              "title": "op",
+              "heading": "<kbd>function</kbd> `op`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+              "snippet": "### <kbd>function</kbd> `op`\n\n```python theme={\"system\"}\nop(\n    func: 'Callable[P, R] | None' = None,\n    name: 'str | None' = None,\n    call_display_name: 'str | CallDisplayNameFunc | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    tracing_sample_rate: 'float' = 1.0,\n    enable_code_capture: 'bool' = True,\n    accumulator: 'Callable[[Any | None, Any], Any] | None' = None,\n    kind: 'OpKind | None' = None,\n    color: 'OpColor | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    eager_call_start: 'bool' = False\n) \u2192 Callable[[Callable[P, R]], Op[P, R]] | Op[P, R]\n```\n\nA decorator to weave op-ify a function or method. Works for both sync and async. Automatically detects iterator functions and applies appropriate behavior.\n\n**Args:**\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L436)\n\n"
+            },
+            {
+              "page_id": "cookbooks/pii",
+              "section": 2,
+              "title": "PII Data Handling",
+              "heading": "Customize input and output logging using `weave.op`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/pii",
+              "snippet": "### Customize input and output logging using `weave.op`\n\nWeave Ops let you define input and output postprocessing functions. With these functions, you can modify the data that is passed to your LLM call or logged to Weave.\n\nThe following example defines two postprocessing functions and passes them as arguments to `weave.op()`.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\n\nimport weave\n\n# Inputs Wrapper Class\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\n# First, define functions for input and output postprocessing:\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n# Then, when you use the `@weave.op` decorator, pass these processing functions as arguments to the decorator:\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef some_llm_call(a: int, hide_me: str) -> Cus"
+            },
+            {
+              "page_id": "reference/python-sdk",
+              "section": 277,
+              "title": "weave",
+              "heading": "<kbd>function</kbd> `op`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+              "snippet": "### <kbd>function</kbd> `op`\n\n```python theme={\"system\"}\nop(\n    func: 'Callable[P, R] | None' = None,\n    name: 'str | None' = None,\n    call_display_name: 'str | CallDisplayNameFunc | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    tracing_sample_rate: 'float' = 1.0,\n    enable_code_capture: 'bool' = True,\n    accumulator: 'Callable[[Any | None, Any], Any] | None' = None,\n    kind: 'OpKind | None' = None,\n    color: 'OpColor | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    eager_call_start: 'bool' = False\n) \u2192 Callable[[Callable[P, R]], Op[P, R]] | Op[P, R]\n```\n\nA decorator to weave op-ify a function or method. Works for both sync and async. Automatically detects iterator functions and applies appropriate behavior.\n\n**Args:**\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/urls.py#L14)\n\n"
+            },
+            {
+              "page_id": "reference/python-sdk/trace/op",
+              "section": 19,
+              "title": "op",
+              "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+              "snippet": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than"
+            },
+            {
+              "page_id": "reference/python-sdk",
+              "section": 269,
+              "title": "weave",
+              "heading": "<kbd>function</kbd> `init`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+              "snippet": "### <kbd>function</kbd> `init`\n\n```python theme={\"system\"}\ninit(\n    project_name: 'str',\n    settings: 'UserSettings | dict[str, Any] | None' = None,\n    autopatch_settings: 'AutopatchSettings | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    global_postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    global_postprocess_output: 'PostprocessOutputFunc | None' = None,\n    global_attributes: 'dict[str, Any] | None' = None\n) \u2192 WeaveClient\n```\n\nInitialize weave tracking, logging to a wandb project.\n\nLogging is initialized globally, so you do not need to keep a reference to the return value of init.\n\nFollowing init, calls of weave.op decorated functions will be logged to the specified project.\n\n**Args:**\n\nNOTE: Client-level postprocessing runs after each op's own postprocessing. The order is always: 1. Op-specific postprocessing 2. Client-level postprocessing\n\n* **`project_name`**: The name of the Weights & Biases team and project to log"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/ops",
+          "section": 3
+        },
+        "result": {
+          "source_id": "S1",
+          "page_id": "guides/tracking/ops",
+          "section": 3,
+          "title": "Customize Ops",
+          "heading": "Customize logged inputs and outputs",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+          "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+          "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: str\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=hide_me)\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+          "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Customize Ops"
+            },
+            {
+              "section": 1,
+              "heading": "Customize display names"
+            },
+            {
+              "section": 2,
+              "heading": "Apply kinds and colors"
+            },
+            {
+              "section": 3,
+              "heading": "Customize logged inputs and outputs"
+            },
+            {
+              "section": 4,
+              "heading": "Control sampling rate"
+            },
+            {
+              "section": 5,
+              "heading": "Control Call link output"
+            },
+            {
+              "section": 6,
+              "heading": "Delete an Op"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "outgoing_links": [],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "reference/python-sdk/trace/op",
+          "section": 19
+        },
+        "result": {
+          "source_id": "S2",
+          "page_id": "reference/python-sdk/trace/op",
+          "section": 19,
+          "title": "op",
+          "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+          "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+          "page_sha256": "4677e9143e450d3790b2b1ef6604722e653fa4109522da4875ac8a93beedc5d8",
+          "text": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than batched.  Useful for long-running operations like evaluations that should  be visible in the UI immediately.\n\n**Args:**\n\n* **`d`**: Optional existing WeaveKwargs dict to update.\n* **`op`**: Op to extract kind and color from.\n\n**Returns:**\nWeaveKwargs dict with attributes, display\\_name, and optionally kind/color set.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L422)\n\n",
+          "page_context": "# op\n\n> Python SDK reference for weave.trace.op\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "op"
+            },
+            {
+              "section": 1,
+              "heading": "API Overview"
+            },
+            {
+              "section": 2,
+              "heading": "<kbd>class</kbd> `DisplayNameFuncError`"
+            },
+            {
+              "section": 3,
+              "heading": "<kbd>class</kbd> `OpCallError`"
+            },
+            {
+              "section": 4,
+              "heading": "<kbd>class</kbd> `OpKwargs`"
+            },
+            {
+              "section": 5,
+              "heading": "<kbd>class</kbd> `Sentinel`"
+            },
+            {
+              "section": 6,
+              "heading": "<kbd>method</kbd> `__init__`"
+            },
+            {
+              "section": 7,
+              "heading": "<kbd>class</kbd> `WeaveKwargs`"
+            },
+            {
+              "section": 8,
+              "heading": "<kbd>function</kbd> `as_op`"
+            },
+            {
+              "section": 9,
+              "heading": "<kbd>function</kbd> `call`"
+            },
+            {
+              "section": 10,
+              "heading": "<kbd>function</kbd> `calls`"
+            },
+            {
+              "section": 11,
+              "heading": "<kbd>function</kbd> `get_captured_code`"
+            },
+            {
+              "section": 12,
+              "heading": "<kbd>function</kbd> `is_op`"
+            },
+            {
+              "section": 13,
+              "heading": "<kbd>function</kbd> `is_placeholder_call`"
+            },
+            {
+              "section": 14,
+              "heading": "<kbd>function</kbd> `is_tracing_setting_disabled`"
+            },
+            {
+              "section": 15,
+              "heading": "<kbd>function</kbd> `maybe_bind_method`"
+            },
+            {
+              "section": 16,
+              "heading": "<kbd>function</kbd> `maybe_unbind_method`"
+            },
+            {
+              "section": 17,
+              "heading": "<kbd>function</kbd> `op`"
+            },
+            {
+              "section": 18,
+              "heading": "<kbd>function</kbd> `placeholder_call`"
+            },
+            {
+              "section": 19,
+              "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`"
+            },
+            {
+              "section": 20,
+              "heading": "<kbd>function</kbd> `should_skip_tracing_for_op`"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "outgoing_links": [],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a replacement value. The trace saves the **transformed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"`. The return type doesn't have to match, though [S1].\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1]. My reading of that (not stated directly): your code still gets the original, unchanged return value. Only the logged copy is redacted.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: Any) -> Any:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nAlso note that this feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+          "source_ids": [
+            "S1",
+            "S2"
+          ]
+        },
+        "result": {
+          "passed": false,
+          "issues": [
+            "The claim that postprocess_output's return type does not have to match the original output type is not supported by S1. S1 only says the hook takes any value the function would normally return and returns the transformed output, and its example returns the same type (CustomObject). Remove this claim or cite a source that states it.",
+            "The inference that the caller still receives the original, unredacted return value, with only the logged copy changed, is not established by the cited text. S1's phrase \"without modifying the original function\" refers to not editing the function itself, and S2 only says the hooks transform data \"before logging\". Either find documentation that describes the caller's return value or clearly mark this as unverified."
+          ],
+          "missing_parts": [],
+          "mode": "support",
+          "status": "failed"
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a changed version. The trace saves the **changed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"` [S1]. Keeping the same type, as in that example, is the safest choice.\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1].\n- The sections I read don't say whether code that calls your op gets the original return value or the changed one. If that matters, test it in your project.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: str) -> str:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+          "source_ids": [
+            "S1",
+            "S2"
+          ]
+        },
+        "result": {
+          "passed": false,
+          "issues": [
+            "The advice that keeping the same output type \"is the safest choice\" has no source support. S1 only says postprocess_output \"returns the transformed output\"; its example happens to return the same type but sets no type requirement and gives no safety guidance. Remove the sentence, or plainly label it as untested personal advice that the docs don't address."
+          ],
+          "missing_parts": [],
+          "mode": "support",
+          "status": "failed"
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a changed version. The trace saves the **changed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"` [S1].\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1].\n- The sections I read don't say whether code that calls your op gets the original return value or the changed one. If that matters, test it in your project.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: str) -> str:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+          "source_ids": [
+            "S1",
+            "S2"
+          ]
+        },
+        "result": {
+          "passed": true,
+          "issues": [],
+          "missing_parts": [],
+          "mode": "support",
+          "status": "passed"
+        },
+        "origin": "provider_tool_call"
+      }
+    ],
+    "task_complete": true,
+    "missing_outcomes": [],
+    "completion_status": "complete",
+    "review_reason": "none",
+    "conversation_context": [],
+    "conversation_id": "3b4769d8-5358-4d55-a409-8c19f5314b62",
+    "trace_id": "c3084bf343d0b193db2c6727e9df2139",
+    "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/3b4769d8-5358-4d55-a409-8c19f5314b62",
+    "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+    "source_sha256": "b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0",
+    "prompt_sha256": "0db790fffbb9edc24333d987516f479c1bd7cab6aaf0ad382a836264c6a00a9c",
+    "config_sha256": "40d8a7bacd0c2eb781964747644ff5335f6e517841b0105821b87cc0fd0b42ca",
+    "citation_contract_version": 3,
+    "verification_contract_version": 6,
+    "verify_mode": "support",
+    "cache_enabled": true,
+    "model": "claude-opus-5-5",
+    "elapsed_seconds": 42.45,
+    "metrics": {
+      "calls": [
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWFzbjiYfDUp489rmeZE",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 169
+            },
+            "cache_creation_input_tokens": 169,
+            "cache_read_input_tokens": 2171,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 62,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 1.5827,
+          "estimated_usd": 0.0025352
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWFzi1kCYCkd23FUS9mx",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 3549
+            },
+            "cache_creation_input_tokens": 3549,
+            "cache_read_input_tokens": 2340,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 157,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 1.8638,
+          "estimated_usd": 0.021369
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWFzr5BUadY7VkKFo1ae",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 3492
+            },
+            "cache_creation_input_tokens": 3492,
+            "cache_read_input_tokens": 5889,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 862,
+            "output_tokens_details": {
+              "thinking_tokens": 96
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 8.1218,
+          "estimated_usd": 0.0358938
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWG1THWNhxRVsWGfkYis",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 7770
+            },
+            "cache_creation_input_tokens": 7770,
+            "cache_read_input_tokens": 1663,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 691,
+            "output_tokens_details": {
+              "thinking_tokens": 388
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 7.8679,
+          "estimated_usd": 0.0530186
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWG22Ppdv7Qbb8Cw1rgm",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1157
+            },
+            "cache_creation_input_tokens": 1157,
+            "cache_read_input_tokens": 9381,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 823,
+            "output_tokens_details": {
+              "thinking_tokens": 55
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 6.5387,
+          "estimated_usd": 0.0241372
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWG2WQ3rR7uaQh766kfF",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 7772
+            },
+            "cache_creation_input_tokens": 7772,
+            "cache_read_input_tokens": 1663,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 571,
+            "output_tokens_details": {
+              "thinking_tokens": 366
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 7.1547,
+          "estimated_usd": 0.0506286
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWG32ypmjtsBmMRJJUky",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1019
+            },
+            "cache_creation_input_tokens": 1019,
+            "cache_read_input_tokens": 10538,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 746,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 5.532,
+          "estimated_usd": 0.0221386
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWG3SfqqapBVokoJHh6J",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 7751
+            },
+            "cache_creation_input_tokens": 7751,
+            "cache_read_input_tokens": 1663,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 296,
+            "output_tokens_details": {
+              "thinking_tokens": 196
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 3.7452,
+          "estimated_usd": 0.0450236
+        }
+      ],
+      "model_calls": 8,
+      "tokens": {
+        "input_tokens": 32,
+        "output_tokens": 4208,
+        "cache_creation_input_tokens": 32679,
+        "cache_read_input_tokens": 35308
+      },
+      "total_input_tokens": 68019,
+      "estimated_usd": 0.2547446,
+      "known_estimated_usd": 0.2547446,
+      "unpriced_calls": 0,
+      "by_purpose": {
+        "planner": {
+          "calls": 5,
+          "known_estimated_usd": 0.1060738
+        },
+        "verification": {
+          "calls": 3,
+          "known_estimated_usd": 0.1486708
+        }
+      },
+      "research": {
+        "searches": 1,
+        "passage_reads": 2,
+        "distinct_pages_read": 2,
+        "repeated_tool_requests": 0,
+        "drafts_submitted": 3,
+        "code_runs": 0
+      },
+      "pricing": {
+        "checked_at": "2026-10-25",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "rates": {
+          "claude-sonnet-5-5": {
+            "input": 2,
+            "output": 10,
+            "write_5m": 2.5,
+            "write_1h": 4,
+            "read": 0.1
+          },
+          "claude-opus-5-5": {
+            "input": 4,
+            "output": 20,
+            "write_5m": 5,
+            "write_1h": 8,
+            "read": 0.2
+          }
+        }
+      },
+      "scope": "Estimated from Claude's reported usage and published prices. Includes research and answer checks. Excludes Weave Signals, separate evaluation runs, hosting, taxes and any usage missing after failed requests or retries. We count requests made by the app, not every network attempt. Your final bill may differ."
+    },
+    "error_type": null,
+    "case_id": "21-followup-e01-op-postprocessors--t2--hybrid",
+    "trial_index": 2,
+    "prediction_id": "c2f7ee24-12ae-45b3-95fd-741066379f0d",
+    "turns": [
+      {
+        "answer_id": "c2f7ee24-12ae-45b3-95fd-741066379f0d",
+        "question": "I am adding postprocess_inputs and postprocess_output to a Python @weave.op. What types go into and out of each hook, and which representation is saved in the trace?",
+        "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a changed version. The trace saves the **changed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"` [S1].\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1].\n- The sections I read don't say whether code that calls your op gets the original return value or the changed one. If that matters, test it in your project.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: str) -> str:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+        "kind": "answer",
+        "source_ids": [
+          "S1",
+          "S2"
+        ],
+        "sources": [
+          {
+            "source_id": "S1",
+            "page_id": "guides/tracking/ops",
+            "section": 3,
+            "title": "Customize Ops",
+            "heading": "Customize logged inputs and outputs",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+            "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+            "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: str\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=hide_me)\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+            "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+            "outline": [
+              {
+                "section": 0,
+                "heading": "Customize Ops"
+              },
+              {
+                "section": 1,
+                "heading": "Customize display names"
+              },
+              {
+                "section": 2,
+                "heading": "Apply kinds and colors"
+              },
+              {
+                "section": 3,
+                "heading": "Customize logged inputs and outputs"
+              },
+              {
+                "section": 4,
+                "heading": "Control sampling rate"
+              },
+              {
+                "section": 5,
+                "heading": "Control Call link output"
+              },
+              {
+                "section": 6,
+                "heading": "Delete an Op"
+              }
+            ],
+            "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+            "outgoing_links": [],
+            "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+          },
+          {
+            "source_id": "S2",
+            "page_id": "reference/python-sdk/trace/op",
+            "section": 19,
+            "title": "op",
+            "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+            "page_sha256": "4677e9143e450d3790b2b1ef6604722e653fa4109522da4875ac8a93beedc5d8",
+            "text": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than batched.  Useful for long-running operations like evaluations that should  be visible in the UI immediately.\n\n**Args:**\n\n* **`d`**: Optional existing WeaveKwargs dict to update.\n* **`op`**: Op to extract kind and color from.\n\n**Returns:**\nWeaveKwargs dict with attributes, display\\_name, and optionally kind/color set.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L422)\n\n",
+            "page_context": "# op\n\n> Python SDK reference for weave.trace.op\n\n",
+            "outline": [
+              {
+                "section": 0,
+                "heading": "op"
+              },
+              {
+                "section": 1,
+                "heading": "API Overview"
+              },
+              {
+                "section": 2,
+                "heading": "<kbd>class</kbd> `DisplayNameFuncError`"
+              },
+              {
+                "section": 3,
+                "heading": "<kbd>class</kbd> `OpCallError`"
+              },
+              {
+                "section": 4,
+                "heading": "<kbd>class</kbd> `OpKwargs`"
+              },
+              {
+                "section": 5,
+                "heading": "<kbd>class</kbd> `Sentinel`"
+              },
+              {
+                "section": 6,
+                "heading": "<kbd>method</kbd> `__init__`"
+              },
+              {
+                "section": 7,
+                "heading": "<kbd>class</kbd> `WeaveKwargs`"
+              },
+              {
+                "section": 8,
+                "heading": "<kbd>function</kbd> `as_op`"
+              },
+              {
+                "section": 9,
+                "heading": "<kbd>function</kbd> `call`"
+              },
+              {
+                "section": 10,
+                "heading": "<kbd>function</kbd> `calls`"
+              },
+              {
+                "section": 11,
+                "heading": "<kbd>function</kbd> `get_captured_code`"
+              },
+              {
+                "section": 12,
+                "heading": "<kbd>function</kbd> `is_op`"
+              },
+              {
+                "section": 13,
+                "heading": "<kbd>function</kbd> `is_placeholder_call`"
+              },
+              {
+                "section": 14,
+                "heading": "<kbd>function</kbd> `is_tracing_setting_disabled`"
+              },
+              {
+                "section": 15,
+                "heading": "<kbd>function</kbd> `maybe_bind_method`"
+              },
+              {
+                "section": 16,
+                "heading": "<kbd>function</kbd> `maybe_unbind_method`"
+              },
+              {
+                "section": 17,
+                "heading": "<kbd>function</kbd> `op`"
+              },
+              {
+                "section": 18,
+                "heading": "<kbd>function</kbd> `placeholder_call`"
+              },
+              {
+                "section": 19,
+                "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`"
+              },
+              {
+                "section": 20,
+                "heading": "<kbd>function</kbd> `should_skip_tracing_for_op`"
+              }
+            ],
+            "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+            "outgoing_links": [],
+            "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+          }
+        ],
+        "all_read_evidence": [
+          {
+            "source_id": "S1",
+            "page_id": "guides/tracking/ops",
+            "section": 3,
+            "title": "Customize Ops",
+            "heading": "Customize logged inputs and outputs",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+            "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+            "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: str\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=hide_me)\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+            "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+            "outline": [
+              {
+                "section": 0,
+                "heading": "Customize Ops"
+              },
+              {
+                "section": 1,
+                "heading": "Customize display names"
+              },
+              {
+                "section": 2,
+                "heading": "Apply kinds and colors"
+              },
+              {
+                "section": 3,
+                "heading": "Customize logged inputs and outputs"
+              },
+              {
+                "section": 4,
+                "heading": "Control sampling rate"
+              },
+              {
+                "section": 5,
+                "heading": "Control Call link output"
+              },
+              {
+                "section": 6,
+                "heading": "Delete an Op"
+              }
+            ],
+            "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+            "outgoing_links": [],
+            "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+          },
+          {
+            "source_id": "S2",
+            "page_id": "reference/python-sdk/trace/op",
+            "section": 19,
+            "title": "op",
+            "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+            "page_sha256": "4677e9143e450d3790b2b1ef6604722e653fa4109522da4875ac8a93beedc5d8",
+            "text": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than batched.  Useful for long-running operations like evaluations that should  be visible in the UI immediately.\n\n**Args:**\n\n* **`d`**: Optional existing WeaveKwargs dict to update.\n* **`op`**: Op to extract kind and color from.\n\n**Returns:**\nWeaveKwargs dict with attributes, display\\_name, and optionally kind/color set.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L422)\n\n",
+            "page_context": "# op\n\n> Python SDK reference for weave.trace.op\n\n",
+            "outline": [
+              {
+                "section": 0,
+                "heading": "op"
+              },
+              {
+                "section": 1,
+                "heading": "API Overview"
+              },
+              {
+                "section": 2,
+                "heading": "<kbd>class</kbd> `DisplayNameFuncError`"
+              },
+              {
+                "section": 3,
+                "heading": "<kbd>class</kbd> `OpCallError`"
+              },
+              {
+                "section": 4,
+                "heading": "<kbd>class</kbd> `OpKwargs`"
+              },
+              {
+                "section": 5,
+                "heading": "<kbd>class</kbd> `Sentinel`"
+              },
+              {
+                "section": 6,
+                "heading": "<kbd>method</kbd> `__init__`"
+              },
+              {
+                "section": 7,
+                "heading": "<kbd>class</kbd> `WeaveKwargs`"
+              },
+              {
+                "section": 8,
+                "heading": "<kbd>function</kbd> `as_op`"
+              },
+              {
+                "section": 9,
+                "heading": "<kbd>function</kbd> `call`"
+              },
+              {
+                "section": 10,
+                "heading": "<kbd>function</kbd> `calls`"
+              },
+              {
+                "section": 11,
+                "heading": "<kbd>function</kbd> `get_captured_code`"
+              },
+              {
+                "section": 12,
+                "heading": "<kbd>function</kbd> `is_op`"
+              },
+              {
+                "section": 13,
+                "heading": "<kbd>function</kbd> `is_placeholder_call`"
+              },
+              {
+                "section": 14,
+                "heading": "<kbd>function</kbd> `is_tracing_setting_disabled`"
+              },
+              {
+                "section": 15,
+                "heading": "<kbd>function</kbd> `maybe_bind_method`"
+              },
+              {
+                "section": 16,
+                "heading": "<kbd>function</kbd> `maybe_unbind_method`"
+              },
+              {
+                "section": 17,
+                "heading": "<kbd>function</kbd> `op`"
+              },
+              {
+                "section": 18,
+                "heading": "<kbd>function</kbd> `placeholder_call`"
+              },
+              {
+                "section": 19,
+                "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`"
+              },
+              {
+                "section": 20,
+                "heading": "<kbd>function</kbd> `should_skip_tracing_for_op`"
+              }
+            ],
+            "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+            "outgoing_links": [],
+            "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+          }
+        ],
+        "verification": {
+          "passed": true,
+          "issues": [],
+          "missing_parts": [],
+          "mode": "support",
+          "status": "passed"
+        },
+        "verification_attempts": [
+          {
+            "candidate": {
+              "source_ids": [
+                "S1",
+                "S2"
+              ],
+              "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a replacement value. The trace saves the **transformed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"`. The return type doesn't have to match, though [S1].\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1]. My reading of that (not stated directly): your code still gets the original, unchanged return value. Only the logged copy is redacted.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: Any) -> Any:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nAlso note that this feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+              "kind": "answer"
+            },
+            "passed": false,
+            "issues": [
+              "The claim that postprocess_output's return type does not have to match the original output type is not supported by S1. S1 only says the hook takes any value the function would normally return and returns the transformed output, and its example returns the same type (CustomObject). Remove this claim or cite a source that states it.",
+              "The inference that the caller still receives the original, unredacted return value, with only the logged copy changed, is not established by the cited text. S1's phrase \"without modifying the original function\" refers to not editing the function itself, and S2 only says the hooks transform data \"before logging\". Either find documentation that describes the caller's return value or clearly mark this as unverified."
+            ],
+            "missing_parts": [],
+            "mode": "support",
+            "status": "failed"
+          },
+          {
+            "candidate": {
+              "source_ids": [
+                "S1",
+                "S2"
+              ],
+              "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a changed version. The trace saves the **changed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"` [S1]. Keeping the same type, as in that example, is the safest choice.\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1].\n- The sections I read don't say whether code that calls your op gets the original return value or the changed one. If that matters, test it in your project.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: str) -> str:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+              "kind": "answer"
+            },
+            "passed": false,
+            "issues": [
+              "The advice that keeping the same output type \"is the safest choice\" has no source support. S1 only says postprocess_output \"returns the transformed output\"; its example happens to return the same type but sets no type requirement and gives no safety guidance. Remove the sentence, or plainly label it as untested personal advice that the docs don't address."
+            ],
+            "missing_parts": [],
+            "mode": "support",
+            "status": "failed"
+          },
+          {
+            "candidate": {
+              "source_ids": [
+                "S1",
+                "S2"
+              ],
+              "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a changed version. The trace saves the **changed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"` [S1].\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1].\n- The sections I read don't say whether code that calls your op gets the original return value or the changed one. If that matters, test it in your project.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: str) -> str:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+              "kind": "answer"
+            },
+            "passed": true,
+            "issues": [],
+            "missing_parts": [],
+            "mode": "support",
+            "status": "passed"
+          }
+        ],
+        "actions": [
+          {
+            "tool": "search_docs",
+            "input": {
+              "query": "postprocess_inputs postprocess_output op"
+            },
+            "result": {
+              "query": "postprocess_inputs postprocess_output op",
+              "results": [
+                {
+                  "page_id": "guides/tracking/ops",
+                  "section": 3,
+                  "title": "Customize Ops",
+                  "heading": "Customize logged inputs and outputs",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+                  "snippet": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: str\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return C"
+                },
+                {
+                  "page_id": "reference/python-sdk/trace/op",
+                  "section": 17,
+                  "title": "op",
+                  "heading": "<kbd>function</kbd> `op`",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+                  "snippet": "### <kbd>function</kbd> `op`\n\n```python theme={\"system\"}\nop(\n    func: 'Callable[P, R] | None' = None,\n    name: 'str | None' = None,\n    call_display_name: 'str | CallDisplayNameFunc | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    tracing_sample_rate: 'float' = 1.0,\n    enable_code_capture: 'bool' = True,\n    accumulator: 'Callable[[Any | None, Any], Any] | None' = None,\n    kind: 'OpKind | None' = None,\n    color: 'OpColor | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    eager_call_start: 'bool' = False\n) \u2192 Callable[[Callable[P, R]], Op[P, R]] | Op[P, R]\n```\n\nA decorator to weave op-ify a function or method. Works for both sync and async. Automatically detects iterator functions and applies appropriate behavior.\n\n**Args:**\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L436)\n\n"
+                },
+                {
+                  "page_id": "cookbooks/pii",
+                  "section": 2,
+                  "title": "PII Data Handling",
+                  "heading": "Customize input and output logging using `weave.op`",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/pii",
+                  "snippet": "### Customize input and output logging using `weave.op`\n\nWeave Ops let you define input and output postprocessing functions. With these functions, you can modify the data that is passed to your LLM call or logged to Weave.\n\nThe following example defines two postprocessing functions and passes them as arguments to `weave.op()`.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\n\nimport weave\n\n# Inputs Wrapper Class\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\n# First, define functions for input and output postprocessing:\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n# Then, when you use the `@weave.op` decorator, pass these processing functions as arguments to the decorator:\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef some_llm_call(a: int, hide_me: str) -> Cus"
+                },
+                {
+                  "page_id": "reference/python-sdk",
+                  "section": 277,
+                  "title": "weave",
+                  "heading": "<kbd>function</kbd> `op`",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+                  "snippet": "### <kbd>function</kbd> `op`\n\n```python theme={\"system\"}\nop(\n    func: 'Callable[P, R] | None' = None,\n    name: 'str | None' = None,\n    call_display_name: 'str | CallDisplayNameFunc | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    tracing_sample_rate: 'float' = 1.0,\n    enable_code_capture: 'bool' = True,\n    accumulator: 'Callable[[Any | None, Any], Any] | None' = None,\n    kind: 'OpKind | None' = None,\n    color: 'OpColor | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    eager_call_start: 'bool' = False\n) \u2192 Callable[[Callable[P, R]], Op[P, R]] | Op[P, R]\n```\n\nA decorator to weave op-ify a function or method. Works for both sync and async. Automatically detects iterator functions and applies appropriate behavior.\n\n**Args:**\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/urls.py#L14)\n\n"
+                },
+                {
+                  "page_id": "reference/python-sdk/trace/op",
+                  "section": 19,
+                  "title": "op",
+                  "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+                  "snippet": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than"
+                },
+                {
+                  "page_id": "reference/python-sdk",
+                  "section": 269,
+                  "title": "weave",
+                  "heading": "<kbd>function</kbd> `init`",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+                  "snippet": "### <kbd>function</kbd> `init`\n\n```python theme={\"system\"}\ninit(\n    project_name: 'str',\n    settings: 'UserSettings | dict[str, Any] | None' = None,\n    autopatch_settings: 'AutopatchSettings | None' = None,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    global_postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    global_postprocess_output: 'PostprocessOutputFunc | None' = None,\n    global_attributes: 'dict[str, Any] | None' = None\n) \u2192 WeaveClient\n```\n\nInitialize weave tracking, logging to a wandb project.\n\nLogging is initialized globally, so you do not need to keep a reference to the return value of init.\n\nFollowing init, calls of weave.op decorated functions will be logged to the specified project.\n\n**Args:**\n\nNOTE: Client-level postprocessing runs after each op's own postprocessing. The order is always: 1. Op-specific postprocessing 2. Client-level postprocessing\n\n* **`project_name`**: The name of the Weights & Biases team and project to log"
+                }
+              ],
+              "note": "Read relevant sections with read_page before citing them."
+            },
+            "origin": "provider_tool_call"
+          },
+          {
+            "tool": "read_page",
+            "input": {
+              "page_id": "guides/tracking/ops",
+              "section": 3
+            },
+            "result": {
+              "source_id": "S1",
+              "page_id": "guides/tracking/ops",
+              "section": 3,
+              "title": "Customize Ops",
+              "heading": "Customize logged inputs and outputs",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+              "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+              "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: str\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"REDACTED\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=hide_me)\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+              "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+              "outline": [
+                {
+                  "section": 0,
+                  "heading": "Customize Ops"
+                },
+                {
+                  "section": 1,
+                  "heading": "Customize display names"
+                },
+                {
+                  "section": 2,
+                  "heading": "Apply kinds and colors"
+                },
+                {
+                  "section": 3,
+                  "heading": "Customize logged inputs and outputs"
+                },
+                {
+                  "section": 4,
+                  "heading": "Control sampling rate"
+                },
+                {
+                  "section": 5,
+                  "heading": "Control Call link output"
+                },
+                {
+                  "section": 6,
+                  "heading": "Delete an Op"
+                }
+              ],
+              "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+              "outgoing_links": [],
+              "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+            },
+            "origin": "provider_tool_call"
+          },
+          {
+            "tool": "read_page",
+            "input": {
+              "page_id": "reference/python-sdk/trace/op",
+              "section": 19
+            },
+            "result": {
+              "source_id": "S2",
+              "page_id": "reference/python-sdk/trace/op",
+              "section": 19,
+              "title": "op",
+              "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/op",
+              "page_sha256": "4677e9143e450d3790b2b1ef6604722e653fa4109522da4875ac8a93beedc5d8",
+              "text": "### <kbd>function</kbd> `setup_dunder_weave_dict`\n\n```python theme={\"system\"}\nsetup_dunder_weave_dict(op: 'Op', d: 'WeaveKwargs | None' = None) \u2192 WeaveKwargs\n```\n\nSets up a \\_\\_weave dict used to pass WeaveKwargs to ops.\n\n* **`func`**: The function to decorate.\n* **`name`**: Custom name for the op. Defaults to the function name.\n* **`call_display_name`**: Display name for calls, can be a string or callable.\n* **`postprocess_inputs`**: Function to transform inputs before logging.\n* **`postprocess_output`**: Function to transform output before logging.\n* **`tracing_sample_rate`**: Fraction of calls to trace (0.0 to 1.0).\n* **`enable_code_capture`**: Whether to capture source code for this op.\n* **`accumulator`**: Function to accumulate results for streaming ops.\n* **`attributes`**: Default attributes merged into every call this op creates,  at the lowest precedence. A `weave.attributes()` context and explicit  per-call attributes override them on key collision. The reserved  \"weave\" key may not be set here.\n* **`eager_call_start`**: If True, call starts are sent immediately rather than batched.  Useful for long-running operations like evaluations that should  be visible in the UI immediately.\n\n**Args:**\n\n* **`d`**: Optional existing WeaveKwargs dict to update.\n* **`op`**: Op to extract kind and color from.\n\n**Returns:**\nWeaveKwargs dict with attributes, display\\_name, and optionally kind/color set.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/op.py#L422)\n\n",
+              "page_context": "# op\n\n> Python SDK reference for weave.trace.op\n\n",
+              "outline": [
+                {
+                  "section": 0,
+                  "heading": "op"
+                },
+                {
+                  "section": 1,
+                  "heading": "API Overview"
+                },
+                {
+                  "section": 2,
+                  "heading": "<kbd>class</kbd> `DisplayNameFuncError`"
+                },
+                {
+                  "section": 3,
+                  "heading": "<kbd>class</kbd> `OpCallError`"
+                },
+                {
+                  "section": 4,
+                  "heading": "<kbd>class</kbd> `OpKwargs`"
+                },
+                {
+                  "section": 5,
+                  "heading": "<kbd>class</kbd> `Sentinel`"
+                },
+                {
+                  "section": 6,
+                  "heading": "<kbd>method</kbd> `__init__`"
+                },
+                {
+                  "section": 7,
+                  "heading": "<kbd>class</kbd> `WeaveKwargs`"
+                },
+                {
+                  "section": 8,
+                  "heading": "<kbd>function</kbd> `as_op`"
+                },
+                {
+                  "section": 9,
+                  "heading": "<kbd>function</kbd> `call`"
+                },
+                {
+                  "section": 10,
+                  "heading": "<kbd>function</kbd> `calls`"
+                },
+                {
+                  "section": 11,
+                  "heading": "<kbd>function</kbd> `get_captured_code`"
+                },
+                {
+                  "section": 12,
+                  "heading": "<kbd>function</kbd> `is_op`"
+                },
+                {
+                  "section": 13,
+                  "heading": "<kbd>function</kbd> `is_placeholder_call`"
+                },
+                {
+                  "section": 14,
+                  "heading": "<kbd>function</kbd> `is_tracing_setting_disabled`"
+                },
+                {
+                  "section": 15,
+                  "heading": "<kbd>function</kbd> `maybe_bind_method`"
+                },
+                {
+                  "section": 16,
+                  "heading": "<kbd>function</kbd> `maybe_unbind_method`"
+                },
+                {
+                  "section": 17,
+                  "heading": "<kbd>function</kbd> `op`"
+                },
+                {
+                  "section": 18,
+                  "heading": "<kbd>function</kbd> `placeholder_call`"
+                },
+                {
+                  "section": 19,
+                  "heading": "<kbd>function</kbd> `setup_dunder_weave_dict`"
+                },
+                {
+                  "section": 20,
+                  "heading": "<kbd>function</kbd> `should_skip_tracing_for_op`"
+                }
+              ],
+              "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+              "outgoing_links": [],
+              "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+            },
+            "origin": "provider_tool_call"
+          },
+          {
+            "tool": "submit_answer",
+            "input": {
+              "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a replacement value. The trace saves the **transformed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"`. The return type doesn't have to match, though [S1].\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1]. My reading of that (not stated directly): your code still gets the original, unchanged return value. Only the logged copy is redacted.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: Any) -> Any:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nAlso note that this feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+              "source_ids": [
+                "S1",
+                "S2"
+              ]
+            },
+            "result": {
+              "passed": false,
+              "issues": [
+                "The claim that postprocess_output's return type does not have to match the original output type is not supported by S1. S1 only says the hook takes any value the function would normally return and returns the transformed output, and its example returns the same type (CustomObject). Remove this claim or cite a source that states it.",
+                "The inference that the caller still receives the original, unredacted return value, with only the logged copy changed, is not established by the cited text. S1's phrase \"without modifying the original function\" refers to not editing the function itself, and S2 only says the hooks transform data \"before logging\". Either find documentation that describes the caller's return value or clearly mark this as unverified."
+              ],
+              "missing_parts": [],
+              "mode": "support",
+              "status": "failed"
+            },
+            "origin": "provider_tool_call"
+          },
+          {
+            "tool": "submit_answer",
+            "input": {
+              "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a changed version. The trace saves the **changed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"` [S1]. Keeping the same type, as in that example, is the safest choice.\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1].\n- The sections I read don't say whether code that calls your op gets the original return value or the changed one. If that matters, test it in your project.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: str) -> str:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+              "source_ids": [
+                "S1",
+                "S2"
+              ]
+            },
+            "result": {
+              "passed": false,
+              "issues": [
+                "The advice that keeping the same output type \"is the safest choice\" has no source support. S1 only says postprocess_output \"returns the transformed output\"; its example happens to return the same type but sets no type requirement and gives no safety guidance. Remove the sentence, or plainly label it as untested personal advice that the docs don't address."
+              ],
+              "missing_parts": [],
+              "mode": "support",
+              "status": "failed"
+            },
+            "origin": "provider_tool_call"
+          },
+          {
+            "tool": "submit_answer",
+            "input": {
+              "answer": "`postprocess_inputs` gets a dict of the op's arguments and returns a dict. `postprocess_output` gets whatever the function returns and returns a changed version. The trace saves the **changed** versions, not the originals [S1, S2].\n\n**`postprocess_inputs`**\n- **Receives:** a `dict` where each key is an argument name and each value is that argument's value, for example `{\"a\": 1, \"hide_me\": \"password123\"}` [S1].\n- **Returns:** a `dict` with the changed inputs. The docs example uses the type hint `dict[str, Any] -> dict[str, Any]` and removes one key [S1].\n\n**`postprocess_output`**\n- **Receives:** the value the function would normally return, which can be any type [S1].\n- **Returns:** the changed output. In the docs example, it takes a `CustomObject` and returns a new `CustomObject` with `secret_password=\"REDACTED\"` [S1].\n\n**What gets saved in the trace**\n- The reference describes both hooks as transforming data \"before logging\". So the trace records what your hooks return [S2].\n- The guide says the purpose is to change what Weave logs \"without modifying the original function\", for example to hide sensitive data [S1].\n- The sections I read don't say whether code that calls your op gets the original return value or the changed one. If that matters, test it in your project.\n\n```python\nfrom typing import Any\nimport weave\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k: v for k, v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: str) -> str:\n    return \"REDACTED\"\n\n@weave.op(postprocess_inputs=postprocess_inputs, postprocess_output=postprocess_output)\ndef func(a: int, hide_me: str) -> str:\n    return hide_me\n\nweave.init(\"your-project-name\")\nfunc(a=1, hide_me=\"password123\")\n```\n\nThis feature works only in Python. The docs say it isn't available in TypeScript yet [S1].",
+              "source_ids": [
+                "S1",
+                "S2"
+              ]
+            },
+            "result": {
+              "passed": true,
+              "issues": [],
+              "missing_parts": [],
+              "mode": "support",
+              "status": "passed"
+            },
+            "origin": "provider_tool_call"
+          }
+        ],
+        "task_complete": true,
+        "missing_outcomes": [],
+        "completion_status": "complete",
+        "review_reason": "none",
+        "conversation_context": [],
+        "conversation_id": "3b4769d8-5358-4d55-a409-8c19f5314b62",
+        "trace_id": "c3084bf343d0b193db2c6727e9df2139",
+        "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/3b4769d8-5358-4d55-a409-8c19f5314b62",
+        "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+        "source_sha256": "b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0",
+        "prompt_sha256": "0db790fffbb9edc24333d987516f479c1bd7cab6aaf0ad382a836264c6a00a9c",
+        "config_sha256": "40d8a7bacd0c2eb781964747644ff5335f6e517841b0105821b87cc0fd0b42ca",
+        "citation_contract_version": 3,
+        "verification_contract_version": 6,
+        "verify_mode": "support",
+        "cache_enabled": true,
+        "model": "claude-opus-5-5",
+        "elapsed_seconds": 42.45,
+        "metrics": {
+          "calls": [
+            {
+              "purpose": "planner",
+              "requested_model": "claude-opus-5-5",
+              "effort": "medium",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgWFzbjiYfDUp489rmeZE",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 169
+                },
+                "cache_creation_input_tokens": 169,
+                "cache_read_input_tokens": 2171,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 62,
+                "output_tokens_details": {
+                  "thinking_tokens": 0
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 1.5827,
+              "estimated_usd": 0.0025352
+            },
+            {
+              "purpose": "planner",
+              "requested_model": "claude-opus-5-5",
+              "effort": "medium",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgWFzi1kCYCkd23FUS9mx",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 3549
+                },
+                "cache_creation_input_tokens": 3549,
+                "cache_read_input_tokens": 2340,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 157,
+                "output_tokens_details": {
+                  "thinking_tokens": 0
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 1.8638,
+              "estimated_usd": 0.021369
+            },
+            {
+              "purpose": "planner",
+              "requested_model": "claude-opus-5-5",
+              "effort": "medium",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgWFzr5BUadY7VkKFo1ae",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 3492
+                },
+                "cache_creation_input_tokens": 3492,
+                "cache_read_input_tokens": 5889,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 862,
+                "output_tokens_details": {
+                  "thinking_tokens": 96
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 8.1218,
+              "estimated_usd": 0.0358938
+            },
+            {
+              "purpose": "verification",
+              "requested_model": "claude-opus-5-5",
+              "effort": "medium",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgWG1THWNhxRVsWGfkYis",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 7770
+                },
+                "cache_creation_input_tokens": 7770,
+                "cache_read_input_tokens": 1663,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 691,
+                "output_tokens_details": {
+                  "thinking_tokens": 388
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 7.8679,
+              "estimated_usd": 0.0530186
+            },
+            {
+              "purpose": "planner",
+              "requested_model": "claude-opus-5-5",
+              "effort": "medium",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgWG22Ppdv7Qbb8Cw1rgm",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 1157
+                },
+                "cache_creation_input_tokens": 1157,
+                "cache_read_input_tokens": 9381,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 823,
+                "output_tokens_details": {
+                  "thinking_tokens": 55
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 6.5387,
+              "estimated_usd": 0.0241372
+            },
+            {
+              "purpose": "verification",
+              "requested_model": "claude-opus-5-5",
+              "effort": "medium",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgWG2WQ3rR7uaQh766kfF",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 7772
+                },
+                "cache_creation_input_tokens": 7772,
+                "cache_read_input_tokens": 1663,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 571,
+                "output_tokens_details": {
+                  "thinking_tokens": 366
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 7.1547,
+              "estimated_usd": 0.0506286
+            },
+            {
+              "purpose": "planner",
+              "requested_model": "claude-opus-5-5",
+              "effort": "medium",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgWG32ypmjtsBmMRJJUky",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 1019
+                },
+                "cache_creation_input_tokens": 1019,
+                "cache_read_input_tokens": 10538,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 746,
+                "output_tokens_details": {
+                  "thinking_tokens": 0
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 5.532,
+              "estimated_usd": 0.0221386
+            },
+            {
+              "purpose": "verification",
+              "requested_model": "claude-opus-5-5",
+              "effort": "medium",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgWG3SfqqapBVokoJHh6J",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 7751
+                },
+                "cache_creation_input_tokens": 7751,
+                "cache_read_input_tokens": 1663,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 296,
+                "output_tokens_details": {
+                  "thinking_tokens": 196
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 3.7452,
+              "estimated_usd": 0.0450236
+            }
+          ],
+          "model_calls": 8,
+          "tokens": {
+            "input_tokens": 32,
+            "output_tokens": 4208,
+            "cache_creation_input_tokens": 32679,
+            "cache_read_input_tokens": 35308
+          },
+          "total_input_tokens": 68019,
+          "estimated_usd": 0.2547446,
+          "known_estimated_usd": 0.2547446,
+          "unpriced_calls": 0,
+          "by_purpose": {
+            "planner": {
+              "calls": 5,
+              "known_estimated_usd": 0.1060738
+            },
+            "verification": {
+              "calls": 3,
+              "known_estimated_usd": 0.1486708
+            }
+          },
+          "research": {
+            "searches": 1,
+            "passage_reads": 2,
+            "distinct_pages_read": 2,
+            "repeated_tool_requests": 0,
+            "drafts_submitted": 3,
+            "code_runs": 0
+          },
+          "pricing": {
+            "checked_at": "2026-10-25",
+            "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+            "rates": {
+              "claude-sonnet-5-5": {
+                "input": 2,
+                "output": 10,
+                "write_5m": 2.5,
+                "write_1h": 4,
+                "read": 0.1
+              },
+              "claude-opus-5-5": {
+                "input": 4,
+                "output": 20,
+                "write_5m": 5,
+                "write_1h": 8,
+                "read": 0.2
+              }
+            }
+          },
+          "scope": "Estimated from Claude's reported usage and published prices. Includes research and answer checks. Excludes Weave Signals, separate evaluation runs, hosting, taxes and any usage missing after failed requests or retries. We count requests made by the app, not every network attempt. Your final bill may differ."
+        },
+        "error_type": null
+      }
+    ]
+  },
+  "scores": {
+    "critique": "The answer gets both hook signatures right, and the cited S1 passage supports them: postprocess_inputs takes a dict that maps argument names to values and returns a transformed dict, and postprocess_output takes whatever the function returns and returns the transformed output. It says the trace saves the transformed versions and backs this up with S2 (\"transform ... before logging\") and S1 (\"change the data that Weave logs\"). It honestly flags something the docs don't cover: whether code calling the op gets the original return value or the transformed one. The example code is valid. It also notes that the feature isn't available in TypeScript. The S2 citation comes from the parameter list under setup_dunder_weave_dict, which looks like a misplaced docstring, but its content still applies to the op decorator's parameters. I found no factual errors.",
+    "assertions": [
+      {
+        "id": "a1",
+        "critique": "The answer says postprocess_inputs receives a dict of argument name to value and returns a dict of the changed inputs, which matches S1.",
+        "passed": true
+      },
+      {
+        "id": "a2",
+        "critique": "The answer says postprocess_output receives the value the function would normally return and returns the changed output, and it describes the CustomObject example. This matches S1.",
+        "passed": true
+      },
+      {
+        "id": "a3",
+        "critique": "The answer explains that the hooks change what Weave logs and that the trace records what the hooks return. This is supported by S1 and S2.",
+        "passed": true
+      }
+    ],
+    "correctness": 4,
+    "completeness": 4,
+    "grounding": 4,
+    "uncertainty": 4,
+    "explanation": "The answer is accurate, complete and well grounded, and it handles the question the docs leave open (what the caller receives) honestly.",
+    "failures": [],
+    "answer_quality_passed": true,
+    "assertion_count": 3,
+    "assertions_passed": 3,
+    "assertion_fraction_passed": 1.0,
+    "integrity": {
+      "citations_resolve": true,
+      "citation_format_valid": true,
+      "code_executed_when_required": true,
+      "no_runtime_error": true,
+      "answer_present": true,
+      "passed": true,
+      "malformed_citations": [],
+      "citation_turns": [
+        {
+          "turn": 1,
+          "issues": [],
+          "structured_contract": "checked"
+        }
+      ],
+      "source_pages": 2,
+      "page_coverage_met": true,
+      "page_coverage_is_diagnostic": true
+    },
+    "passed": true,
+    "judge_error": null,
+    "expected_assertion_count": 3,
+    "verification_adherence": {
+      "turns": [
+        {
+          "mode": "support",
+          "status": "passed",
+          "policy_followed": true
+        }
+      ],
+      "policy_followed": true
+    },
+    "retrieval_diagnostics": {
+      "selected_reference_count": 1,
+      "selected_reference_read_count": 1,
+      "selected_reference_cited_count": 1,
+      "selected_reference_read_recall": 1.0,
+      "selected_reference_cited_recall": 1.0,
+      "read_sections": [
+        [
+          "guides/tracking/ops",
+          3
+        ],
+        [
+          "reference/python-sdk/trace/op",
+          19
+        ]
+      ],
+      "cited_sections": [
+        [
+          "guides/tracking/ops",
+          3
+        ],
+        [
+          "reference/python-sdk/trace/op",
+          19
+        ]
+      ],
+      "uncited_selected_sections": [],
+      "alternative_cited_sections": [
+        [
+          "reference/python-sdk/trace/op",
+          19
+        ]
+      ],
+      "scope": "Exact overlap with preselected page/section references, not semantic recall. Valid alternative passages may support a correct answer. These are diagnostics, never quality gates. Read coverage includes relevant evidence from earlier turns."
+    },
+    "judge_metrics": {
+      "calls": [
+        {
+          "purpose": "evaluation-judge",
+          "requested_model": "claude-opus-5-5",
+          "effort": "provider_default",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWG3jimisF3QbwsnhqTp",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "global",
+            "input_tokens": 7936,
+            "output_tokens": 694,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 7.6421,
+          "estimated_usd": 0.045624
+        }
+      ],
+      "model_calls": 1,
+      "tokens": {
+        "input_tokens": 7936,
+        "output_tokens": 694,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0
+      },
+      "total_input_tokens": 7936,
+      "estimated_usd": 0.045624,
+      "known_estimated_usd": 0.045624,
+      "unpriced_calls": 0,
+      "by_purpose": {
+        "evaluation-judge": {
+          "calls": 1,
+          "known_estimated_usd": 0.045624
+        }
+      },
+      "research": {
+        "searches": 0,
+        "passage_reads": 0,
+        "distinct_pages_read": 0,
+        "repeated_tool_requests": 0,
+        "drafts_submitted": 0,
+        "code_runs": 0
+      },
+      "pricing": {
+        "checked_at": "2026-10-25",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "rates": {
+          "claude-sonnet-5-5": {
+            "input": 2,
+            "output": 10,
+            "write_5m": 2.5,
+            "write_1h": 4,
+            "read": 0.1
+          },
+          "claude-opus-5-5": {
+            "input": 4,
+            "output": 20,
+            "write_5m": 5,
+            "write_1h": 8,
+            "read": 0.2
+          }
+        }
+      },
+      "scope": "Only this evaluation judge's provider-reported usage, including invalid verdicts. Dated list-price estimate; excludes agent, Signals and unreturned usage."
+    },
+    "rubric_version": "2.3-task-aligned-assertions"
+  }
+}

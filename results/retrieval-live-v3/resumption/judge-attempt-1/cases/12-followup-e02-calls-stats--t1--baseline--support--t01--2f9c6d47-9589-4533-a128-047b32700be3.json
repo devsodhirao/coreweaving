@@ -1,0 +1,1215 @@
+{
+  "case_id": "12-followup-e02-calls-stats--t1--baseline",
+  "prediction_id": "2f9c6d47-9589-4533-a128-047b32700be3",
+  "trial_index": 1,
+  "example_id": null,
+  "verify_mode": "support",
+  "prompts": [
+    "For one op_name, how do I request a daily total cost and mean latency from POST /calls/stats? Explain granularity and the usage_metrics and call_metrics fields."
+  ],
+  "output": {
+    "answer_id": "2f9c6d47-9589-4533-a128-047b32700be3",
+    "question": "For one op_name, how do I request a daily total cost and mean latency from POST /calls/stats? Explain granularity and the usage_metrics and call_metrics fields.",
+    "answer": "To get daily stats for one op, send `POST https://trace.wandb.ai/calls/stats` with these settings:\n\n- `granularity: 86400`, which is one day in seconds.\n- `filter.op_names` set to your one op.\n- A `usage_metrics` entry for `total_cost` with `sum`.\n- A `call_metrics` entry for `latency_ms` with `avg`.\n\n[S1, S2]\n\n```python\nimport os\nimport requests\n\nurl = \"https://trace.wandb.ai/calls/stats\"\npayload = {\n    \"project_id\": \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n    \"start\": \"2026-03-01T00:00:00Z\",      # inclusive start time (UTC)\n    \"end\": \"2026-03-08T00:00:00Z\",        # exclusive end time; leave out to mean \"now\"\n    \"granularity\": 86400,                 # one-day buckets\n    \"timezone\": \"UTC\",                    # where day boundaries fall\n    \"filter\": {\"op_names\": [\"[YOUR-OP-NAME]\"]},\n    \"usage_metrics\": [{\"metric\": \"total_cost\", \"aggregations\": [\"sum\"]}],\n    \"call_metrics\": [{\"metric\": \"latency_ms\", \"aggregations\": [\"avg\"]}],\n}\nresponse = requests.post(url, json=payload, auth=(\"api\", os.getenv(\"WANDB_API_KEY\")))\nprint(response.json())\n```\n\nOnly `project_id` and `start` are required. The time range can be at most 31 days. [S1, S2] The docs' own example also adds `\"trace_roots_only\": True` to the filter, which limits results to top-level (root) calls. [S1]\n\n**Granularity**\n- This is the width of each time \"bucket\", in seconds. If you leave it out, the server picks a size based on your time range. It will also change your value if it would create more than 10,000 buckets. [S2]\n- `timezone` sets how buckets line up, for example `America/New_York`. The default is UTC. The response shows the bucket size actually used. [S2]\n\n**`usage_metrics`**\n- Covers token and cost metrics, such as `input_tokens`, `total_tokens`, `input_cost`, `output_cost` and `total_cost`. Results are grouped by time and by model. [S2]\n- Results come back in `usage_buckets`, with one row per day per model, holding values like `sum_total_cost`. [S1, S2]\n- **What this means for you:** if your op used more than one model, add up that day's rows to get the daily total. That adding-up step is my own inference; the docs don't state it.\n\n**`call_metrics`**\n- Covers `latency_ms`, `call_count` and `error_count`. Results are grouped by time only, not by model. [S2]\n- Results come back in `call_buckets`, with one row per day holding `avg_latency_ms`. [S1]\n\n**Both fields**\n- Each entry takes `metric`, `aggregations` (defaults to `[\"sum\"]`) and optional `percentiles`, such as `[50, 95]`. [S2]",
+    "kind": "answer",
+    "source_ids": [
+      "S1",
+      "S2"
+    ],
+    "sources": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/querying-calls",
+        "section": 3,
+        "title": "Query and export Calls",
+        "heading": "Export Call metrics",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/querying-calls",
+        "page_sha256": "94f3b108336adcf6ed368135b5d3e5aa8da57d349f205090b579cc07107687fb",
+        "text": "## Export Call metrics\n\nWhen you need aggregate insights, such as cost or latency trends, rather than the underlying Call records, use the metrics endpoint described in this section.\n\nYou can also use the Weave Service API's [POST `/calls/stats` endpoint](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats) to retrieve metrics about your Calls without retrieving the Call data itself. You can retrieve information about your Calls, such as latency and cost, and aggregate them by sum, average, minimum, maximum, and count. For example, you can retrieve:\n\n* Total token usage\n* Average latency\n* Maximum tokens used\n* Total cost\n* Minimum input tokens\n\nThe endpoint provides several filtering options so you can target Calls made within specified times, and by other properties, such as:\n\n* Op name\n* Trace ID\n* Thread ID\n* User ID\n\nThe following example demonstrates how to retrieve Calls generated from an Op named `web_app` over two days. Replace `[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]` with your team and project names:\n\n```python Python lines {10-11,16-24} theme={\"system\"}\nimport requests\nimport json\nimport os\n\nurl = \"https://trace.wandb.ai/calls/stats\"\n\npayload = {\n    \"project_id\": \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n    \"start\": \"2026-03-01T00:00:00Z\",\n# Specify the size of the buckets, in seconds.\n    \"granularity\": 86400,\n    \"filter\": {\n        \"trace_roots_only\": True,\n        \"op_names\": [\"web_app\"]\n    },\n# Specify metrics and their aggregate function\n    \"usage_metrics\": [\n        {\"metric\": \"total_tokens\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"total_cost\", \"aggregations\": [\"sum\"]}\n    ],\n    \"call_metrics\": [\n        {\"metric\": \"call_count\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"error_count\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"latency_ms\", \"aggregations\": [\"avg\", \"min\", \"max\"], \"percentiles\": [50, 95, 99]}\n    ]\n}\n\nAPI_KEY = os.getenv(\"WANDB_API_KEY\")\n\nresponse = requests.post(url, json=payload, auth=(\"api\", API_KEY))\n\nprint(json.dumps(response.json(), indent=2))\n```\n\n```typescript TypeScript lines {6-7,13-20} theme={\"system\"}\nconst url = \"https://trace.wandb.ai/calls/stats\";\n\nconst payload = {\n  project_id: \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n  start: \"2026-03-01T00:00:00Z\",\n// Specify the size of the buckets, in seconds.\n  granularity: 86400,\n  filter: {\n    trace_roots_only: true,\n    op_names: [\"web_app\"],\n  },\n// Specify metrics and their aggregate function\n  usage_metrics: [\n    { metric: \"total_tokens\", aggregations: [\"sum\"] },\n    { metric: \"total_cost\", aggregations: [\"sum\"] },\n  ],\n  call_metrics: [\n    { metric: \"call_count\", aggregations: [\"sum\"] },\n    { metric: \"error_count\", aggregations: [\"sum\"] },\n    { metric: \"latency_ms\", aggregations: [\"avg\", \"min\", \"max\"], percentiles: [50, 95, 99] },\n  ],\n};\n\nconst API_KEY = [REDACTED_SECRET];\n\nconst response = await fetch(url, {\n  method: \"POST\",\n  headers: {\n    \"Content-Type\": \"application/json\",\n    Authorization: \"[REDACTED_SECRET]\" + btoa(`api:${API_KEY}`),\n  },\n  body: JSON.stringify(payload),\n});\n\nconst data = await response.json();\nconsole.log(JSON.stringify(data, null, 2));\n```\n\nThe request also specifies how to aggregate the metrics. You can aggregate metrics by `sum`, `count`, `avg`, `min`, `max`, and `count`.\n\nThe endpoint returns a JSON object. The following example response shows two days' worth of metrics. Each day (bucket) appears as its own object in the `usage_buckets` and `call_buckets` arrays. Each array breaks down the metrics differently:\n\n* `usage_buckets`: Groups Call metrics for each day by the model used.\n* `call_buckets`: Groups Call metrics for each day regardless of the model used.\n\nSet the granularity field (in seconds) in the request to change the bucket size.\n\n```json lines theme={\"system\"}\n{\n  \"start\": \"2026-03-03T00:00:00Z\",\n  \"end\": \"2026-03-04T21:34:39.746539Z\",\n  \"granularity\": 86400,\n  \"timezone\": \"UTC\",\n  \"usage_buckets\": [\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"model\": \"gpt-4o-2024-08-06\",\n      \"sum_total_tokens\": 498.0,\n      \"sum_input_tokens\": 219.0,\n      \"sum_output_tokens\": 279.0,\n      \"count\": 5,\n      \"sum_total_cost\": 0.0033374999156876584\n    },\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"model\": \"gpt-5-2025-08-07\",\n      \"sum_total_tokens\": 0.0,\n      \"sum_input_tokens\": 0.0,\n      \"sum_output_tokens\": 0.0,\n      \"count\": 0,\n      \"sum_total_cost\": 0.0\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"model\": \"gpt-4o-2024-08-06\",\n      \"sum_total_tokens\": 58.0,\n      \"sum_input_tokens\": 27.0,\n      \"sum_output_tokens\": 31.0,\n      \"count\": 1,\n      \"sum_total_cost\": 0.0003774999904635479\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"model\": \"gpt-5-2025-08-07\",\n      \"sum_total_tokens\": 427.0,\n      \"sum_input_tokens\": 26.0,\n      \"sum_output_tokens\": 401.0,\n      \"count\": 1,\n      \"sum_total_cost\": 0.00404249989787786\n    }\n  ],\n  \"call_buckets\": [\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"sum_call_count\": 6,\n      \"sum_error_count\": 1,\n      \"avg_latency_ms\": 1505.6666666666667,\n      \"min_latency_ms\": 525,\n      \"max_latency_ms\": 2524,\n      \"p50_latency_ms\": 1534.0,\n      \"p95_latency_ms\": 2328.5,\n      \"p99_latency_ms\": 2484.9000000000005,\n      \"count\": 6\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"sum_call_count\": 2,\n      \"sum_error_count\": 0,\n      \"avg_latency_ms\": 3645.0,\n      \"min_latency_ms\": 1739,\n      \"max_latency_ms\": 5551,\n      \"p50_latency_ms\": 3645.0,\n      \"p95_latency_ms\": 5360.4,\n      \"p99_latency_ms\": 5512.88,\n      \"count\": 2\n    }\n  ]\n}\n```\n\nYou can query metrics for a maximum time range of 31 days. For more information about available options, see the [Service API reference](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats.md).\n",
+        "page_context": "# Query and export Calls\n\n> Filter, sort, and export Weave call data using the Python SDK, REST API, or the Weights & Biases UI for custom analysis.\n\nThis page shows you how to query and export Weave Calls so you can analyze trace data outside of Weave. For example, you can build custom dashboards, share results with collaborators, or run offline analysis. You can export Calls from the Weights & Biases UI, fetch them programmatically with the Python or TypeScript SDKs, or query them directly using the Service API.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Query and export Calls"
+          },
+          {
+            "section": 1,
+            "heading": "Export Calls from the Weights & Biases UI"
+          },
+          {
+            "section": 2,
+            "heading": "Fetch Calls programmatically"
+          },
+          {
+            "section": 3,
+            "heading": "Export Call metrics"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "credential_redacted": true,
+        "outgoing_links": [
+          {
+            "page_id": "reference/service-api/calls/call-stats",
+            "title": "Call Stats"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S2",
+        "page_id": "reference/service-api/calls/call-stats",
+        "section": 1,
+        "title": "Call Stats",
+        "heading": "OpenAPI",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats",
+        "page_sha256": "5e862db36fc610d8394228e829294ca2a7471bd8bda74828166ceaed724f56ae",
+        "text": "## OpenAPI\n\n````yaml products/wandb/weave/reference/service-api/openapi.json POST /calls/stats\nopenapi: 3.1.0\ninfo:\n  title: FastAPI\n  version: 0.1.0\nservers: []\nsecurity: []\npaths:\n  /calls/stats:\n    post:\n      tags:\n        - Calls\n      summary: Call Stats\n      operationId: call_stats_calls_stats_post\n      requestBody:\n        content:\n          application/json:\n            schema:\n              $ref: '#/components/schemas/CallStatsReq'\n        required: true\n      responses:\n        '200':\n          description: Successful Response\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/CallStatsRes'\n        '422':\n          description: Validation Error\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/HTTPValidationError'\ncomponents:\n  schemas:\n    CallStatsReq:\n      properties:\n        project_id:\n          type: string\n          title: Project Id\n        start:\n          type: string\n          format: date-time\n          title: Start\n          description: Inclusive start time (UTC, ISO 8601).\n        end:\n          anyOf:\n            - type: string\n              format: date-time\n            - type: 'null'\n          title: End\n          description: Exclusive end time (UTC, ISO 8601). Defaults to now if omitted.\n        granularity:\n          anyOf:\n            - type: integer\n            - type: 'null'\n          title: Granularity\n          description: >-\n            Bucket size in seconds (e.g., 3600 for 1 hour). If omitted,\n            auto-selected based on time range. Will be adjusted if it would\n            produce more than 10,000 buckets.\n        usage_metrics:\n          anyOf:\n            - items:\n                $ref: '#/components/schemas/UsageMetricSpec'\n              type: array\n            - type: 'null'\n          title: Usage Metrics\n          description: >-\n            Usage metrics (tokens, cost) to compute. Grouped by timestamp and\n            model.\n        call_metrics:\n          anyOf:\n            - items:\n                $ref: '#/components/schemas/CallMetricSpec'\n              type: array\n            - type: 'null'\n          title: Call Metrics\n          description: >-\n            Call-level metrics (latency, counts) to compute. Grouped by\n            timestamp only.\n        filter:\n          anyOf:\n            - $ref: '#/components/schemas/CallsFilter'\n            - type: 'null'\n        timezone:\n          type: string\n          title: Timezone\n          description: IANA timezone for bucket alignment (e.g., 'America/New_York')\n          default: UTC\n      type: object\n      required:\n        - project_id\n        - start\n      title: CallStatsReq\n      description: Request for aggregated call statistics over a time range.\n    CallStatsRes:\n      properties:\n        start:\n          type: string\n          format: date-time\n          title: Start\n          description: Resolved start time (UTC)\n        end:\n          type: string\n          format: date-time\n          title: End\n          description: Resolved end time (UTC)\n        granularity:\n          type: integer\n          title: Granularity\n          description: Bucket size used (in seconds)\n        timezone:\n          type: string\n          title: Timezone\n          description: Timezone used for bucket alignment\n        usage_buckets:\n          items:\n            additionalProperties: true\n            type: object\n          type: array\n          title: Usage Buckets\n          description: >-\n            Usage metrics by model. Each bucket contains 'timestamp', 'model',\n            and aggregated metric values.\n          default: []\n        call_buckets:\n          items:\n            additionalProperties: true\n            type: object\n          type: array\n          title: Call Buckets\n          description: >-\n            Call-level metrics. Each bucket contains 'timestamp' and aggregated\n            metric values.\n          default: []\n      type: object\n      required:\n        - start\n        - end\n        - granularity\n        - timezone\n      title: CallStatsRes\n      description: Response containing time-series call statistics.\n    HTTPValidationError:\n      properties:\n        detail:\n          items:\n            $ref: '#/components/schemas/ValidationError'\n          type: array\n          title: Detail\n      type: object\n      title: HTTPValidationError\n    UsageMetricSpec:\n      properties:\n        metric:\n          type: string\n          enum:\n            - input_tokens\n            - output_tokens\n            - total_tokens\n            - cache_read_input_tokens\n            - cache_creation_input_tokens\n            - input_cost\n            - output_cost\n            - total_cost\n          title: Metric\n          description: Metric to aggregate. Token metrics are normalized across providers.\n        aggregations:\n          items:\n            $ref: '#/components/schemas/AggregationType'\n          type: array\n          title: Aggregations\n          description: Basic aggregation functions to apply\n          default:\n            - sum\n        percentiles:\n          items:\n            type: number\n          type: array\n          title: Percentiles\n          description: >-\n            Percentile values to compute (0-100). E.g., [50, 95, 99] for p50,\n            p95, p99\n          default: []\n      type: object\n      required:\n        - metric\n      title: UsageMetricSpec\n      description: Specification for a usage metric to aggregate (grouped by model).\n    CallMetricSpec:\n      properties:\n        metric:\n          type: string\n          enum:\n            - latency_ms\n            - call_count\n            - error_count\n          title: Metric\n          description: Metric to aggregate.\n        aggregations:\n          items:\n            $ref: '#/components/schemas/AggregationType'\n          type: array\n          title: Aggregations\n          description: Basic aggregation functions to apply\n          default:\n            - sum\n        percentiles:\n          items:\n            type: number\n          type: array\n          title: Percentiles\n          description: >-\n            Percentile values to compute (0-100). E.g., [50, 95, 99] for p50,\n            p95, p99\n          default: []\n      type: object\n      required:\n        - metric\n      title: CallMetricSpec\n      description: >-\n        Specification for a call-level metric to aggregate (not grouped by\n        model).\n    CallsFilter:\n      properties:\n        op_names:\n          anyOf:\n            - items:\n                type: string\n              type: array\n            - type: 'null'\n          title: Op Names\n        input_refs:\n          anyOf:\n            - items:\n                type: string\n              type: array\n            - type: 'null'\n          title: Input Refs\n        output_refs:\n          anyOf:\n            - items:\n                type: string\n              type: array\n   ",
+        "page_context": "# Call Stats\n\n\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Call Stats"
+          },
+          {
+            "section": 1,
+            "heading": "OpenAPI"
+          },
+          {
+            "section": 2,
+            "heading": "OpenAPI"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      }
+    ],
+    "all_read_evidence": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/querying-calls",
+        "section": 3,
+        "title": "Query and export Calls",
+        "heading": "Export Call metrics",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/querying-calls",
+        "page_sha256": "94f3b108336adcf6ed368135b5d3e5aa8da57d349f205090b579cc07107687fb",
+        "text": "## Export Call metrics\n\nWhen you need aggregate insights, such as cost or latency trends, rather than the underlying Call records, use the metrics endpoint described in this section.\n\nYou can also use the Weave Service API's [POST `/calls/stats` endpoint](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats) to retrieve metrics about your Calls without retrieving the Call data itself. You can retrieve information about your Calls, such as latency and cost, and aggregate them by sum, average, minimum, maximum, and count. For example, you can retrieve:\n\n* Total token usage\n* Average latency\n* Maximum tokens used\n* Total cost\n* Minimum input tokens\n\nThe endpoint provides several filtering options so you can target Calls made within specified times, and by other properties, such as:\n\n* Op name\n* Trace ID\n* Thread ID\n* User ID\n\nThe following example demonstrates how to retrieve Calls generated from an Op named `web_app` over two days. Replace `[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]` with your team and project names:\n\n```python Python lines {10-11,16-24} theme={\"system\"}\nimport requests\nimport json\nimport os\n\nurl = \"https://trace.wandb.ai/calls/stats\"\n\npayload = {\n    \"project_id\": \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n    \"start\": \"2026-03-01T00:00:00Z\",\n# Specify the size of the buckets, in seconds.\n    \"granularity\": 86400,\n    \"filter\": {\n        \"trace_roots_only\": True,\n        \"op_names\": [\"web_app\"]\n    },\n# Specify metrics and their aggregate function\n    \"usage_metrics\": [\n        {\"metric\": \"total_tokens\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"total_cost\", \"aggregations\": [\"sum\"]}\n    ],\n    \"call_metrics\": [\n        {\"metric\": \"call_count\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"error_count\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"latency_ms\", \"aggregations\": [\"avg\", \"min\", \"max\"], \"percentiles\": [50, 95, 99]}\n    ]\n}\n\nAPI_KEY = os.getenv(\"WANDB_API_KEY\")\n\nresponse = requests.post(url, json=payload, auth=(\"api\", API_KEY))\n\nprint(json.dumps(response.json(), indent=2))\n```\n\n```typescript TypeScript lines {6-7,13-20} theme={\"system\"}\nconst url = \"https://trace.wandb.ai/calls/stats\";\n\nconst payload = {\n  project_id: \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n  start: \"2026-03-01T00:00:00Z\",\n// Specify the size of the buckets, in seconds.\n  granularity: 86400,\n  filter: {\n    trace_roots_only: true,\n    op_names: [\"web_app\"],\n  },\n// Specify metrics and their aggregate function\n  usage_metrics: [\n    { metric: \"total_tokens\", aggregations: [\"sum\"] },\n    { metric: \"total_cost\", aggregations: [\"sum\"] },\n  ],\n  call_metrics: [\n    { metric: \"call_count\", aggregations: [\"sum\"] },\n    { metric: \"error_count\", aggregations: [\"sum\"] },\n    { metric: \"latency_ms\", aggregations: [\"avg\", \"min\", \"max\"], percentiles: [50, 95, 99] },\n  ],\n};\n\nconst API_KEY = [REDACTED_SECRET];\n\nconst response = await fetch(url, {\n  method: \"POST\",\n  headers: {\n    \"Content-Type\": \"application/json\",\n    Authorization: \"[REDACTED_SECRET]\" + btoa(`api:${API_KEY}`),\n  },\n  body: JSON.stringify(payload),\n});\n\nconst data = await response.json();\nconsole.log(JSON.stringify(data, null, 2));\n```\n\nThe request also specifies how to aggregate the metrics. You can aggregate metrics by `sum`, `count`, `avg`, `min`, `max`, and `count`.\n\nThe endpoint returns a JSON object. The following example response shows two days' worth of metrics. Each day (bucket) appears as its own object in the `usage_buckets` and `call_buckets` arrays. Each array breaks down the metrics differently:\n\n* `usage_buckets`: Groups Call metrics for each day by the model used.\n* `call_buckets`: Groups Call metrics for each day regardless of the model used.\n\nSet the granularity field (in seconds) in the request to change the bucket size.\n\n```json lines theme={\"system\"}\n{\n  \"start\": \"2026-03-03T00:00:00Z\",\n  \"end\": \"2026-03-04T21:34:39.746539Z\",\n  \"granularity\": 86400,\n  \"timezone\": \"UTC\",\n  \"usage_buckets\": [\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"model\": \"gpt-4o-2024-08-06\",\n      \"sum_total_tokens\": 498.0,\n      \"sum_input_tokens\": 219.0,\n      \"sum_output_tokens\": 279.0,\n      \"count\": 5,\n      \"sum_total_cost\": 0.0033374999156876584\n    },\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"model\": \"gpt-5-2025-08-07\",\n      \"sum_total_tokens\": 0.0,\n      \"sum_input_tokens\": 0.0,\n      \"sum_output_tokens\": 0.0,\n      \"count\": 0,\n      \"sum_total_cost\": 0.0\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"model\": \"gpt-4o-2024-08-06\",\n      \"sum_total_tokens\": 58.0,\n      \"sum_input_tokens\": 27.0,\n      \"sum_output_tokens\": 31.0,\n      \"count\": 1,\n      \"sum_total_cost\": 0.0003774999904635479\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"model\": \"gpt-5-2025-08-07\",\n      \"sum_total_tokens\": 427.0,\n      \"sum_input_tokens\": 26.0,\n      \"sum_output_tokens\": 401.0,\n      \"count\": 1,\n      \"sum_total_cost\": 0.00404249989787786\n    }\n  ],\n  \"call_buckets\": [\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"sum_call_count\": 6,\n      \"sum_error_count\": 1,\n      \"avg_latency_ms\": 1505.6666666666667,\n      \"min_latency_ms\": 525,\n      \"max_latency_ms\": 2524,\n      \"p50_latency_ms\": 1534.0,\n      \"p95_latency_ms\": 2328.5,\n      \"p99_latency_ms\": 2484.9000000000005,\n      \"count\": 6\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"sum_call_count\": 2,\n      \"sum_error_count\": 0,\n      \"avg_latency_ms\": 3645.0,\n      \"min_latency_ms\": 1739,\n      \"max_latency_ms\": 5551,\n      \"p50_latency_ms\": 3645.0,\n      \"p95_latency_ms\": 5360.4,\n      \"p99_latency_ms\": 5512.88,\n      \"count\": 2\n    }\n  ]\n}\n```\n\nYou can query metrics for a maximum time range of 31 days. For more information about available options, see the [Service API reference](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats.md).\n",
+        "page_context": "# Query and export Calls\n\n> Filter, sort, and export Weave call data using the Python SDK, REST API, or the Weights & Biases UI for custom analysis.\n\nThis page shows you how to query and export Weave Calls so you can analyze trace data outside of Weave. For example, you can build custom dashboards, share results with collaborators, or run offline analysis. You can export Calls from the Weights & Biases UI, fetch them programmatically with the Python or TypeScript SDKs, or query them directly using the Service API.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Query and export Calls"
+          },
+          {
+            "section": 1,
+            "heading": "Export Calls from the Weights & Biases UI"
+          },
+          {
+            "section": 2,
+            "heading": "Fetch Calls programmatically"
+          },
+          {
+            "section": 3,
+            "heading": "Export Call metrics"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "credential_redacted": true,
+        "outgoing_links": [
+          {
+            "page_id": "reference/service-api/calls/call-stats",
+            "title": "Call Stats"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      {
+        "source_id": "S2",
+        "page_id": "reference/service-api/calls/call-stats",
+        "section": 1,
+        "title": "Call Stats",
+        "heading": "OpenAPI",
+        "url": "https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats",
+        "page_sha256": "5e862db36fc610d8394228e829294ca2a7471bd8bda74828166ceaed724f56ae",
+        "text": "## OpenAPI\n\n````yaml products/wandb/weave/reference/service-api/openapi.json POST /calls/stats\nopenapi: 3.1.0\ninfo:\n  title: FastAPI\n  version: 0.1.0\nservers: []\nsecurity: []\npaths:\n  /calls/stats:\n    post:\n      tags:\n        - Calls\n      summary: Call Stats\n      operationId: call_stats_calls_stats_post\n      requestBody:\n        content:\n          application/json:\n            schema:\n              $ref: '#/components/schemas/CallStatsReq'\n        required: true\n      responses:\n        '200':\n          description: Successful Response\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/CallStatsRes'\n        '422':\n          description: Validation Error\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/HTTPValidationError'\ncomponents:\n  schemas:\n    CallStatsReq:\n      properties:\n        project_id:\n          type: string\n          title: Project Id\n        start:\n          type: string\n          format: date-time\n          title: Start\n          description: Inclusive start time (UTC, ISO 8601).\n        end:\n          anyOf:\n            - type: string\n              format: date-time\n            - type: 'null'\n          title: End\n          description: Exclusive end time (UTC, ISO 8601). Defaults to now if omitted.\n        granularity:\n          anyOf:\n            - type: integer\n            - type: 'null'\n          title: Granularity\n          description: >-\n            Bucket size in seconds (e.g., 3600 for 1 hour). If omitted,\n            auto-selected based on time range. Will be adjusted if it would\n            produce more than 10,000 buckets.\n        usage_metrics:\n          anyOf:\n            - items:\n                $ref: '#/components/schemas/UsageMetricSpec'\n              type: array\n            - type: 'null'\n          title: Usage Metrics\n          description: >-\n            Usage metrics (tokens, cost) to compute. Grouped by timestamp and\n            model.\n        call_metrics:\n          anyOf:\n            - items:\n                $ref: '#/components/schemas/CallMetricSpec'\n              type: array\n            - type: 'null'\n          title: Call Metrics\n          description: >-\n            Call-level metrics (latency, counts) to compute. Grouped by\n            timestamp only.\n        filter:\n          anyOf:\n            - $ref: '#/components/schemas/CallsFilter'\n            - type: 'null'\n        timezone:\n          type: string\n          title: Timezone\n          description: IANA timezone for bucket alignment (e.g., 'America/New_York')\n          default: UTC\n      type: object\n      required:\n        - project_id\n        - start\n      title: CallStatsReq\n      description: Request for aggregated call statistics over a time range.\n    CallStatsRes:\n      properties:\n        start:\n          type: string\n          format: date-time\n          title: Start\n          description: Resolved start time (UTC)\n        end:\n          type: string\n          format: date-time\n          title: End\n          description: Resolved end time (UTC)\n        granularity:\n          type: integer\n          title: Granularity\n          description: Bucket size used (in seconds)\n        timezone:\n          type: string\n          title: Timezone\n          description: Timezone used for bucket alignment\n        usage_buckets:\n          items:\n            additionalProperties: true\n            type: object\n          type: array\n          title: Usage Buckets\n          description: >-\n            Usage metrics by model. Each bucket contains 'timestamp', 'model',\n            and aggregated metric values.\n          default: []\n        call_buckets:\n          items:\n            additionalProperties: true\n            type: object\n          type: array\n          title: Call Buckets\n          description: >-\n            Call-level metrics. Each bucket contains 'timestamp' and aggregated\n            metric values.\n          default: []\n      type: object\n      required:\n        - start\n        - end\n        - granularity\n        - timezone\n      title: CallStatsRes\n      description: Response containing time-series call statistics.\n    HTTPValidationError:\n      properties:\n        detail:\n          items:\n            $ref: '#/components/schemas/ValidationError'\n          type: array\n          title: Detail\n      type: object\n      title: HTTPValidationError\n    UsageMetricSpec:\n      properties:\n        metric:\n          type: string\n          enum:\n            - input_tokens\n            - output_tokens\n            - total_tokens\n            - cache_read_input_tokens\n            - cache_creation_input_tokens\n            - input_cost\n            - output_cost\n            - total_cost\n          title: Metric\n          description: Metric to aggregate. Token metrics are normalized across providers.\n        aggregations:\n          items:\n            $ref: '#/components/schemas/AggregationType'\n          type: array\n          title: Aggregations\n          description: Basic aggregation functions to apply\n          default:\n            - sum\n        percentiles:\n          items:\n            type: number\n          type: array\n          title: Percentiles\n          description: >-\n            Percentile values to compute (0-100). E.g., [50, 95, 99] for p50,\n            p95, p99\n          default: []\n      type: object\n      required:\n        - metric\n      title: UsageMetricSpec\n      description: Specification for a usage metric to aggregate (grouped by model).\n    CallMetricSpec:\n      properties:\n        metric:\n          type: string\n          enum:\n            - latency_ms\n            - call_count\n            - error_count\n          title: Metric\n          description: Metric to aggregate.\n        aggregations:\n          items:\n            $ref: '#/components/schemas/AggregationType'\n          type: array\n          title: Aggregations\n          description: Basic aggregation functions to apply\n          default:\n            - sum\n        percentiles:\n          items:\n            type: number\n          type: array\n          title: Percentiles\n          description: >-\n            Percentile values to compute (0-100). E.g., [50, 95, 99] for p50,\n            p95, p99\n          default: []\n      type: object\n      required:\n        - metric\n      title: CallMetricSpec\n      description: >-\n        Specification for a call-level metric to aggregate (not grouped by\n        model).\n    CallsFilter:\n      properties:\n        op_names:\n          anyOf:\n            - items:\n                type: string\n              type: array\n            - type: 'null'\n          title: Op Names\n        input_refs:\n          anyOf:\n            - items:\n                type: string\n              type: array\n            - type: 'null'\n          title: Input Refs\n        output_refs:\n          anyOf:\n            - items:\n                type: string\n              type: array\n   ",
+        "page_context": "# Call Stats\n\n\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Call Stats"
+          },
+          {
+            "section": 1,
+            "heading": "OpenAPI"
+          },
+          {
+            "section": 2,
+            "heading": "OpenAPI"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      }
+    ],
+    "verification": {
+      "passed": true,
+      "issues": [],
+      "missing_parts": [],
+      "mode": "support",
+      "status": "passed"
+    },
+    "verification_attempts": [
+      {
+        "candidate": {
+          "source_ids": [
+            "S1",
+            "S2"
+          ],
+          "answer": "To get daily stats for one op, send `POST https://trace.wandb.ai/calls/stats` with these settings:\n\n- `granularity: 86400`, which is one day in seconds.\n- `filter.op_names` set to your one op.\n- A `usage_metrics` entry for `total_cost` with `sum`.\n- A `call_metrics` entry for `latency_ms` with `avg`.\n\n[S1, S2]\n\n```python\nimport os\nimport requests\n\nurl = \"https://trace.wandb.ai/calls/stats\"\npayload = {\n    \"project_id\": \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n    \"start\": \"2026-03-01T00:00:00Z\",      # inclusive start time (UTC)\n    \"end\": \"2026-03-08T00:00:00Z\",        # exclusive end time; leave out to mean \"now\"\n    \"granularity\": 86400,                 # one-day buckets\n    \"timezone\": \"UTC\",                    # where day boundaries fall\n    \"filter\": {\"op_names\": [\"[YOUR-OP-NAME]\"]},\n    \"usage_metrics\": [{\"metric\": \"total_cost\", \"aggregations\": [\"sum\"]}],\n    \"call_metrics\": [{\"metric\": \"latency_ms\", \"aggregations\": [\"avg\"]}],\n}\nresponse = requests.post(url, json=payload, auth=(\"api\", os.getenv(\"WANDB_API_KEY\")))\nprint(response.json())\n```\n\nOnly `project_id` and `start` are required. The time range can be at most 31 days. [S1, S2] The docs' own example also adds `\"trace_roots_only\": True` to the filter, which limits results to top-level (root) calls. [S1]\n\n**Granularity**\n- This is the width of each time \"bucket\", in seconds. If you leave it out, the server picks a size based on your time range. It will also change your value if it would create more than 10,000 buckets. [S2]\n- `timezone` sets how buckets line up, for example `America/New_York`. The default is UTC. The response shows the bucket size actually used. [S2]\n\n**`usage_metrics`**\n- Covers token and cost metrics, such as `input_tokens`, `total_tokens`, `input_cost`, `output_cost` and `total_cost`. Results are grouped by time and by model. [S2]\n- Results come back in `usage_buckets`, with one row per day per model, holding values like `sum_total_cost`. [S1, S2]\n- **What this means for you:** if your op used more than one model, add up that day's rows to get the daily total. That adding-up step is my own inference; the docs don't state it.\n\n**`call_metrics`**\n- Covers `latency_ms`, `call_count` and `error_count`. Results are grouped by time only, not by model. [S2]\n- Results come back in `call_buckets`, with one row per day holding `avg_latency_ms`. [S1]\n\n**Both fields**\n- Each entry takes `metric`, `aggregations` (defaults to `[\"sum\"]`) and optional `percentiles`, such as `[50, 95]`. [S2]",
+          "kind": "answer"
+        },
+        "passed": true,
+        "issues": [],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "passed"
+      }
+    ],
+    "actions": [
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "calls stats usage_metrics call_metrics granularity"
+        },
+        "result": {
+          "query": "calls stats usage_metrics call_metrics granularity",
+          "results": [
+            {
+              "page_id": "reference/python-sdk/trace_server/trace_server_interface",
+              "section": 43,
+              "title": "trace_server_interface",
+              "heading": "<kbd>class</kbd> `CallStatsReq`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace_server/trace_server_interface",
+              "snippet": "## <kbd>class</kbd> `CallStatsReq`\n\nRequest for aggregated call statistics over a time range.\n\n**Pydantic Fields:**\n\n* `project_id`: `<class 'str'>`\n* `start`: `<class 'datetime.datetime'>`\n* `end`: `datetime.datetime | None`\n* `granularity`: `int | None`\n* `usage_metrics`: `list[UsageMetricSpec] | None`\n* `call_metrics`: `list[CallMetricSpec] | None`\n* `filter`: `CallsFilter | None`\n* `timezone`: `<class 'str'>`\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace_server/trace_server_interface.py#L3832)\n\n"
+            },
+            {
+              "page_id": "guides/tracking/querying-calls",
+              "section": 3,
+              "title": "Query and export Calls",
+              "heading": "Export Call metrics",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/querying-calls",
+              "snippet": "## Export Call metrics\n\nWhen you need aggregate insights, such as cost or latency trends, rather than the underlying Call records, use the metrics endpoint described in this section.\n\nYou can also use the Weave Service API's [POST `/calls/stats` endpoint](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats) to retrieve metrics about your Calls without retrieving the Call data itself. You can retrieve information about your Calls, such as latency and cost, and aggregate them by sum, average, minimum, maximum, and count. For example, you can retrieve:\n\n* Total token usage\n* Average latency\n* Maximum tokens used\n* Total cost\n* Minimum input tokens\n\nThe endpoint provides several filtering options so you can target Calls made within specified times, and by other properties, such as:\n\n* Op name\n* Trace ID\n* Thread ID\n* User ID\n\nThe following example demonstrates how to retrieve Calls generated from an Op named `web_app` over two days. Replace `[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]` with your team and project names:\n\n```python Python lines {10-11,16-24} theme"
+            },
+            {
+              "page_id": "reference/service-api/calls/call-stats",
+              "section": 1,
+              "title": "Call Stats",
+              "heading": "OpenAPI",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats",
+              "snippet": "## OpenAPI\n\n````yaml products/wandb/weave/reference/service-api/openapi.json POST /calls/stats\nopenapi: 3.1.0\ninfo:\n  title: FastAPI\n  version: 0.1.0\nservers: []\nsecurity: []\npaths:\n  /calls/stats:\n    post:\n      tags:\n        - Calls\n      summary: Call Stats\n      operationId: call_stats_calls_stats_post\n      requestBody:\n        content:\n          application/json:\n            schema:\n              $ref: '#/components/schemas/CallStatsReq'\n        required: true\n      responses:\n        '200':\n          description: Successful Response\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/CallStatsRes'\n        '422':\n          description: Validation Error\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/HTTPValidationError'\ncomponents:\n  schemas:\n    CallStatsReq:\n      properties:\n        project_id:\n          type: string\n          title: Project Id\n        start:\n          type: string\n          format: date-time\n          title: Start\n          desc"
+            },
+            {
+              "page_id": "reference/python-sdk/trace/weave_client",
+              "section": 30,
+              "title": "weave_client",
+              "heading": "<kbd>method</kbd> `get_agent_span_stats`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/weave_client",
+              "snippet": "### <kbd>method</kbd> `get_agent_span_stats`\n\n```python theme={\"system\"}\nget_agent_span_stats(\n    start: 'datetime',\n    metrics: 'list[AgentSpanStatsMetricSpec]',\n    end: 'datetime | None' = None,\n    query: 'Query | None' = None,\n    group_by: 'list[AgentGroupByRef] | None' = None,\n    granularity: 'int | None' = None,\n    timezone: 'str' = 'UTC'\n) \u2192 AgentSpanStatsRes\n```\n\nCompute chart-ready aggregations over agent spans.\n\nCovers the common time-series / grouped-metric case. For numeric-bucket stats or other advanced options, call `server.agent_spans_stats` directly.\n\n**Args:**\n\n* **`start`**: Start of the time range (inclusive).\n* **`metrics`**: One or more metrics to aggregate (e.g. token sums).\n* **`end`**: End of the time range. Defaults to now when omitted.\n* **`query`**: A mongo-style filter expression to restrict the spans.\n* **`group_by`**: Span fields to group the aggregations by.\n* **`granularity`**: Time-bucket width in seconds for time-series stats.\n* **`timezone`**: IANA timezone used to align time buckets.\n\n**Returns:**\nAn `AgentSpanStatsRes` with `columns` and `ro"
+            },
+            {
+              "page_id": "reference/python-sdk/trace_server/trace_server_interface",
+              "section": 530,
+              "title": "trace_server_interface",
+              "heading": "<kbd>class</kbd> `TraceUsageReq`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace_server/trace_server_interface",
+              "snippet": "## <kbd>class</kbd> `TraceUsageReq`\n\nRequest to compute per-call usage for a trace, with descendant rollup.\n\nThis endpoint returns usage metrics for each call in the trace, where each call's metrics include the sum of its own usage plus all descendants' usage. Use this for trace view where you want to see rolled-up metrics per call.\n\nNote: All matching calls are loaded into memory for aggregation. For very large result sets (>10k calls), consider using more specific filters or pagination at the application layer.\n\n**Pydantic Fields:**\n\n* `project_id`: `<class 'str'>`\n* `filter`: `CallsFilter | None`\n* `query`: `weave.trace_server.interface.query.Query | None`\n* `include_costs`: `<class 'bool'>`\n* `limit`: `<class 'int'>`\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace_server/trace_server_interface.py#L3912)\n\n"
+            },
+            {
+              "page_id": "reference/service-api",
+              "section": 4,
+              "title": "Service API overview",
+              "heading": "Calls",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/service-api",
+              "snippet": "### Calls\n\n* **[POST `/call/end`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-end)** - Call End\n* **[POST `/call/read`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-read)** - Call Read\n* **[POST `/call/start`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-start)** - Call Start\n* **[POST `/call/update`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-update)** - Call Update\n* **[POST `/call/upsert_batch`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-start-batch)** - Call Start Batch\n* **[POST `/calls/delete`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/calls-delete)** - Calls Delete\n* **[POST `/calls/query_stats`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/calls-query-stats)** - Calls Query Stats\n* **[POST `/calls/stats`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats)** - Call Stats\n* **[POST `/calls/stream"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/querying-calls",
+          "section": 3
+        },
+        "result": {
+          "source_id": "S1",
+          "page_id": "guides/tracking/querying-calls",
+          "section": 3,
+          "title": "Query and export Calls",
+          "heading": "Export Call metrics",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/querying-calls",
+          "page_sha256": "94f3b108336adcf6ed368135b5d3e5aa8da57d349f205090b579cc07107687fb",
+          "text": "## Export Call metrics\n\nWhen you need aggregate insights, such as cost or latency trends, rather than the underlying Call records, use the metrics endpoint described in this section.\n\nYou can also use the Weave Service API's [POST `/calls/stats` endpoint](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats) to retrieve metrics about your Calls without retrieving the Call data itself. You can retrieve information about your Calls, such as latency and cost, and aggregate them by sum, average, minimum, maximum, and count. For example, you can retrieve:\n\n* Total token usage\n* Average latency\n* Maximum tokens used\n* Total cost\n* Minimum input tokens\n\nThe endpoint provides several filtering options so you can target Calls made within specified times, and by other properties, such as:\n\n* Op name\n* Trace ID\n* Thread ID\n* User ID\n\nThe following example demonstrates how to retrieve Calls generated from an Op named `web_app` over two days. Replace `[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]` with your team and project names:\n\n```python Python lines {10-11,16-24} theme={\"system\"}\nimport requests\nimport json\nimport os\n\nurl = \"https://trace.wandb.ai/calls/stats\"\n\npayload = {\n    \"project_id\": \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n    \"start\": \"2026-03-01T00:00:00Z\",\n# Specify the size of the buckets, in seconds.\n    \"granularity\": 86400,\n    \"filter\": {\n        \"trace_roots_only\": True,\n        \"op_names\": [\"web_app\"]\n    },\n# Specify metrics and their aggregate function\n    \"usage_metrics\": [\n        {\"metric\": \"total_tokens\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"total_cost\", \"aggregations\": [\"sum\"]}\n    ],\n    \"call_metrics\": [\n        {\"metric\": \"call_count\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"error_count\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"latency_ms\", \"aggregations\": [\"avg\", \"min\", \"max\"], \"percentiles\": [50, 95, 99]}\n    ]\n}\n\nAPI_KEY = os.getenv(\"WANDB_API_KEY\")\n\nresponse = requests.post(url, json=payload, auth=(\"api\", API_KEY))\n\nprint(json.dumps(response.json(), indent=2))\n```\n\n```typescript TypeScript lines {6-7,13-20} theme={\"system\"}\nconst url = \"https://trace.wandb.ai/calls/stats\";\n\nconst payload = {\n  project_id: \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n  start: \"2026-03-01T00:00:00Z\",\n// Specify the size of the buckets, in seconds.\n  granularity: 86400,\n  filter: {\n    trace_roots_only: true,\n    op_names: [\"web_app\"],\n  },\n// Specify metrics and their aggregate function\n  usage_metrics: [\n    { metric: \"total_tokens\", aggregations: [\"sum\"] },\n    { metric: \"total_cost\", aggregations: [\"sum\"] },\n  ],\n  call_metrics: [\n    { metric: \"call_count\", aggregations: [\"sum\"] },\n    { metric: \"error_count\", aggregations: [\"sum\"] },\n    { metric: \"latency_ms\", aggregations: [\"avg\", \"min\", \"max\"], percentiles: [50, 95, 99] },\n  ],\n};\n\nconst API_KEY = [REDACTED_SECRET];\n\nconst response = await fetch(url, {\n  method: \"POST\",\n  headers: {\n    \"Content-Type\": \"application/json\",\n    Authorization: \"[REDACTED_SECRET]\" + btoa(`api:${API_KEY}`),\n  },\n  body: JSON.stringify(payload),\n});\n\nconst data = await response.json();\nconsole.log(JSON.stringify(data, null, 2));\n```\n\nThe request also specifies how to aggregate the metrics. You can aggregate metrics by `sum`, `count`, `avg`, `min`, `max`, and `count`.\n\nThe endpoint returns a JSON object. The following example response shows two days' worth of metrics. Each day (bucket) appears as its own object in the `usage_buckets` and `call_buckets` arrays. Each array breaks down the metrics differently:\n\n* `usage_buckets`: Groups Call metrics for each day by the model used.\n* `call_buckets`: Groups Call metrics for each day regardless of the model used.\n\nSet the granularity field (in seconds) in the request to change the bucket size.\n\n```json lines theme={\"system\"}\n{\n  \"start\": \"2026-03-03T00:00:00Z\",\n  \"end\": \"2026-03-04T21:34:39.746539Z\",\n  \"granularity\": 86400,\n  \"timezone\": \"UTC\",\n  \"usage_buckets\": [\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"model\": \"gpt-4o-2024-08-06\",\n      \"sum_total_tokens\": 498.0,\n      \"sum_input_tokens\": 219.0,\n      \"sum_output_tokens\": 279.0,\n      \"count\": 5,\n      \"sum_total_cost\": 0.0033374999156876584\n    },\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"model\": \"gpt-5-2025-08-07\",\n      \"sum_total_tokens\": 0.0,\n      \"sum_input_tokens\": 0.0,\n      \"sum_output_tokens\": 0.0,\n      \"count\": 0,\n      \"sum_total_cost\": 0.0\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"model\": \"gpt-4o-2024-08-06\",\n      \"sum_total_tokens\": 58.0,\n      \"sum_input_tokens\": 27.0,\n      \"sum_output_tokens\": 31.0,\n      \"count\": 1,\n      \"sum_total_cost\": 0.0003774999904635479\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"model\": \"gpt-5-2025-08-07\",\n      \"sum_total_tokens\": 427.0,\n      \"sum_input_tokens\": 26.0,\n      \"sum_output_tokens\": 401.0,\n      \"count\": 1,\n      \"sum_total_cost\": 0.00404249989787786\n    }\n  ],\n  \"call_buckets\": [\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"sum_call_count\": 6,\n      \"sum_error_count\": 1,\n      \"avg_latency_ms\": 1505.6666666666667,\n      \"min_latency_ms\": 525,\n      \"max_latency_ms\": 2524,\n      \"p50_latency_ms\": 1534.0,\n      \"p95_latency_ms\": 2328.5,\n      \"p99_latency_ms\": 2484.9000000000005,\n      \"count\": 6\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"sum_call_count\": 2,\n      \"sum_error_count\": 0,\n      \"avg_latency_ms\": 3645.0,\n      \"min_latency_ms\": 1739,\n      \"max_latency_ms\": 5551,\n      \"p50_latency_ms\": 3645.0,\n      \"p95_latency_ms\": 5360.4,\n      \"p99_latency_ms\": 5512.88,\n      \"count\": 2\n    }\n  ]\n}\n```\n\nYou can query metrics for a maximum time range of 31 days. For more information about available options, see the [Service API reference](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats.md).\n",
+          "page_context": "# Query and export Calls\n\n> Filter, sort, and export Weave call data using the Python SDK, REST API, or the Weights & Biases UI for custom analysis.\n\nThis page shows you how to query and export Weave Calls so you can analyze trace data outside of Weave. For example, you can build custom dashboards, share results with collaborators, or run offline analysis. You can export Calls from the Weights & Biases UI, fetch them programmatically with the Python or TypeScript SDKs, or query them directly using the Service API.\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Query and export Calls"
+            },
+            {
+              "section": 1,
+              "heading": "Export Calls from the Weights & Biases UI"
+            },
+            {
+              "section": 2,
+              "heading": "Fetch Calls programmatically"
+            },
+            {
+              "section": 3,
+              "heading": "Export Call metrics"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "credential_redacted": true,
+          "outgoing_links": [
+            {
+              "page_id": "reference/service-api/calls/call-stats",
+              "title": "Call Stats"
+            }
+          ],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "reference/service-api/calls/call-stats",
+          "section": 1
+        },
+        "result": {
+          "source_id": "S2",
+          "page_id": "reference/service-api/calls/call-stats",
+          "section": 1,
+          "title": "Call Stats",
+          "heading": "OpenAPI",
+          "url": "https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats",
+          "page_sha256": "5e862db36fc610d8394228e829294ca2a7471bd8bda74828166ceaed724f56ae",
+          "text": "## OpenAPI\n\n````yaml products/wandb/weave/reference/service-api/openapi.json POST /calls/stats\nopenapi: 3.1.0\ninfo:\n  title: FastAPI\n  version: 0.1.0\nservers: []\nsecurity: []\npaths:\n  /calls/stats:\n    post:\n      tags:\n        - Calls\n      summary: Call Stats\n      operationId: call_stats_calls_stats_post\n      requestBody:\n        content:\n          application/json:\n            schema:\n              $ref: '#/components/schemas/CallStatsReq'\n        required: true\n      responses:\n        '200':\n          description: Successful Response\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/CallStatsRes'\n        '422':\n          description: Validation Error\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/HTTPValidationError'\ncomponents:\n  schemas:\n    CallStatsReq:\n      properties:\n        project_id:\n          type: string\n          title: Project Id\n        start:\n          type: string\n          format: date-time\n          title: Start\n          description: Inclusive start time (UTC, ISO 8601).\n        end:\n          anyOf:\n            - type: string\n              format: date-time\n            - type: 'null'\n          title: End\n          description: Exclusive end time (UTC, ISO 8601). Defaults to now if omitted.\n        granularity:\n          anyOf:\n            - type: integer\n            - type: 'null'\n          title: Granularity\n          description: >-\n            Bucket size in seconds (e.g., 3600 for 1 hour). If omitted,\n            auto-selected based on time range. Will be adjusted if it would\n            produce more than 10,000 buckets.\n        usage_metrics:\n          anyOf:\n            - items:\n                $ref: '#/components/schemas/UsageMetricSpec'\n              type: array\n            - type: 'null'\n          title: Usage Metrics\n          description: >-\n            Usage metrics (tokens, cost) to compute. Grouped by timestamp and\n            model.\n        call_metrics:\n          anyOf:\n            - items:\n                $ref: '#/components/schemas/CallMetricSpec'\n              type: array\n            - type: 'null'\n          title: Call Metrics\n          description: >-\n            Call-level metrics (latency, counts) to compute. Grouped by\n            timestamp only.\n        filter:\n          anyOf:\n            - $ref: '#/components/schemas/CallsFilter'\n            - type: 'null'\n        timezone:\n          type: string\n          title: Timezone\n          description: IANA timezone for bucket alignment (e.g., 'America/New_York')\n          default: UTC\n      type: object\n      required:\n        - project_id\n        - start\n      title: CallStatsReq\n      description: Request for aggregated call statistics over a time range.\n    CallStatsRes:\n      properties:\n        start:\n          type: string\n          format: date-time\n          title: Start\n          description: Resolved start time (UTC)\n        end:\n          type: string\n          format: date-time\n          title: End\n          description: Resolved end time (UTC)\n        granularity:\n          type: integer\n          title: Granularity\n          description: Bucket size used (in seconds)\n        timezone:\n          type: string\n          title: Timezone\n          description: Timezone used for bucket alignment\n        usage_buckets:\n          items:\n            additionalProperties: true\n            type: object\n          type: array\n          title: Usage Buckets\n          description: >-\n            Usage metrics by model. Each bucket contains 'timestamp', 'model',\n            and aggregated metric values.\n          default: []\n        call_buckets:\n          items:\n            additionalProperties: true\n            type: object\n          type: array\n          title: Call Buckets\n          description: >-\n            Call-level metrics. Each bucket contains 'timestamp' and aggregated\n            metric values.\n          default: []\n      type: object\n      required:\n        - start\n        - end\n        - granularity\n        - timezone\n      title: CallStatsRes\n      description: Response containing time-series call statistics.\n    HTTPValidationError:\n      properties:\n        detail:\n          items:\n            $ref: '#/components/schemas/ValidationError'\n          type: array\n          title: Detail\n      type: object\n      title: HTTPValidationError\n    UsageMetricSpec:\n      properties:\n        metric:\n          type: string\n          enum:\n            - input_tokens\n            - output_tokens\n            - total_tokens\n            - cache_read_input_tokens\n            - cache_creation_input_tokens\n            - input_cost\n            - output_cost\n            - total_cost\n          title: Metric\n          description: Metric to aggregate. Token metrics are normalized across providers.\n        aggregations:\n          items:\n            $ref: '#/components/schemas/AggregationType'\n          type: array\n          title: Aggregations\n          description: Basic aggregation functions to apply\n          default:\n            - sum\n        percentiles:\n          items:\n            type: number\n          type: array\n          title: Percentiles\n          description: >-\n            Percentile values to compute (0-100). E.g., [50, 95, 99] for p50,\n            p95, p99\n          default: []\n      type: object\n      required:\n        - metric\n      title: UsageMetricSpec\n      description: Specification for a usage metric to aggregate (grouped by model).\n    CallMetricSpec:\n      properties:\n        metric:\n          type: string\n          enum:\n            - latency_ms\n            - call_count\n            - error_count\n          title: Metric\n          description: Metric to aggregate.\n        aggregations:\n          items:\n            $ref: '#/components/schemas/AggregationType'\n          type: array\n          title: Aggregations\n          description: Basic aggregation functions to apply\n          default:\n            - sum\n        percentiles:\n          items:\n            type: number\n          type: array\n          title: Percentiles\n          description: >-\n            Percentile values to compute (0-100). E.g., [50, 95, 99] for p50,\n            p95, p99\n          default: []\n      type: object\n      required:\n        - metric\n      title: CallMetricSpec\n      description: >-\n        Specification for a call-level metric to aggregate (not grouped by\n        model).\n    CallsFilter:\n      properties:\n        op_names:\n          anyOf:\n            - items:\n                type: string\n              type: array\n            - type: 'null'\n          title: Op Names\n        input_refs:\n          anyOf:\n            - items:\n                type: string\n              type: array\n            - type: 'null'\n          title: Input Refs\n        output_refs:\n          anyOf:\n            - items:\n                type: string\n              type: array\n   ",
+          "page_context": "# Call Stats\n\n\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Call Stats"
+            },
+            {
+              "section": 1,
+              "heading": "OpenAPI"
+            },
+            {
+              "section": 2,
+              "heading": "OpenAPI"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "outgoing_links": [],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "To get daily stats for one op, send `POST https://trace.wandb.ai/calls/stats` with these settings:\n\n- `granularity: 86400`, which is one day in seconds.\n- `filter.op_names` set to your one op.\n- A `usage_metrics` entry for `total_cost` with `sum`.\n- A `call_metrics` entry for `latency_ms` with `avg`.\n\n[S1, S2]\n\n```python\nimport os\nimport requests\n\nurl = \"https://trace.wandb.ai/calls/stats\"\npayload = {\n    \"project_id\": \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n    \"start\": \"2026-03-01T00:00:00Z\",      # inclusive start time (UTC)\n    \"end\": \"2026-03-08T00:00:00Z\",        # exclusive end time; leave out to mean \"now\"\n    \"granularity\": 86400,                 # one-day buckets\n    \"timezone\": \"UTC\",                    # where day boundaries fall\n    \"filter\": {\"op_names\": [\"[YOUR-OP-NAME]\"]},\n    \"usage_metrics\": [{\"metric\": \"total_cost\", \"aggregations\": [\"sum\"]}],\n    \"call_metrics\": [{\"metric\": \"latency_ms\", \"aggregations\": [\"avg\"]}],\n}\nresponse = requests.post(url, json=payload, auth=(\"api\", os.getenv(\"WANDB_API_KEY\")))\nprint(response.json())\n```\n\nOnly `project_id` and `start` are required. The time range can be at most 31 days. [S1, S2] The docs' own example also adds `\"trace_roots_only\": True` to the filter, which limits results to top-level (root) calls. [S1]\n\n**Granularity**\n- This is the width of each time \"bucket\", in seconds. If you leave it out, the server picks a size based on your time range. It will also change your value if it would create more than 10,000 buckets. [S2]\n- `timezone` sets how buckets line up, for example `America/New_York`. The default is UTC. The response shows the bucket size actually used. [S2]\n\n**`usage_metrics`**\n- Covers token and cost metrics, such as `input_tokens`, `total_tokens`, `input_cost`, `output_cost` and `total_cost`. Results are grouped by time and by model. [S2]\n- Results come back in `usage_buckets`, with one row per day per model, holding values like `sum_total_cost`. [S1, S2]\n- **What this means for you:** if your op used more than one model, add up that day's rows to get the daily total. That adding-up step is my own inference; the docs don't state it.\n\n**`call_metrics`**\n- Covers `latency_ms`, `call_count` and `error_count`. Results are grouped by time only, not by model. [S2]\n- Results come back in `call_buckets`, with one row per day holding `avg_latency_ms`. [S1]\n\n**Both fields**\n- Each entry takes `metric`, `aggregations` (defaults to `[\"sum\"]`) and optional `percentiles`, such as `[50, 95]`. [S2]",
+          "source_ids": [
+            "S1",
+            "S2"
+          ],
+          "kind": "answer"
+        },
+        "result": {
+          "passed": true,
+          "issues": [],
+          "missing_parts": [],
+          "mode": "support",
+          "status": "passed"
+        },
+        "origin": "application_normalization"
+      }
+    ],
+    "task_complete": true,
+    "missing_outcomes": [],
+    "completion_status": "complete",
+    "review_reason": "none",
+    "conversation_context": [],
+    "conversation_id": "75be8c42-6c1f-48a0-ae97-7f6daa2cade5",
+    "trace_id": "abe723091eb5983c1a324cb60cb26c0b",
+    "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/75be8c42-6c1f-48a0-ae97-7f6daa2cade5",
+    "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+    "source_sha256": "b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0",
+    "prompt_sha256": "0db790fffbb9edc24333d987516f479c1bd7cab6aaf0ad382a836264c6a00a9c",
+    "config_sha256": "40d8a7bacd0c2eb781964747644ff5335f6e517841b0105821b87cc0fd0b42ca",
+    "citation_contract_version": 3,
+    "verification_contract_version": 6,
+    "verify_mode": "support",
+    "cache_enabled": true,
+    "model": "claude-opus-5-5",
+    "elapsed_seconds": 22.52,
+    "metrics": {
+      "calls": [
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWFYUUBeck2VqiMvzAcd",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 2342,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 65,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 1.9273,
+          "estimated_usd": 0.0017844
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWFYcQRbmnVYzQPRpnGm",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 3305
+            },
+            "cache_creation_input_tokens": 3305,
+            "cache_read_input_tokens": 2342,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 161,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.1353,
+          "estimated_usd": 0.0202294
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWFYmbLQgL2hTPosineX",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 6618
+            },
+            "cache_creation_input_tokens": 6618,
+            "cache_read_input_tokens": 5647,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 1077,
+            "output_tokens_details": {
+              "thinking_tokens": 68
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 11.6614,
+          "estimated_usd": 0.0557754
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-opus-5-5",
+          "effort": "medium",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWFZdRiY4uJ8JB5uF4h6",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 11024
+            },
+            "cache_creation_input_tokens": 11024,
+            "cache_read_input_tokens": 1663,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 580,
+            "output_tokens_details": {
+              "thinking_tokens": 480
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 6.7564,
+          "estimated_usd": 0.0670686
+        }
+      ],
+      "model_calls": 4,
+      "tokens": {
+        "input_tokens": 16,
+        "output_tokens": 1883,
+        "cache_creation_input_tokens": 20947,
+        "cache_read_input_tokens": 11994
+      },
+      "total_input_tokens": 32957,
+      "estimated_usd": 0.1448578,
+      "known_estimated_usd": 0.1448578,
+      "unpriced_calls": 0,
+      "by_purpose": {
+        "planner": {
+          "calls": 3,
+          "known_estimated_usd": 0.0777892
+        },
+        "verification": {
+          "calls": 1,
+          "known_estimated_usd": 0.0670686
+        }
+      },
+      "research": {
+        "searches": 1,
+        "passage_reads": 2,
+        "distinct_pages_read": 2,
+        "repeated_tool_requests": 0,
+        "drafts_submitted": 1,
+        "code_runs": 0
+      },
+      "pricing": {
+        "checked_at": "2026-10-25",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "rates": {
+          "claude-sonnet-5-5": {
+            "input": 2,
+            "output": 10,
+            "write_5m": 2.5,
+            "write_1h": 4,
+            "read": 0.1
+          },
+          "claude-opus-5-5": {
+            "input": 4,
+            "output": 20,
+            "write_5m": 5,
+            "write_1h": 8,
+            "read": 0.2
+          }
+        }
+      },
+      "scope": "Estimated from Claude's reported usage and published prices. Includes research and answer checks. Excludes Weave Signals, separate evaluation runs, hosting, taxes and any usage missing after failed requests or retries. We count requests made by the app, not every network attempt. Your final bill may differ."
+    },
+    "error_type": null,
+    "case_id": "12-followup-e02-calls-stats--t1--baseline",
+    "trial_index": 1,
+    "prediction_id": "2f9c6d47-9589-4533-a128-047b32700be3",
+    "turns": [
+      {
+        "answer_id": "2f9c6d47-9589-4533-a128-047b32700be3",
+        "question": "For one op_name, how do I request a daily total cost and mean latency from POST /calls/stats? Explain granularity and the usage_metrics and call_metrics fields.",
+        "answer": "To get daily stats for one op, send `POST https://trace.wandb.ai/calls/stats` with these settings:\n\n- `granularity: 86400`, which is one day in seconds.\n- `filter.op_names` set to your one op.\n- A `usage_metrics` entry for `total_cost` with `sum`.\n- A `call_metrics` entry for `latency_ms` with `avg`.\n\n[S1, S2]\n\n```python\nimport os\nimport requests\n\nurl = \"https://trace.wandb.ai/calls/stats\"\npayload = {\n    \"project_id\": \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n    \"start\": \"2026-03-01T00:00:00Z\",      # inclusive start time (UTC)\n    \"end\": \"2026-03-08T00:00:00Z\",        # exclusive end time; leave out to mean \"now\"\n    \"granularity\": 86400,                 # one-day buckets\n    \"timezone\": \"UTC\",                    # where day boundaries fall\n    \"filter\": {\"op_names\": [\"[YOUR-OP-NAME]\"]},\n    \"usage_metrics\": [{\"metric\": \"total_cost\", \"aggregations\": [\"sum\"]}],\n    \"call_metrics\": [{\"metric\": \"latency_ms\", \"aggregations\": [\"avg\"]}],\n}\nresponse = requests.post(url, json=payload, auth=(\"api\", os.getenv(\"WANDB_API_KEY\")))\nprint(response.json())\n```\n\nOnly `project_id` and `start` are required. The time range can be at most 31 days. [S1, S2] The docs' own example also adds `\"trace_roots_only\": True` to the filter, which limits results to top-level (root) calls. [S1]\n\n**Granularity**\n- This is the width of each time \"bucket\", in seconds. If you leave it out, the server picks a size based on your time range. It will also change your value if it would create more than 10,000 buckets. [S2]\n- `timezone` sets how buckets line up, for example `America/New_York`. The default is UTC. The response shows the bucket size actually used. [S2]\n\n**`usage_metrics`**\n- Covers token and cost metrics, such as `input_tokens`, `total_tokens`, `input_cost`, `output_cost` and `total_cost`. Results are grouped by time and by model. [S2]\n- Results come back in `usage_buckets`, with one row per day per model, holding values like `sum_total_cost`. [S1, S2]\n- **What this means for you:** if your op used more than one model, add up that day's rows to get the daily total. That adding-up step is my own inference; the docs don't state it.\n\n**`call_metrics`**\n- Covers `latency_ms`, `call_count` and `error_count`. Results are grouped by time only, not by model. [S2]\n- Results come back in `call_buckets`, with one row per day holding `avg_latency_ms`. [S1]\n\n**Both fields**\n- Each entry takes `metric`, `aggregations` (defaults to `[\"sum\"]`) and optional `percentiles`, such as `[50, 95]`. [S2]",
+        "kind": "answer",
+        "source_ids": [
+          "S1",
+          "S2"
+        ],
+        "sources": [
+          {
+            "source_id": "S1",
+            "page_id": "guides/tracking/querying-calls",
+            "section": 3,
+            "title": "Query and export Calls",
+            "heading": "Export Call metrics",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/querying-calls",
+            "page_sha256": "94f3b108336adcf6ed368135b5d3e5aa8da57d349f205090b579cc07107687fb",
+            "text": "## Export Call metrics\n\nWhen you need aggregate insights, such as cost or latency trends, rather than the underlying Call records, use the metrics endpoint described in this section.\n\nYou can also use the Weave Service API's [POST `/calls/stats` endpoint](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats) to retrieve metrics about your Calls without retrieving the Call data itself. You can retrieve information about your Calls, such as latency and cost, and aggregate them by sum, average, minimum, maximum, and count. For example, you can retrieve:\n\n* Total token usage\n* Average latency\n* Maximum tokens used\n* Total cost\n* Minimum input tokens\n\nThe endpoint provides several filtering options so you can target Calls made within specified times, and by other properties, such as:\n\n* Op name\n* Trace ID\n* Thread ID\n* User ID\n\nThe following example demonstrates how to retrieve Calls generated from an Op named `web_app` over two days. Replace `[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]` with your team and project names:\n\n```python Python lines {10-11,16-24} theme={\"system\"}\nimport requests\nimport json\nimport os\n\nurl = \"https://trace.wandb.ai/calls/stats\"\n\npayload = {\n    \"project_id\": \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n    \"start\": \"2026-03-01T00:00:00Z\",\n# Specify the size of the buckets, in seconds.\n    \"granularity\": 86400,\n    \"filter\": {\n        \"trace_roots_only\": True,\n        \"op_names\": [\"web_app\"]\n    },\n# Specify metrics and their aggregate function\n    \"usage_metrics\": [\n        {\"metric\": \"total_tokens\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"total_cost\", \"aggregations\": [\"sum\"]}\n    ],\n    \"call_metrics\": [\n        {\"metric\": \"call_count\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"error_count\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"latency_ms\", \"aggregations\": [\"avg\", \"min\", \"max\"], \"percentiles\": [50, 95, 99]}\n    ]\n}\n\nAPI_KEY = os.getenv(\"WANDB_API_KEY\")\n\nresponse = requests.post(url, json=payload, auth=(\"api\", API_KEY))\n\nprint(json.dumps(response.json(), indent=2))\n```\n\n```typescript TypeScript lines {6-7,13-20} theme={\"system\"}\nconst url = \"https://trace.wandb.ai/calls/stats\";\n\nconst payload = {\n  project_id: \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n  start: \"2026-03-01T00:00:00Z\",\n// Specify the size of the buckets, in seconds.\n  granularity: 86400,\n  filter: {\n    trace_roots_only: true,\n    op_names: [\"web_app\"],\n  },\n// Specify metrics and their aggregate function\n  usage_metrics: [\n    { metric: \"total_tokens\", aggregations: [\"sum\"] },\n    { metric: \"total_cost\", aggregations: [\"sum\"] },\n  ],\n  call_metrics: [\n    { metric: \"call_count\", aggregations: [\"sum\"] },\n    { metric: \"error_count\", aggregations: [\"sum\"] },\n    { metric: \"latency_ms\", aggregations: [\"avg\", \"min\", \"max\"], percentiles: [50, 95, 99] },\n  ],\n};\n\nconst API_KEY = [REDACTED_SECRET];\n\nconst response = await fetch(url, {\n  method: \"POST\",\n  headers: {\n    \"Content-Type\": \"application/json\",\n    Authorization: \"[REDACTED_SECRET]\" + btoa(`api:${API_KEY}`),\n  },\n  body: JSON.stringify(payload),\n});\n\nconst data = await response.json();\nconsole.log(JSON.stringify(data, null, 2));\n```\n\nThe request also specifies how to aggregate the metrics. You can aggregate metrics by `sum`, `count`, `avg`, `min`, `max`, and `count`.\n\nThe endpoint returns a JSON object. The following example response shows two days' worth of metrics. Each day (bucket) appears as its own object in the `usage_buckets` and `call_buckets` arrays. Each array breaks down the metrics differently:\n\n* `usage_buckets`: Groups Call metrics for each day by the model used.\n* `call_buckets`: Groups Call metrics for each day regardless of the model used.\n\nSet the granularity field (in seconds) in the request to change the bucket size.\n\n```json lines theme={\"system\"}\n{\n  \"start\": \"2026-03-03T00:00:00Z\",\n  \"end\": \"2026-03-04T21:34:39.746539Z\",\n  \"granularity\": 86400,\n  \"timezone\": \"UTC\",\n  \"usage_buckets\": [\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"model\": \"gpt-4o-2024-08-06\",\n      \"sum_total_tokens\": 498.0,\n      \"sum_input_tokens\": 219.0,\n      \"sum_output_tokens\": 279.0,\n      \"count\": 5,\n      \"sum_total_cost\": 0.0033374999156876584\n    },\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"model\": \"gpt-5-2025-08-07\",\n      \"sum_total_tokens\": 0.0,\n      \"sum_input_tokens\": 0.0,\n      \"sum_output_tokens\": 0.0,\n      \"count\": 0,\n      \"sum_total_cost\": 0.0\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"model\": \"gpt-4o-2024-08-06\",\n      \"sum_total_tokens\": 58.0,\n      \"sum_input_tokens\": 27.0,\n      \"sum_output_tokens\": 31.0,\n      \"count\": 1,\n      \"sum_total_cost\": 0.0003774999904635479\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"model\": \"gpt-5-2025-08-07\",\n      \"sum_total_tokens\": 427.0,\n      \"sum_input_tokens\": 26.0,\n      \"sum_output_tokens\": 401.0,\n      \"count\": 1,\n      \"sum_total_cost\": 0.00404249989787786\n    }\n  ],\n  \"call_buckets\": [\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"sum_call_count\": 6,\n      \"sum_error_count\": 1,\n      \"avg_latency_ms\": 1505.6666666666667,\n      \"min_latency_ms\": 525,\n      \"max_latency_ms\": 2524,\n      \"p50_latency_ms\": 1534.0,\n      \"p95_latency_ms\": 2328.5,\n      \"p99_latency_ms\": 2484.9000000000005,\n      \"count\": 6\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"sum_call_count\": 2,\n      \"sum_error_count\": 0,\n      \"avg_latency_ms\": 3645.0,\n      \"min_latency_ms\": 1739,\n      \"max_latency_ms\": 5551,\n      \"p50_latency_ms\": 3645.0,\n      \"p95_latency_ms\": 5360.4,\n      \"p99_latency_ms\": 5512.88,\n      \"count\": 2\n    }\n  ]\n}\n```\n\nYou can query metrics for a maximum time range of 31 days. For more information about available options, see the [Service API reference](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats.md).\n",
+            "page_context": "# Query and export Calls\n\n> Filter, sort, and export Weave call data using the Python SDK, REST API, or the Weights & Biases UI for custom analysis.\n\nThis page shows you how to query and export Weave Calls so you can analyze trace data outside of Weave. For example, you can build custom dashboards, share results with collaborators, or run offline analysis. You can export Calls from the Weights & Biases UI, fetch them programmatically with the Python or TypeScript SDKs, or query them directly using the Service API.\n\n",
+            "outline": [
+              {
+                "section": 0,
+                "heading": "Query and export Calls"
+              },
+              {
+                "section": 1,
+                "heading": "Export Calls from the Weights & Biases UI"
+              },
+              {
+                "section": 2,
+                "heading": "Fetch Calls programmatically"
+              },
+              {
+                "section": 3,
+                "heading": "Export Call metrics"
+              }
+            ],
+            "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+            "credential_redacted": true,
+            "outgoing_links": [
+              {
+                "page_id": "reference/service-api/calls/call-stats",
+                "title": "Call Stats"
+              }
+            ],
+            "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+          },
+          {
+            "source_id": "S2",
+            "page_id": "reference/service-api/calls/call-stats",
+            "section": 1,
+            "title": "Call Stats",
+            "heading": "OpenAPI",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats",
+            "page_sha256": "5e862db36fc610d8394228e829294ca2a7471bd8bda74828166ceaed724f56ae",
+            "text": "## OpenAPI\n\n````yaml products/wandb/weave/reference/service-api/openapi.json POST /calls/stats\nopenapi: 3.1.0\ninfo:\n  title: FastAPI\n  version: 0.1.0\nservers: []\nsecurity: []\npaths:\n  /calls/stats:\n    post:\n      tags:\n        - Calls\n      summary: Call Stats\n      operationId: call_stats_calls_stats_post\n      requestBody:\n        content:\n          application/json:\n            schema:\n              $ref: '#/components/schemas/CallStatsReq'\n        required: true\n      responses:\n        '200':\n          description: Successful Response\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/CallStatsRes'\n        '422':\n          description: Validation Error\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/HTTPValidationError'\ncomponents:\n  schemas:\n    CallStatsReq:\n      properties:\n        project_id:\n          type: string\n          title: Project Id\n        start:\n          type: string\n          format: date-time\n          title: Start\n          description: Inclusive start time (UTC, ISO 8601).\n        end:\n          anyOf:\n            - type: string\n              format: date-time\n            - type: 'null'\n          title: End\n          description: Exclusive end time (UTC, ISO 8601). Defaults to now if omitted.\n        granularity:\n          anyOf:\n            - type: integer\n            - type: 'null'\n          title: Granularity\n          description: >-\n            Bucket size in seconds (e.g., 3600 for 1 hour). If omitted,\n            auto-selected based on time range. Will be adjusted if it would\n            produce more than 10,000 buckets.\n        usage_metrics:\n          anyOf:\n            - items:\n                $ref: '#/components/schemas/UsageMetricSpec'\n              type: array\n            - type: 'null'\n          title: Usage Metrics\n          description: >-\n            Usage metrics (tokens, cost) to compute. Grouped by timestamp and\n            model.\n        call_metrics:\n          anyOf:\n            - items:\n                $ref: '#/components/schemas/CallMetricSpec'\n              type: array\n            - type: 'null'\n          title: Call Metrics\n          description: >-\n            Call-level metrics (latency, counts) to compute. Grouped by\n            timestamp only.\n        filter:\n          anyOf:\n            - $ref: '#/components/schemas/CallsFilter'\n            - type: 'null'\n        timezone:\n          type: string\n          title: Timezone\n          description: IANA timezone for bucket alignment (e.g., 'America/New_York')\n          default: UTC\n      type: object\n      required:\n        - project_id\n        - start\n      title: CallStatsReq\n      description: Request for aggregated call statistics over a time range.\n    CallStatsRes:\n      properties:\n        start:\n          type: string\n          format: date-time\n          title: Start\n          description: Resolved start time (UTC)\n        end:\n          type: string\n          format: date-time\n          title: End\n          description: Resolved end time (UTC)\n        granularity:\n          type: integer\n          title: Granularity\n          description: Bucket size used (in seconds)\n        timezone:\n          type: string\n          title: Timezone\n          description: Timezone used for bucket alignment\n        usage_buckets:\n          items:\n            additionalProperties: true\n            type: object\n          type: array\n          title: Usage Buckets\n          description: >-\n            Usage metrics by model. Each bucket contains 'timestamp', 'model',\n            and aggregated metric values.\n          default: []\n        call_buckets:\n          items:\n            additionalProperties: true\n            type: object\n          type: array\n          title: Call Buckets\n          description: >-\n            Call-level metrics. Each bucket contains 'timestamp' and aggregated\n            metric values.\n          default: []\n      type: object\n      required:\n        - start\n        - end\n        - granularity\n        - timezone\n      title: CallStatsRes\n      description: Response containing time-series call statistics.\n    HTTPValidationError:\n      properties:\n        detail:\n          items:\n            $ref: '#/components/schemas/ValidationError'\n          type: array\n          title: Detail\n      type: object\n      title: HTTPValidationError\n    UsageMetricSpec:\n      properties:\n        metric:\n          type: string\n          enum:\n            - input_tokens\n            - output_tokens\n            - total_tokens\n            - cache_read_input_tokens\n            - cache_creation_input_tokens\n            - input_cost\n            - output_cost\n            - total_cost\n          title: Metric\n          description: Metric to aggregate. Token metrics are normalized across providers.\n        aggregations:\n          items:\n            $ref: '#/components/schemas/AggregationType'\n          type: array\n          title: Aggregations\n          description: Basic aggregation functions to apply\n          default:\n            - sum\n        percentiles:\n          items:\n            type: number\n          type: array\n          title: Percentiles\n          description: >-\n            Percentile values to compute (0-100). E.g., [50, 95, 99] for p50,\n            p95, p99\n          default: []\n      type: object\n      required:\n        - metric\n      title: UsageMetricSpec\n      description: Specification for a usage metric to aggregate (grouped by model).\n    CallMetricSpec:\n      properties:\n        metric:\n          type: string\n          enum:\n            - latency_ms\n            - call_count\n            - error_count\n          title: Metric\n          description: Metric to aggregate.\n        aggregations:\n          items:\n            $ref: '#/components/schemas/AggregationType'\n          type: array\n          title: Aggregations\n          description: Basic aggregation functions to apply\n          default:\n            - sum\n        percentiles:\n          items:\n            type: number\n          type: array\n          title: Percentiles\n          description: >-\n            Percentile values to compute (0-100). E.g., [50, 95, 99] for p50,\n            p95, p99\n          default: []\n      type: object\n      required:\n        - metric\n      title: CallMetricSpec\n      description: >-\n        Specification for a call-level metric to aggregate (not grouped by\n        model).\n    CallsFilter:\n      properties:\n        op_names:\n          anyOf:\n            - items:\n                type: string\n              type: array\n            - type: 'null'\n          title: Op Names\n        input_refs:\n          anyOf:\n            - items:\n                type: string\n              type: array\n            - type: 'null'\n          title: Input Refs\n        output_refs:\n          anyOf:\n            - items:\n                type: string\n              type: array\n   ",
+            "page_context": "# Call Stats\n\n\n\n",
+            "outline": [
+              {
+                "section": 0,
+                "heading": "Call Stats"
+              },
+              {
+                "section": 1,
+                "heading": "OpenAPI"
+              },
+              {
+                "section": 2,
+                "heading": "OpenAPI"
+              }
+            ],
+            "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+            "outgoing_links": [],
+            "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+          }
+        ],
+        "all_read_evidence": [
+          {
+            "source_id": "S1",
+            "page_id": "guides/tracking/querying-calls",
+            "section": 3,
+            "title": "Query and export Calls",
+            "heading": "Export Call metrics",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/querying-calls",
+            "page_sha256": "94f3b108336adcf6ed368135b5d3e5aa8da57d349f205090b579cc07107687fb",
+            "text": "## Export Call metrics\n\nWhen you need aggregate insights, such as cost or latency trends, rather than the underlying Call records, use the metrics endpoint described in this section.\n\nYou can also use the Weave Service API's [POST `/calls/stats` endpoint](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats) to retrieve metrics about your Calls without retrieving the Call data itself. You can retrieve information about your Calls, such as latency and cost, and aggregate them by sum, average, minimum, maximum, and count. For example, you can retrieve:\n\n* Total token usage\n* Average latency\n* Maximum tokens used\n* Total cost\n* Minimum input tokens\n\nThe endpoint provides several filtering options so you can target Calls made within specified times, and by other properties, such as:\n\n* Op name\n* Trace ID\n* Thread ID\n* User ID\n\nThe following example demonstrates how to retrieve Calls generated from an Op named `web_app` over two days. Replace `[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]` with your team and project names:\n\n```python Python lines {10-11,16-24} theme={\"system\"}\nimport requests\nimport json\nimport os\n\nurl = \"https://trace.wandb.ai/calls/stats\"\n\npayload = {\n    \"project_id\": \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n    \"start\": \"2026-03-01T00:00:00Z\",\n# Specify the size of the buckets, in seconds.\n    \"granularity\": 86400,\n    \"filter\": {\n        \"trace_roots_only\": True,\n        \"op_names\": [\"web_app\"]\n    },\n# Specify metrics and their aggregate function\n    \"usage_metrics\": [\n        {\"metric\": \"total_tokens\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"total_cost\", \"aggregations\": [\"sum\"]}\n    ],\n    \"call_metrics\": [\n        {\"metric\": \"call_count\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"error_count\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"latency_ms\", \"aggregations\": [\"avg\", \"min\", \"max\"], \"percentiles\": [50, 95, 99]}\n    ]\n}\n\nAPI_KEY = os.getenv(\"WANDB_API_KEY\")\n\nresponse = requests.post(url, json=payload, auth=(\"api\", API_KEY))\n\nprint(json.dumps(response.json(), indent=2))\n```\n\n```typescript TypeScript lines {6-7,13-20} theme={\"system\"}\nconst url = \"https://trace.wandb.ai/calls/stats\";\n\nconst payload = {\n  project_id: \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n  start: \"2026-03-01T00:00:00Z\",\n// Specify the size of the buckets, in seconds.\n  granularity: 86400,\n  filter: {\n    trace_roots_only: true,\n    op_names: [\"web_app\"],\n  },\n// Specify metrics and their aggregate function\n  usage_metrics: [\n    { metric: \"total_tokens\", aggregations: [\"sum\"] },\n    { metric: \"total_cost\", aggregations: [\"sum\"] },\n  ],\n  call_metrics: [\n    { metric: \"call_count\", aggregations: [\"sum\"] },\n    { metric: \"error_count\", aggregations: [\"sum\"] },\n    { metric: \"latency_ms\", aggregations: [\"avg\", \"min\", \"max\"], percentiles: [50, 95, 99] },\n  ],\n};\n\nconst API_KEY = [REDACTED_SECRET];\n\nconst response = await fetch(url, {\n  method: \"POST\",\n  headers: {\n    \"Content-Type\": \"application/json\",\n    Authorization: \"[REDACTED_SECRET]\" + btoa(`api:${API_KEY}`),\n  },\n  body: JSON.stringify(payload),\n});\n\nconst data = await response.json();\nconsole.log(JSON.stringify(data, null, 2));\n```\n\nThe request also specifies how to aggregate the metrics. You can aggregate metrics by `sum`, `count`, `avg`, `min`, `max`, and `count`.\n\nThe endpoint returns a JSON object. The following example response shows two days' worth of metrics. Each day (bucket) appears as its own object in the `usage_buckets` and `call_buckets` arrays. Each array breaks down the metrics differently:\n\n* `usage_buckets`: Groups Call metrics for each day by the model used.\n* `call_buckets`: Groups Call metrics for each day regardless of the model used.\n\nSet the granularity field (in seconds) in the request to change the bucket size.\n\n```json lines theme={\"system\"}\n{\n  \"start\": \"2026-03-03T00:00:00Z\",\n  \"end\": \"2026-03-04T21:34:39.746539Z\",\n  \"granularity\": 86400,\n  \"timezone\": \"UTC\",\n  \"usage_buckets\": [\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"model\": \"gpt-4o-2024-08-06\",\n      \"sum_total_tokens\": 498.0,\n      \"sum_input_tokens\": 219.0,\n      \"sum_output_tokens\": 279.0,\n      \"count\": 5,\n      \"sum_total_cost\": 0.0033374999156876584\n    },\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"model\": \"gpt-5-2025-08-07\",\n      \"sum_total_tokens\": 0.0,\n      \"sum_input_tokens\": 0.0,\n      \"sum_output_tokens\": 0.0,\n      \"count\": 0,\n      \"sum_total_cost\": 0.0\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"model\": \"gpt-4o-2024-08-06\",\n      \"sum_total_tokens\": 58.0,\n      \"sum_input_tokens\": 27.0,\n      \"sum_output_tokens\": 31.0,\n      \"count\": 1,\n      \"sum_total_cost\": 0.0003774999904635479\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"model\": \"gpt-5-2025-08-07\",\n      \"sum_total_tokens\": 427.0,\n      \"sum_input_tokens\": 26.0,\n      \"sum_output_tokens\": 401.0,\n      \"count\": 1,\n      \"sum_total_cost\": 0.00404249989787786\n    }\n  ],\n  \"call_buckets\": [\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"sum_call_count\": 6,\n      \"sum_error_count\": 1,\n      \"avg_latency_ms\": 1505.6666666666667,\n      \"min_latency_ms\": 525,\n      \"max_latency_ms\": 2524,\n      \"p50_latency_ms\": 1534.0,\n      \"p95_latency_ms\": 2328.5,\n      \"p99_latency_ms\": 2484.9000000000005,\n      \"count\": 6\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"sum_call_count\": 2,\n      \"sum_error_count\": 0,\n      \"avg_latency_ms\": 3645.0,\n      \"min_latency_ms\": 1739,\n      \"max_latency_ms\": 5551,\n      \"p50_latency_ms\": 3645.0,\n      \"p95_latency_ms\": 5360.4,\n      \"p99_latency_ms\": 5512.88,\n      \"count\": 2\n    }\n  ]\n}\n```\n\nYou can query metrics for a maximum time range of 31 days. For more information about available options, see the [Service API reference](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats.md).\n",
+            "page_context": "# Query and export Calls\n\n> Filter, sort, and export Weave call data using the Python SDK, REST API, or the Weights & Biases UI for custom analysis.\n\nThis page shows you how to query and export Weave Calls so you can analyze trace data outside of Weave. For example, you can build custom dashboards, share results with collaborators, or run offline analysis. You can export Calls from the Weights & Biases UI, fetch them programmatically with the Python or TypeScript SDKs, or query them directly using the Service API.\n\n",
+            "outline": [
+              {
+                "section": 0,
+                "heading": "Query and export Calls"
+              },
+              {
+                "section": 1,
+                "heading": "Export Calls from the Weights & Biases UI"
+              },
+              {
+                "section": 2,
+                "heading": "Fetch Calls programmatically"
+              },
+              {
+                "section": 3,
+                "heading": "Export Call metrics"
+              }
+            ],
+            "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+            "credential_redacted": true,
+            "outgoing_links": [
+              {
+                "page_id": "reference/service-api/calls/call-stats",
+                "title": "Call Stats"
+              }
+            ],
+            "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+          },
+          {
+            "source_id": "S2",
+            "page_id": "reference/service-api/calls/call-stats",
+            "section": 1,
+            "title": "Call Stats",
+            "heading": "OpenAPI",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats",
+            "page_sha256": "5e862db36fc610d8394228e829294ca2a7471bd8bda74828166ceaed724f56ae",
+            "text": "## OpenAPI\n\n````yaml products/wandb/weave/reference/service-api/openapi.json POST /calls/stats\nopenapi: 3.1.0\ninfo:\n  title: FastAPI\n  version: 0.1.0\nservers: []\nsecurity: []\npaths:\n  /calls/stats:\n    post:\n      tags:\n        - Calls\n      summary: Call Stats\n      operationId: call_stats_calls_stats_post\n      requestBody:\n        content:\n          application/json:\n            schema:\n              $ref: '#/components/schemas/CallStatsReq'\n        required: true\n      responses:\n        '200':\n          description: Successful Response\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/CallStatsRes'\n        '422':\n          description: Validation Error\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/HTTPValidationError'\ncomponents:\n  schemas:\n    CallStatsReq:\n      properties:\n        project_id:\n          type: string\n          title: Project Id\n        start:\n          type: string\n          format: date-time\n          title: Start\n          description: Inclusive start time (UTC, ISO 8601).\n        end:\n          anyOf:\n            - type: string\n              format: date-time\n            - type: 'null'\n          title: End\n          description: Exclusive end time (UTC, ISO 8601). Defaults to now if omitted.\n        granularity:\n          anyOf:\n            - type: integer\n            - type: 'null'\n          title: Granularity\n          description: >-\n            Bucket size in seconds (e.g., 3600 for 1 hour). If omitted,\n            auto-selected based on time range. Will be adjusted if it would\n            produce more than 10,000 buckets.\n        usage_metrics:\n          anyOf:\n            - items:\n                $ref: '#/components/schemas/UsageMetricSpec'\n              type: array\n            - type: 'null'\n          title: Usage Metrics\n          description: >-\n            Usage metrics (tokens, cost) to compute. Grouped by timestamp and\n            model.\n        call_metrics:\n          anyOf:\n            - items:\n                $ref: '#/components/schemas/CallMetricSpec'\n              type: array\n            - type: 'null'\n          title: Call Metrics\n          description: >-\n            Call-level metrics (latency, counts) to compute. Grouped by\n            timestamp only.\n        filter:\n          anyOf:\n            - $ref: '#/components/schemas/CallsFilter'\n            - type: 'null'\n        timezone:\n          type: string\n          title: Timezone\n          description: IANA timezone for bucket alignment (e.g., 'America/New_York')\n          default: UTC\n      type: object\n      required:\n        - project_id\n        - start\n      title: CallStatsReq\n      description: Request for aggregated call statistics over a time range.\n    CallStatsRes:\n      properties:\n        start:\n          type: string\n          format: date-time\n          title: Start\n          description: Resolved start time (UTC)\n        end:\n          type: string\n          format: date-time\n          title: End\n          description: Resolved end time (UTC)\n        granularity:\n          type: integer\n          title: Granularity\n          description: Bucket size used (in seconds)\n        timezone:\n          type: string\n          title: Timezone\n          description: Timezone used for bucket alignment\n        usage_buckets:\n          items:\n            additionalProperties: true\n            type: object\n          type: array\n          title: Usage Buckets\n          description: >-\n            Usage metrics by model. Each bucket contains 'timestamp', 'model',\n            and aggregated metric values.\n          default: []\n        call_buckets:\n          items:\n            additionalProperties: true\n            type: object\n          type: array\n          title: Call Buckets\n          description: >-\n            Call-level metrics. Each bucket contains 'timestamp' and aggregated\n            metric values.\n          default: []\n      type: object\n      required:\n        - start\n        - end\n        - granularity\n        - timezone\n      title: CallStatsRes\n      description: Response containing time-series call statistics.\n    HTTPValidationError:\n      properties:\n        detail:\n          items:\n            $ref: '#/components/schemas/ValidationError'\n          type: array\n          title: Detail\n      type: object\n      title: HTTPValidationError\n    UsageMetricSpec:\n      properties:\n        metric:\n          type: string\n          enum:\n            - input_tokens\n            - output_tokens\n            - total_tokens\n            - cache_read_input_tokens\n            - cache_creation_input_tokens\n            - input_cost\n            - output_cost\n            - total_cost\n          title: Metric\n          description: Metric to aggregate. Token metrics are normalized across providers.\n        aggregations:\n          items:\n            $ref: '#/components/schemas/AggregationType'\n          type: array\n          title: Aggregations\n          description: Basic aggregation functions to apply\n          default:\n            - sum\n        percentiles:\n          items:\n            type: number\n          type: array\n          title: Percentiles\n          description: >-\n            Percentile values to compute (0-100). E.g., [50, 95, 99] for p50,\n            p95, p99\n          default: []\n      type: object\n      required:\n        - metric\n      title: UsageMetricSpec\n      description: Specification for a usage metric to aggregate (grouped by model).\n    CallMetricSpec:\n      properties:\n        metric:\n          type: string\n          enum:\n            - latency_ms\n            - call_count\n            - error_count\n          title: Metric\n          description: Metric to aggregate.\n        aggregations:\n          items:\n            $ref: '#/components/schemas/AggregationType'\n          type: array\n          title: Aggregations\n          description: Basic aggregation functions to apply\n          default:\n            - sum\n        percentiles:\n          items:\n            type: number\n          type: array\n          title: Percentiles\n          description: >-\n            Percentile values to compute (0-100). E.g., [50, 95, 99] for p50,\n            p95, p99\n          default: []\n      type: object\n      required:\n        - metric\n      title: CallMetricSpec\n      description: >-\n        Specification for a call-level metric to aggregate (not grouped by\n        model).\n    CallsFilter:\n      properties:\n        op_names:\n          anyOf:\n            - items:\n                type: string\n              type: array\n            - type: 'null'\n          title: Op Names\n        input_refs:\n          anyOf:\n            - items:\n                type: string\n              type: array\n            - type: 'null'\n          title: Input Refs\n        output_refs:\n          anyOf:\n            - items:\n                type: string\n              type: array\n   ",
+            "page_context": "# Call Stats\n\n\n\n",
+            "outline": [
+              {
+                "section": 0,
+                "heading": "Call Stats"
+              },
+              {
+                "section": 1,
+                "heading": "OpenAPI"
+              },
+              {
+                "section": 2,
+                "heading": "OpenAPI"
+              }
+            ],
+            "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+            "outgoing_links": [],
+            "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+          }
+        ],
+        "verification": {
+          "passed": true,
+          "issues": [],
+          "missing_parts": [],
+          "mode": "support",
+          "status": "passed"
+        },
+        "verification_attempts": [
+          {
+            "candidate": {
+              "source_ids": [
+                "S1",
+                "S2"
+              ],
+              "answer": "To get daily stats for one op, send `POST https://trace.wandb.ai/calls/stats` with these settings:\n\n- `granularity: 86400`, which is one day in seconds.\n- `filter.op_names` set to your one op.\n- A `usage_metrics` entry for `total_cost` with `sum`.\n- A `call_metrics` entry for `latency_ms` with `avg`.\n\n[S1, S2]\n\n```python\nimport os\nimport requests\n\nurl = \"https://trace.wandb.ai/calls/stats\"\npayload = {\n    \"project_id\": \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n    \"start\": \"2026-03-01T00:00:00Z\",      # inclusive start time (UTC)\n    \"end\": \"2026-03-08T00:00:00Z\",        # exclusive end time; leave out to mean \"now\"\n    \"granularity\": 86400,                 # one-day buckets\n    \"timezone\": \"UTC\",                    # where day boundaries fall\n    \"filter\": {\"op_names\": [\"[YOUR-OP-NAME]\"]},\n    \"usage_metrics\": [{\"metric\": \"total_cost\", \"aggregations\": [\"sum\"]}],\n    \"call_metrics\": [{\"metric\": \"latency_ms\", \"aggregations\": [\"avg\"]}],\n}\nresponse = requests.post(url, json=payload, auth=(\"api\", os.getenv(\"WANDB_API_KEY\")))\nprint(response.json())\n```\n\nOnly `project_id` and `start` are required. The time range can be at most 31 days. [S1, S2] The docs' own example also adds `\"trace_roots_only\": True` to the filter, which limits results to top-level (root) calls. [S1]\n\n**Granularity**\n- This is the width of each time \"bucket\", in seconds. If you leave it out, the server picks a size based on your time range. It will also change your value if it would create more than 10,000 buckets. [S2]\n- `timezone` sets how buckets line up, for example `America/New_York`. The default is UTC. The response shows the bucket size actually used. [S2]\n\n**`usage_metrics`**\n- Covers token and cost metrics, such as `input_tokens`, `total_tokens`, `input_cost`, `output_cost` and `total_cost`. Results are grouped by time and by model. [S2]\n- Results come back in `usage_buckets`, with one row per day per model, holding values like `sum_total_cost`. [S1, S2]\n- **What this means for you:** if your op used more than one model, add up that day's rows to get the daily total. That adding-up step is my own inference; the docs don't state it.\n\n**`call_metrics`**\n- Covers `latency_ms`, `call_count` and `error_count`. Results are grouped by time only, not by model. [S2]\n- Results come back in `call_buckets`, with one row per day holding `avg_latency_ms`. [S1]\n\n**Both fields**\n- Each entry takes `metric`, `aggregations` (defaults to `[\"sum\"]`) and optional `percentiles`, such as `[50, 95]`. [S2]",
+              "kind": "answer"
+            },
+            "passed": true,
+            "issues": [],
+            "missing_parts": [],
+            "mode": "support",
+            "status": "passed"
+          }
+        ],
+        "actions": [
+          {
+            "tool": "search_docs",
+            "input": {
+              "query": "calls stats usage_metrics call_metrics granularity"
+            },
+            "result": {
+              "query": "calls stats usage_metrics call_metrics granularity",
+              "results": [
+                {
+                  "page_id": "reference/python-sdk/trace_server/trace_server_interface",
+                  "section": 43,
+                  "title": "trace_server_interface",
+                  "heading": "<kbd>class</kbd> `CallStatsReq`",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace_server/trace_server_interface",
+                  "snippet": "## <kbd>class</kbd> `CallStatsReq`\n\nRequest for aggregated call statistics over a time range.\n\n**Pydantic Fields:**\n\n* `project_id`: `<class 'str'>`\n* `start`: `<class 'datetime.datetime'>`\n* `end`: `datetime.datetime | None`\n* `granularity`: `int | None`\n* `usage_metrics`: `list[UsageMetricSpec] | None`\n* `call_metrics`: `list[CallMetricSpec] | None`\n* `filter`: `CallsFilter | None`\n* `timezone`: `<class 'str'>`\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace_server/trace_server_interface.py#L3832)\n\n"
+                },
+                {
+                  "page_id": "guides/tracking/querying-calls",
+                  "section": 3,
+                  "title": "Query and export Calls",
+                  "heading": "Export Call metrics",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/querying-calls",
+                  "snippet": "## Export Call metrics\n\nWhen you need aggregate insights, such as cost or latency trends, rather than the underlying Call records, use the metrics endpoint described in this section.\n\nYou can also use the Weave Service API's [POST `/calls/stats` endpoint](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats) to retrieve metrics about your Calls without retrieving the Call data itself. You can retrieve information about your Calls, such as latency and cost, and aggregate them by sum, average, minimum, maximum, and count. For example, you can retrieve:\n\n* Total token usage\n* Average latency\n* Maximum tokens used\n* Total cost\n* Minimum input tokens\n\nThe endpoint provides several filtering options so you can target Calls made within specified times, and by other properties, such as:\n\n* Op name\n* Trace ID\n* Thread ID\n* User ID\n\nThe following example demonstrates how to retrieve Calls generated from an Op named `web_app` over two days. Replace `[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]` with your team and project names:\n\n```python Python lines {10-11,16-24} theme"
+                },
+                {
+                  "page_id": "reference/service-api/calls/call-stats",
+                  "section": 1,
+                  "title": "Call Stats",
+                  "heading": "OpenAPI",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats",
+                  "snippet": "## OpenAPI\n\n````yaml products/wandb/weave/reference/service-api/openapi.json POST /calls/stats\nopenapi: 3.1.0\ninfo:\n  title: FastAPI\n  version: 0.1.0\nservers: []\nsecurity: []\npaths:\n  /calls/stats:\n    post:\n      tags:\n        - Calls\n      summary: Call Stats\n      operationId: call_stats_calls_stats_post\n      requestBody:\n        content:\n          application/json:\n            schema:\n              $ref: '#/components/schemas/CallStatsReq'\n        required: true\n      responses:\n        '200':\n          description: Successful Response\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/CallStatsRes'\n        '422':\n          description: Validation Error\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/HTTPValidationError'\ncomponents:\n  schemas:\n    CallStatsReq:\n      properties:\n        project_id:\n          type: string\n          title: Project Id\n        start:\n          type: string\n          format: date-time\n          title: Start\n          desc"
+                },
+                {
+                  "page_id": "reference/python-sdk/trace/weave_client",
+                  "section": 30,
+                  "title": "weave_client",
+                  "heading": "<kbd>method</kbd> `get_agent_span_stats`",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/weave_client",
+                  "snippet": "### <kbd>method</kbd> `get_agent_span_stats`\n\n```python theme={\"system\"}\nget_agent_span_stats(\n    start: 'datetime',\n    metrics: 'list[AgentSpanStatsMetricSpec]',\n    end: 'datetime | None' = None,\n    query: 'Query | None' = None,\n    group_by: 'list[AgentGroupByRef] | None' = None,\n    granularity: 'int | None' = None,\n    timezone: 'str' = 'UTC'\n) \u2192 AgentSpanStatsRes\n```\n\nCompute chart-ready aggregations over agent spans.\n\nCovers the common time-series / grouped-metric case. For numeric-bucket stats or other advanced options, call `server.agent_spans_stats` directly.\n\n**Args:**\n\n* **`start`**: Start of the time range (inclusive).\n* **`metrics`**: One or more metrics to aggregate (e.g. token sums).\n* **`end`**: End of the time range. Defaults to now when omitted.\n* **`query`**: A mongo-style filter expression to restrict the spans.\n* **`group_by`**: Span fields to group the aggregations by.\n* **`granularity`**: Time-bucket width in seconds for time-series stats.\n* **`timezone`**: IANA timezone used to align time buckets.\n\n**Returns:**\nAn `AgentSpanStatsRes` with `columns` and `ro"
+                },
+                {
+                  "page_id": "reference/python-sdk/trace_server/trace_server_interface",
+                  "section": 530,
+                  "title": "trace_server_interface",
+                  "heading": "<kbd>class</kbd> `TraceUsageReq`",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace_server/trace_server_interface",
+                  "snippet": "## <kbd>class</kbd> `TraceUsageReq`\n\nRequest to compute per-call usage for a trace, with descendant rollup.\n\nThis endpoint returns usage metrics for each call in the trace, where each call's metrics include the sum of its own usage plus all descendants' usage. Use this for trace view where you want to see rolled-up metrics per call.\n\nNote: All matching calls are loaded into memory for aggregation. For very large result sets (>10k calls), consider using more specific filters or pagination at the application layer.\n\n**Pydantic Fields:**\n\n* `project_id`: `<class 'str'>`\n* `filter`: `CallsFilter | None`\n* `query`: `weave.trace_server.interface.query.Query | None`\n* `include_costs`: `<class 'bool'>`\n* `limit`: `<class 'int'>`\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace_server/trace_server_interface.py#L3912)\n\n"
+                },
+                {
+                  "page_id": "reference/service-api",
+                  "section": 4,
+                  "title": "Service API overview",
+                  "heading": "Calls",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/reference/service-api",
+                  "snippet": "### Calls\n\n* **[POST `/call/end`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-end)** - Call End\n* **[POST `/call/read`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-read)** - Call Read\n* **[POST `/call/start`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-start)** - Call Start\n* **[POST `/call/update`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-update)** - Call Update\n* **[POST `/call/upsert_batch`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-start-batch)** - Call Start Batch\n* **[POST `/calls/delete`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/calls-delete)** - Calls Delete\n* **[POST `/calls/query_stats`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/calls-query-stats)** - Calls Query Stats\n* **[POST `/calls/stats`](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats)** - Call Stats\n* **[POST `/calls/stream"
+                }
+              ],
+              "note": "Read relevant sections with read_page before citing them."
+            },
+            "origin": "provider_tool_call"
+          },
+          {
+            "tool": "read_page",
+            "input": {
+              "page_id": "guides/tracking/querying-calls",
+              "section": 3
+            },
+            "result": {
+              "source_id": "S1",
+              "page_id": "guides/tracking/querying-calls",
+              "section": 3,
+              "title": "Query and export Calls",
+              "heading": "Export Call metrics",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/querying-calls",
+              "page_sha256": "94f3b108336adcf6ed368135b5d3e5aa8da57d349f205090b579cc07107687fb",
+              "text": "## Export Call metrics\n\nWhen you need aggregate insights, such as cost or latency trends, rather than the underlying Call records, use the metrics endpoint described in this section.\n\nYou can also use the Weave Service API's [POST `/calls/stats` endpoint](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats) to retrieve metrics about your Calls without retrieving the Call data itself. You can retrieve information about your Calls, such as latency and cost, and aggregate them by sum, average, minimum, maximum, and count. For example, you can retrieve:\n\n* Total token usage\n* Average latency\n* Maximum tokens used\n* Total cost\n* Minimum input tokens\n\nThe endpoint provides several filtering options so you can target Calls made within specified times, and by other properties, such as:\n\n* Op name\n* Trace ID\n* Thread ID\n* User ID\n\nThe following example demonstrates how to retrieve Calls generated from an Op named `web_app` over two days. Replace `[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]` with your team and project names:\n\n```python Python lines {10-11,16-24} theme={\"system\"}\nimport requests\nimport json\nimport os\n\nurl = \"https://trace.wandb.ai/calls/stats\"\n\npayload = {\n    \"project_id\": \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n    \"start\": \"2026-03-01T00:00:00Z\",\n# Specify the size of the buckets, in seconds.\n    \"granularity\": 86400,\n    \"filter\": {\n        \"trace_roots_only\": True,\n        \"op_names\": [\"web_app\"]\n    },\n# Specify metrics and their aggregate function\n    \"usage_metrics\": [\n        {\"metric\": \"total_tokens\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"total_cost\", \"aggregations\": [\"sum\"]}\n    ],\n    \"call_metrics\": [\n        {\"metric\": \"call_count\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"error_count\", \"aggregations\": [\"sum\"]},\n        {\"metric\": \"latency_ms\", \"aggregations\": [\"avg\", \"min\", \"max\"], \"percentiles\": [50, 95, 99]}\n    ]\n}\n\nAPI_KEY = os.getenv(\"WANDB_API_KEY\")\n\nresponse = requests.post(url, json=payload, auth=(\"api\", API_KEY))\n\nprint(json.dumps(response.json(), indent=2))\n```\n\n```typescript TypeScript lines {6-7,13-20} theme={\"system\"}\nconst url = \"https://trace.wandb.ai/calls/stats\";\n\nconst payload = {\n  project_id: \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n  start: \"2026-03-01T00:00:00Z\",\n// Specify the size of the buckets, in seconds.\n  granularity: 86400,\n  filter: {\n    trace_roots_only: true,\n    op_names: [\"web_app\"],\n  },\n// Specify metrics and their aggregate function\n  usage_metrics: [\n    { metric: \"total_tokens\", aggregations: [\"sum\"] },\n    { metric: \"total_cost\", aggregations: [\"sum\"] },\n  ],\n  call_metrics: [\n    { metric: \"call_count\", aggregations: [\"sum\"] },\n    { metric: \"error_count\", aggregations: [\"sum\"] },\n    { metric: \"latency_ms\", aggregations: [\"avg\", \"min\", \"max\"], percentiles: [50, 95, 99] },\n  ],\n};\n\nconst API_KEY = [REDACTED_SECRET];\n\nconst response = await fetch(url, {\n  method: \"POST\",\n  headers: {\n    \"Content-Type\": \"application/json\",\n    Authorization: \"[REDACTED_SECRET]\" + btoa(`api:${API_KEY}`),\n  },\n  body: JSON.stringify(payload),\n});\n\nconst data = await response.json();\nconsole.log(JSON.stringify(data, null, 2));\n```\n\nThe request also specifies how to aggregate the metrics. You can aggregate metrics by `sum`, `count`, `avg`, `min`, `max`, and `count`.\n\nThe endpoint returns a JSON object. The following example response shows two days' worth of metrics. Each day (bucket) appears as its own object in the `usage_buckets` and `call_buckets` arrays. Each array breaks down the metrics differently:\n\n* `usage_buckets`: Groups Call metrics for each day by the model used.\n* `call_buckets`: Groups Call metrics for each day regardless of the model used.\n\nSet the granularity field (in seconds) in the request to change the bucket size.\n\n```json lines theme={\"system\"}\n{\n  \"start\": \"2026-03-03T00:00:00Z\",\n  \"end\": \"2026-03-04T21:34:39.746539Z\",\n  \"granularity\": 86400,\n  \"timezone\": \"UTC\",\n  \"usage_buckets\": [\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"model\": \"gpt-4o-2024-08-06\",\n      \"sum_total_tokens\": 498.0,\n      \"sum_input_tokens\": 219.0,\n      \"sum_output_tokens\": 279.0,\n      \"count\": 5,\n      \"sum_total_cost\": 0.0033374999156876584\n    },\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"model\": \"gpt-5-2025-08-07\",\n      \"sum_total_tokens\": 0.0,\n      \"sum_input_tokens\": 0.0,\n      \"sum_output_tokens\": 0.0,\n      \"count\": 0,\n      \"sum_total_cost\": 0.0\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"model\": \"gpt-4o-2024-08-06\",\n      \"sum_total_tokens\": 58.0,\n      \"sum_input_tokens\": 27.0,\n      \"sum_output_tokens\": 31.0,\n      \"count\": 1,\n      \"sum_total_cost\": 0.0003774999904635479\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"model\": \"gpt-5-2025-08-07\",\n      \"sum_total_tokens\": 427.0,\n      \"sum_input_tokens\": 26.0,\n      \"sum_output_tokens\": 401.0,\n      \"count\": 1,\n      \"sum_total_cost\": 0.00404249989787786\n    }\n  ],\n  \"call_buckets\": [\n    {\n      \"timestamp\": \"2026-03-03T00:00:00\",\n      \"sum_call_count\": 6,\n      \"sum_error_count\": 1,\n      \"avg_latency_ms\": 1505.6666666666667,\n      \"min_latency_ms\": 525,\n      \"max_latency_ms\": 2524,\n      \"p50_latency_ms\": 1534.0,\n      \"p95_latency_ms\": 2328.5,\n      \"p99_latency_ms\": 2484.9000000000005,\n      \"count\": 6\n    },\n    {\n      \"timestamp\": \"2026-03-04T00:00:00\",\n      \"sum_call_count\": 2,\n      \"sum_error_count\": 0,\n      \"avg_latency_ms\": 3645.0,\n      \"min_latency_ms\": 1739,\n      \"max_latency_ms\": 5551,\n      \"p50_latency_ms\": 3645.0,\n      \"p95_latency_ms\": 5360.4,\n      \"p99_latency_ms\": 5512.88,\n      \"count\": 2\n    }\n  ]\n}\n```\n\nYou can query metrics for a maximum time range of 31 days. For more information about available options, see the [Service API reference](https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats.md).\n",
+              "page_context": "# Query and export Calls\n\n> Filter, sort, and export Weave call data using the Python SDK, REST API, or the Weights & Biases UI for custom analysis.\n\nThis page shows you how to query and export Weave Calls so you can analyze trace data outside of Weave. For example, you can build custom dashboards, share results with collaborators, or run offline analysis. You can export Calls from the Weights & Biases UI, fetch them programmatically with the Python or TypeScript SDKs, or query them directly using the Service API.\n\n",
+              "outline": [
+                {
+                  "section": 0,
+                  "heading": "Query and export Calls"
+                },
+                {
+                  "section": 1,
+                  "heading": "Export Calls from the Weights & Biases UI"
+                },
+                {
+                  "section": 2,
+                  "heading": "Fetch Calls programmatically"
+                },
+                {
+                  "section": 3,
+                  "heading": "Export Call metrics"
+                }
+              ],
+              "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+              "credential_redacted": true,
+              "outgoing_links": [
+                {
+                  "page_id": "reference/service-api/calls/call-stats",
+                  "title": "Call Stats"
+                }
+              ],
+              "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+            },
+            "origin": "provider_tool_call"
+          },
+          {
+            "tool": "read_page",
+            "input": {
+              "page_id": "reference/service-api/calls/call-stats",
+              "section": 1
+            },
+            "result": {
+              "source_id": "S2",
+              "page_id": "reference/service-api/calls/call-stats",
+              "section": 1,
+              "title": "Call Stats",
+              "heading": "OpenAPI",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/service-api/calls/call-stats",
+              "page_sha256": "5e862db36fc610d8394228e829294ca2a7471bd8bda74828166ceaed724f56ae",
+              "text": "## OpenAPI\n\n````yaml products/wandb/weave/reference/service-api/openapi.json POST /calls/stats\nopenapi: 3.1.0\ninfo:\n  title: FastAPI\n  version: 0.1.0\nservers: []\nsecurity: []\npaths:\n  /calls/stats:\n    post:\n      tags:\n        - Calls\n      summary: Call Stats\n      operationId: call_stats_calls_stats_post\n      requestBody:\n        content:\n          application/json:\n            schema:\n              $ref: '#/components/schemas/CallStatsReq'\n        required: true\n      responses:\n        '200':\n          description: Successful Response\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/CallStatsRes'\n        '422':\n          description: Validation Error\n          content:\n            application/json:\n              schema:\n                $ref: '#/components/schemas/HTTPValidationError'\ncomponents:\n  schemas:\n    CallStatsReq:\n      properties:\n        project_id:\n          type: string\n          title: Project Id\n        start:\n          type: string\n          format: date-time\n          title: Start\n          description: Inclusive start time (UTC, ISO 8601).\n        end:\n          anyOf:\n            - type: string\n              format: date-time\n            - type: 'null'\n          title: End\n          description: Exclusive end time (UTC, ISO 8601). Defaults to now if omitted.\n        granularity:\n          anyOf:\n            - type: integer\n            - type: 'null'\n          title: Granularity\n          description: >-\n            Bucket size in seconds (e.g., 3600 for 1 hour). If omitted,\n            auto-selected based on time range. Will be adjusted if it would\n            produce more than 10,000 buckets.\n        usage_metrics:\n          anyOf:\n            - items:\n                $ref: '#/components/schemas/UsageMetricSpec'\n              type: array\n            - type: 'null'\n          title: Usage Metrics\n          description: >-\n            Usage metrics (tokens, cost) to compute. Grouped by timestamp and\n            model.\n        call_metrics:\n          anyOf:\n            - items:\n                $ref: '#/components/schemas/CallMetricSpec'\n              type: array\n            - type: 'null'\n          title: Call Metrics\n          description: >-\n            Call-level metrics (latency, counts) to compute. Grouped by\n            timestamp only.\n        filter:\n          anyOf:\n            - $ref: '#/components/schemas/CallsFilter'\n            - type: 'null'\n        timezone:\n          type: string\n          title: Timezone\n          description: IANA timezone for bucket alignment (e.g., 'America/New_York')\n          default: UTC\n      type: object\n      required:\n        - project_id\n        - start\n      title: CallStatsReq\n      description: Request for aggregated call statistics over a time range.\n    CallStatsRes:\n      properties:\n        start:\n          type: string\n          format: date-time\n          title: Start\n          description: Resolved start time (UTC)\n        end:\n          type: string\n          format: date-time\n          title: End\n          description: Resolved end time (UTC)\n        granularity:\n          type: integer\n          title: Granularity\n          description: Bucket size used (in seconds)\n        timezone:\n          type: string\n          title: Timezone\n          description: Timezone used for bucket alignment\n        usage_buckets:\n          items:\n            additionalProperties: true\n            type: object\n          type: array\n          title: Usage Buckets\n          description: >-\n            Usage metrics by model. Each bucket contains 'timestamp', 'model',\n            and aggregated metric values.\n          default: []\n        call_buckets:\n          items:\n            additionalProperties: true\n            type: object\n          type: array\n          title: Call Buckets\n          description: >-\n            Call-level metrics. Each bucket contains 'timestamp' and aggregated\n            metric values.\n          default: []\n      type: object\n      required:\n        - start\n        - end\n        - granularity\n        - timezone\n      title: CallStatsRes\n      description: Response containing time-series call statistics.\n    HTTPValidationError:\n      properties:\n        detail:\n          items:\n            $ref: '#/components/schemas/ValidationError'\n          type: array\n          title: Detail\n      type: object\n      title: HTTPValidationError\n    UsageMetricSpec:\n      properties:\n        metric:\n          type: string\n          enum:\n            - input_tokens\n            - output_tokens\n            - total_tokens\n            - cache_read_input_tokens\n            - cache_creation_input_tokens\n            - input_cost\n            - output_cost\n            - total_cost\n          title: Metric\n          description: Metric to aggregate. Token metrics are normalized across providers.\n        aggregations:\n          items:\n            $ref: '#/components/schemas/AggregationType'\n          type: array\n          title: Aggregations\n          description: Basic aggregation functions to apply\n          default:\n            - sum\n        percentiles:\n          items:\n            type: number\n          type: array\n          title: Percentiles\n          description: >-\n            Percentile values to compute (0-100). E.g., [50, 95, 99] for p50,\n            p95, p99\n          default: []\n      type: object\n      required:\n        - metric\n      title: UsageMetricSpec\n      description: Specification for a usage metric to aggregate (grouped by model).\n    CallMetricSpec:\n      properties:\n        metric:\n          type: string\n          enum:\n            - latency_ms\n            - call_count\n            - error_count\n          title: Metric\n          description: Metric to aggregate.\n        aggregations:\n          items:\n            $ref: '#/components/schemas/AggregationType'\n          type: array\n          title: Aggregations\n          description: Basic aggregation functions to apply\n          default:\n            - sum\n        percentiles:\n          items:\n            type: number\n          type: array\n          title: Percentiles\n          description: >-\n            Percentile values to compute (0-100). E.g., [50, 95, 99] for p50,\n            p95, p99\n          default: []\n      type: object\n      required:\n        - metric\n      title: CallMetricSpec\n      description: >-\n        Specification for a call-level metric to aggregate (not grouped by\n        model).\n    CallsFilter:\n      properties:\n        op_names:\n          anyOf:\n            - items:\n                type: string\n              type: array\n            - type: 'null'\n          title: Op Names\n        input_refs:\n          anyOf:\n            - items:\n                type: string\n              type: array\n            - type: 'null'\n          title: Input Refs\n        output_refs:\n          anyOf:\n            - items:\n                type: string\n              type: array\n   ",
+              "page_context": "# Call Stats\n\n\n\n",
+              "outline": [
+                {
+                  "section": 0,
+                  "heading": "Call Stats"
+                },
+                {
+                  "section": 1,
+                  "heading": "OpenAPI"
+                },
+                {
+                  "section": 2,
+                  "heading": "OpenAPI"
+                }
+              ],
+              "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+              "outgoing_links": [],
+              "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+            },
+            "origin": "provider_tool_call"
+          },
+          {
+            "tool": "submit_answer",
+            "input": {
+              "answer": "To get daily stats for one op, send `POST https://trace.wandb.ai/calls/stats` with these settings:\n\n- `granularity: 86400`, which is one day in seconds.\n- `filter.op_names` set to your one op.\n- A `usage_metrics` entry for `total_cost` with `sum`.\n- A `call_metrics` entry for `latency_ms` with `avg`.\n\n[S1, S2]\n\n```python\nimport os\nimport requests\n\nurl = \"https://trace.wandb.ai/calls/stats\"\npayload = {\n    \"project_id\": \"[YOUR-TEAM-NAME/YOUR-PROJECT-NAME]\",\n    \"start\": \"2026-03-01T00:00:00Z\",      # inclusive start time (UTC)\n    \"end\": \"2026-03-08T00:00:00Z\",        # exclusive end time; leave out to mean \"now\"\n    \"granularity\": 86400,                 # one-day buckets\n    \"timezone\": \"UTC\",                    # where day boundaries fall\n    \"filter\": {\"op_names\": [\"[YOUR-OP-NAME]\"]},\n    \"usage_metrics\": [{\"metric\": \"total_cost\", \"aggregations\": [\"sum\"]}],\n    \"call_metrics\": [{\"metric\": \"latency_ms\", \"aggregations\": [\"avg\"]}],\n}\nresponse = requests.post(url, json=payload, auth=(\"api\", os.getenv(\"WANDB_API_KEY\")))\nprint(response.json())\n```\n\nOnly `project_id` and `start` are required. The time range can be at most 31 days. [S1, S2] The docs' own example also adds `\"trace_roots_only\": True` to the filter, which limits results to top-level (root) calls. [S1]\n\n**Granularity**\n- This is the width of each time \"bucket\", in seconds. If you leave it out, the server picks a size based on your time range. It will also change your value if it would create more than 10,000 buckets. [S2]\n- `timezone` sets how buckets line up, for example `America/New_York`. The default is UTC. The response shows the bucket size actually used. [S2]\n\n**`usage_metrics`**\n- Covers token and cost metrics, such as `input_tokens`, `total_tokens`, `input_cost`, `output_cost` and `total_cost`. Results are grouped by time and by model. [S2]\n- Results come back in `usage_buckets`, with one row per day per model, holding values like `sum_total_cost`. [S1, S2]\n- **What this means for you:** if your op used more than one model, add up that day's rows to get the daily total. That adding-up step is my own inference; the docs don't state it.\n\n**`call_metrics`**\n- Covers `latency_ms`, `call_count` and `error_count`. Results are grouped by time only, not by model. [S2]\n- Results come back in `call_buckets`, with one row per day holding `avg_latency_ms`. [S1]\n\n**Both fields**\n- Each entry takes `metric`, `aggregations` (defaults to `[\"sum\"]`) and optional `percentiles`, such as `[50, 95]`. [S2]",
+              "source_ids": [
+                "S1",
+                "S2"
+              ],
+              "kind": "answer"
+            },
+            "result": {
+              "passed": true,
+              "issues": [],
+              "missing_parts": [],
+              "mode": "support",
+              "status": "passed"
+            },
+            "origin": "application_normalization"
+          }
+        ],
+        "task_complete": true,
+        "missing_outcomes": [],
+        "completion_status": "complete",
+        "review_reason": "none",
+        "conversation_context": [],
+        "conversation_id": "75be8c42-6c1f-48a0-ae97-7f6daa2cade5",
+        "trace_id": "abe723091eb5983c1a324cb60cb26c0b",
+        "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/75be8c42-6c1f-48a0-ae97-7f6daa2cade5",
+        "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+        "source_sha256": "b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0",
+        "prompt_sha256": "0db790fffbb9edc24333d987516f479c1bd7cab6aaf0ad382a836264c6a00a9c",
+        "config_sha256": "40d8a7bacd0c2eb781964747644ff5335f6e517841b0105821b87cc0fd0b42ca",
+        "citation_contract_version": 3,
+        "verification_contract_version": 6,
+        "verify_mode": "support",
+        "cache_enabled": true,
+        "model": "claude-opus-5-5",
+        "elapsed_seconds": 22.52,
+        "metrics": {
+          "calls": [
+            {
+              "purpose": "planner",
+              "requested_model": "claude-opus-5-5",
+              "effort": "medium",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgWFYUUBeck2VqiMvzAcd",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 0
+                },
+                "cache_creation_input_tokens": 0,
+                "cache_read_input_tokens": 2342,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 65,
+                "output_tokens_details": {
+                  "thinking_tokens": 0
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 1.9273,
+              "estimated_usd": 0.0017844
+            },
+            {
+              "purpose": "planner",
+              "requested_model": "claude-opus-5-5",
+              "effort": "medium",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgWFYcQRbmnVYzQPRpnGm",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 3305
+                },
+                "cache_creation_input_tokens": 3305,
+                "cache_read_input_tokens": 2342,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 161,
+                "output_tokens_details": {
+                  "thinking_tokens": 0
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 2.1353,
+              "estimated_usd": 0.0202294
+            },
+            {
+              "purpose": "planner",
+              "requested_model": "claude-opus-5-5",
+              "effort": "medium",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgWFYmbLQgL2hTPosineX",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 6618
+                },
+                "cache_creation_input_tokens": 6618,
+                "cache_read_input_tokens": 5647,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 1077,
+                "output_tokens_details": {
+                  "thinking_tokens": 68
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 11.6614,
+              "estimated_usd": 0.0557754
+            },
+            {
+              "purpose": "verification",
+              "requested_model": "claude-opus-5-5",
+              "effort": "medium",
+              "response_model": "claude-opus-5-5",
+              "response_id": "msg_011CgWFZdRiY4uJ8JB5uF4h6",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 11024
+                },
+                "cache_creation_input_tokens": 11024,
+                "cache_read_input_tokens": 1663,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 580,
+                "output_tokens_details": {
+                  "thinking_tokens": 480
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 6.7564,
+              "estimated_usd": 0.0670686
+            }
+          ],
+          "model_calls": 4,
+          "tokens": {
+            "input_tokens": 16,
+            "output_tokens": 1883,
+            "cache_creation_input_tokens": 20947,
+            "cache_read_input_tokens": 11994
+          },
+          "total_input_tokens": 32957,
+          "estimated_usd": 0.1448578,
+          "known_estimated_usd": 0.1448578,
+          "unpriced_calls": 0,
+          "by_purpose": {
+            "planner": {
+              "calls": 3,
+              "known_estimated_usd": 0.0777892
+            },
+            "verification": {
+              "calls": 1,
+              "known_estimated_usd": 0.0670686
+            }
+          },
+          "research": {
+            "searches": 1,
+            "passage_reads": 2,
+            "distinct_pages_read": 2,
+            "repeated_tool_requests": 0,
+            "drafts_submitted": 1,
+            "code_runs": 0
+          },
+          "pricing": {
+            "checked_at": "2026-10-25",
+            "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+            "rates": {
+              "claude-sonnet-5-5": {
+                "input": 2,
+                "output": 10,
+                "write_5m": 2.5,
+                "write_1h": 4,
+                "read": 0.1
+              },
+              "claude-opus-5-5": {
+                "input": 4,
+                "output": 20,
+                "write_5m": 5,
+                "write_1h": 8,
+                "read": 0.2
+              }
+            }
+          },
+          "scope": "Estimated from Claude's reported usage and published prices. Includes research and answer checks. Excludes Weave Signals, separate evaluation runs, hosting, taxes and any usage missing after failed requests or retries. We count requests made by the app, not every network attempt. Your final bill may differ."
+        },
+        "error_type": null
+      }
+    ]
+  },
+  "scores": {
+    "critique": "The answer is accurate and well grounded. It sends POST https://trace.wandb.ai/calls/stats with granularity 86400, filter.op_names, total_cost/sum under usage_metrics and latency_ms/avg under call_metrics, which matches the S1 example. Its points about granularity match the S2 OpenAPI schema: the value is in seconds, the server picks one if you omit it, and it adjusts any value that would create more than 10,000 buckets. The schema also backs the timezone default (UTC), the end field (exclusive, defaults to now), the required fields, the metric enums, how each field is grouped, and the aggregation default of sum. The 31-day limit and the trace_roots_only note come from S1. The answer clearly says that adding up per-model usage rows is its own inference. It includes no invented features.",
+    "assertions": [
+      {
+        "id": "a1",
+        "critique": "Uses POST /calls/stats with \"granularity\": 86400, explained as one day in seconds, and filter {\"op_names\": [...]}. This matches S1 'Export Call metrics' and the S2 CallsFilter.op_names.",
+        "passed": true
+      },
+      {
+        "id": "a2",
+        "critique": "The request example has usage_metrics [{\"metric\":\"total_cost\",\"aggregations\":[\"sum\"]}] and call_metrics [{\"metric\":\"latency_ms\",\"aggregations\":[\"avg\"]}], which matches S1 and the S2 enums.",
+        "passed": true
+      }
+    ],
+    "correctness": 4,
+    "completeness": 4,
+    "grounding": 4,
+    "uncertainty": 4,
+    "explanation": "The answer covers every part of the question: the request, granularity, usage_metrics and call_metrics. All claims are supported by S1 or S2, and its one inference is clearly marked as its own.",
+    "failures": [],
+    "answer_quality_passed": true,
+    "assertion_count": 2,
+    "assertions_passed": 2,
+    "assertion_fraction_passed": 1.0,
+    "integrity": {
+      "citations_resolve": true,
+      "citation_format_valid": true,
+      "code_executed_when_required": true,
+      "no_runtime_error": true,
+      "answer_present": true,
+      "passed": true,
+      "malformed_citations": [],
+      "citation_turns": [
+        {
+          "turn": 1,
+          "issues": [],
+          "structured_contract": "checked"
+        }
+      ],
+      "source_pages": 2,
+      "page_coverage_met": true,
+      "page_coverage_is_diagnostic": true
+    },
+    "passed": true,
+    "judge_error": null,
+    "expected_assertion_count": 2,
+    "verification_adherence": {
+      "turns": [
+        {
+          "mode": "support",
+          "status": "passed",
+          "policy_followed": true
+        }
+      ],
+      "policy_followed": true
+    },
+    "retrieval_diagnostics": {
+      "selected_reference_count": 1,
+      "selected_reference_read_count": 1,
+      "selected_reference_cited_count": 1,
+      "selected_reference_read_recall": 1.0,
+      "selected_reference_cited_recall": 1.0,
+      "read_sections": [
+        [
+          "guides/tracking/querying-calls",
+          3
+        ],
+        [
+          "reference/service-api/calls/call-stats",
+          1
+        ]
+      ],
+      "cited_sections": [
+        [
+          "guides/tracking/querying-calls",
+          3
+        ],
+        [
+          "reference/service-api/calls/call-stats",
+          1
+        ]
+      ],
+      "uncited_selected_sections": [],
+      "alternative_cited_sections": [
+        [
+          "reference/service-api/calls/call-stats",
+          1
+        ]
+      ],
+      "scope": "Exact overlap with preselected page/section references, not semantic recall. Valid alternative passages may support a correct answer. These are diagnostics, never quality gates. Read coverage includes relevant evidence from earlier turns."
+    },
+    "judge_metrics": {
+      "calls": [
+        {
+          "purpose": "evaluation-judge",
+          "requested_model": "claude-opus-5-5",
+          "effort": "provider_default",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgWFa9YTGTKFnCLQG3gYy",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "global",
+            "input_tokens": 13789,
+            "output_tokens": 1004,
+            "output_tokens_details": {
+              "thinking_tokens": 251
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 10.5208,
+          "estimated_usd": 0.075236
+        }
+      ],
+      "model_calls": 1,
+      "tokens": {
+        "input_tokens": 13789,
+        "output_tokens": 1004,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0
+      },
+      "total_input_tokens": 13789,
+      "estimated_usd": 0.075236,
+      "known_estimated_usd": 0.075236,
+      "unpriced_calls": 0,
+      "by_purpose": {
+        "evaluation-judge": {
+          "calls": 1,
+          "known_estimated_usd": 0.075236
+        }
+      },
+      "research": {
+        "searches": 0,
+        "passage_reads": 0,
+        "distinct_pages_read": 0,
+        "repeated_tool_requests": 0,
+        "drafts_submitted": 0,
+        "code_runs": 0
+      },
+      "pricing": {
+        "checked_at": "2026-10-25",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "rates": {
+          "claude-sonnet-5-5": {
+            "input": 2,
+            "output": 10,
+            "write_5m": 2.5,
+            "write_1h": 4,
+            "read": 0.1
+          },
+          "claude-opus-5-5": {
+            "input": 4,
+            "output": 20,
+            "write_5m": 5,
+            "write_1h": 8,
+            "read": 0.2
+          }
+        }
+      },
+      "scope": "Only this evaluation judge's provider-reported usage, including invalid verdicts. Dated list-price estimate; excludes agent, Signals and unreturned usage."
+    },
+    "rubric_version": "2.3-task-aligned-assertions"
+  }
+}

@@ -1,0 +1,1424 @@
+{
+  "answer_id": "c62d7396-91ed-4012-82f4-d32673cb7a73",
+  "question": "Our nightly test must keep using the wording we published last Friday even when teammates publish edits under the same prompt name. How can we retrieve that particular revision reliably?",
+  "answer": "You can pin the nightly test to that exact revision by loading it with a ref (a pointer to a stored object) that names the specific version, not just the prompt name. Each `weave.publish` creates a new version that can't be changed afterward. So if your teammates publish edits, they add new versions and Friday's version stays as it was [S2].\n\n**Steps**\n\n1. **Find Friday's version.** In the Weave project, open **Assets** \u2192 **Prompts**, then click **(x) Versions** for your prompt. You can tick two versions and click **Compare** to check which one has the wording you published [S6]. Note its version hash or version index (such as `v3`).\n2. **Load that version by name.** `weave.ref(\"<name>:<version>\")` accepts an alias, a version hash, or a version index. Call `.get()` to load the prompt [S1].\n3. **Or use the full ref address.** A fully qualified ref URI (the prompt's complete address, including team and project) has the form `weave:///<your-team-name>/<your-project-name>/object/<prompt_name>:<version>`. Loading a prompt this way doesn't need `weave.init` [S1, S4].\n\n```python\nimport weave\n\nweave.init(\"<your-team-name>/<your-project-name>\")\n\nprompt = weave.ref(\"<prompt_name>:<friday_version_hash_or_index>\").get()\n```\n\n**What to avoid**\n\n- **The bare name or `:latest`.** `weave.ref(\"<name>\")` loads the newest version [S1], so it would pick up your teammates' edits.\n- **Movable aliases like `production`.** An alias is a label that can be moved to a newer version, and everything using it then gets the new version automatically [S5]. That works well for a production release, but not for a test that must never change.\n\nFor the most reliable pin, I'd suggest the version hash, which is the version's unique ID. This is my recommendation, not something the docs say directly. A version index like `v3` also names a specific version [S4].",
+  "kind": "answer",
+  "source_ids": [
+    "S1",
+    "S2",
+    "S4",
+    "S5",
+    "S6"
+  ],
+  "sources": [
+    {
+      "source_id": "S1",
+      "page_id": "guides/core-types/prompts-version",
+      "section": 4,
+      "title": "Store and track versions of prompts",
+      "heading": "Retrieve a prompt version in code",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+      "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+      "text": "## Retrieve a prompt version in code\n\nTo retrieve a prompt, create a reference to its name and version, then call `.get()` to load it. A ref points to a stored object; `.get()` fetches that object so you can use it in your application.\n\nYou can construct refs with a few different styles:\n\n* `weave.ref(<name>)`: Retrieves the `:latest` version of a prompt. Requires calling `weave.init(...)`.\n* `weave.ref(<name>:<alias_or_version>)`: Retrieves a prompt by alias, version hash, or version index. Requires calling `weave.init(...)`.\n* `weave.ref(<fully_qualified_ref_uri>)`: Retrieves the prompt located at the specified [fully qualified ref URI](#construct-a-fully-qualified-ref-uri). Does not require calling `weave.init(...)`.\n\nThe following example loads the `support_prompt:v3` version so you can use it in your application:\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"your-team-name/your-project-name\")\n\nprompt = weave.ref(\"support_prompt:v3\").get()\n```\n\n",
+      "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Store and track versions of prompts"
+        },
+        {
+          "section": 1,
+          "heading": "Prompt versions"
+        },
+        {
+          "section": 2,
+          "heading": "How prompt versions are created"
+        },
+        {
+          "section": 3,
+          "heading": "Construct a fully qualified ref URI"
+        },
+        {
+          "section": 4,
+          "heading": "Retrieve a prompt version in code"
+        },
+        {
+          "section": 5,
+          "heading": "Use prompts in production"
+        },
+        {
+          "section": 6,
+          "heading": "View and compare prompt versions"
+        },
+        {
+          "section": 7,
+          "heading": "Add prompt tags and aliases"
+        },
+        {
+          "section": 8,
+          "heading": "Modify tags and aliases in code"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/prompts",
+          "title": "Create prompt objects"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/core-types/prompts-version",
+      "section": 0,
+      "title": "Store and track versions of prompts",
+      "heading": "Store and track versions of prompts",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+      "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+      "text": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Store and track versions of prompts"
+        },
+        {
+          "section": 1,
+          "heading": "Prompt versions"
+        },
+        {
+          "section": 2,
+          "heading": "How prompt versions are created"
+        },
+        {
+          "section": 3,
+          "heading": "Construct a fully qualified ref URI"
+        },
+        {
+          "section": 4,
+          "heading": "Retrieve a prompt version in code"
+        },
+        {
+          "section": 5,
+          "heading": "Use prompts in production"
+        },
+        {
+          "section": 6,
+          "heading": "View and compare prompt versions"
+        },
+        {
+          "section": 7,
+          "heading": "Add prompt tags and aliases"
+        },
+        {
+          "section": 8,
+          "heading": "Modify tags and aliases in code"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/prompts",
+          "title": "Create prompt objects"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S4",
+      "page_id": "guides/core-types/prompts-version",
+      "section": 3,
+      "title": "Store and track versions of prompts",
+      "heading": "Construct a fully qualified ref URI",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+      "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+      "text": "## Construct a fully qualified ref URI\n\nBefore retrieving a prompt version in code, it helps to understand how Weave identifies stored objects. A fully qualified ref URI uniquely identifies a Weave object.\n\nA fully qualified Weave object ref URI looks like this:\n\n```text theme={\"system\"}\nweave:///<your-team-name>/<your-project-name>/object/<object_name>:<object_version>\n```\n\n* `your-team-name`: Weights & Biases entity (username or team name)\n* `your-project-name`: Weights & Biases project\n* `object_name`: object name\n* `object_version`: either a version hash, a version index like `v0` or `v1`, or an alias like `:latest` or `:production`. All objects have the `:latest` alias.\n\nFor example, a fully qualified Weave prompt URI looks like this:\n\n```text theme={\"system\"}\nweave:///your-team-name/your-project-name/object/support_prompt:v3\n```\n\n",
+      "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Store and track versions of prompts"
+        },
+        {
+          "section": 1,
+          "heading": "Prompt versions"
+        },
+        {
+          "section": 2,
+          "heading": "How prompt versions are created"
+        },
+        {
+          "section": 3,
+          "heading": "Construct a fully qualified ref URI"
+        },
+        {
+          "section": 4,
+          "heading": "Retrieve a prompt version in code"
+        },
+        {
+          "section": 5,
+          "heading": "Use prompts in production"
+        },
+        {
+          "section": 6,
+          "heading": "View and compare prompt versions"
+        },
+        {
+          "section": 7,
+          "heading": "Add prompt tags and aliases"
+        },
+        {
+          "section": 8,
+          "heading": "Modify tags and aliases in code"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/prompts",
+          "title": "Create prompt objects"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S5",
+      "page_id": "guides/core-types/prompts-version",
+      "section": 5,
+      "title": "Store and track versions of prompts",
+      "heading": "Use prompts in production",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+      "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+      "text": "## Use prompts in production\n\nWhen deploying prompts in production systems, use an [alias](#add-prompt-tags-and-aliases) like `production` rather than a version index or the latest version. In your production application, load the prompt with `weave.ref(<name>:<alias>).get()`.\n\nUsing an alias keeps production behavior stable and predictable. When you're ready to promote a new version, move the alias to that version. All consumers then automatically pick up the change.\n\nA common workflow looks like this:\n\n1. Develop and test a new prompt version.\n2. Evaluate the new prompt against datasets or evaluation suites.\n3. Move the `production` alias to the new version with `client.set_aliases(new_ref, \"production\")`.\n\nThis approach lets teams safely iterate on prompts without unexpectedly changing production behavior.\n\n",
+      "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Store and track versions of prompts"
+        },
+        {
+          "section": 1,
+          "heading": "Prompt versions"
+        },
+        {
+          "section": 2,
+          "heading": "How prompt versions are created"
+        },
+        {
+          "section": 3,
+          "heading": "Construct a fully qualified ref URI"
+        },
+        {
+          "section": 4,
+          "heading": "Retrieve a prompt version in code"
+        },
+        {
+          "section": 5,
+          "heading": "Use prompts in production"
+        },
+        {
+          "section": 6,
+          "heading": "View and compare prompt versions"
+        },
+        {
+          "section": 7,
+          "heading": "Add prompt tags and aliases"
+        },
+        {
+          "section": 8,
+          "heading": "Modify tags and aliases in code"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/prompts",
+          "title": "Create prompt objects"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S6",
+      "page_id": "guides/core-types/prompts-version",
+      "section": 6,
+      "title": "Store and track versions of prompts",
+      "heading": "View and compare prompt versions",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+      "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+      "text": "## View and compare prompt versions\n\nThe Weights & Biases UI lets you browse all versions of a prompt and view side-by-side diffs between them, which is useful for reviewing how a prompt has evolved.\n\nTo view versions of the prompt in the UI:\n\n1. Navigate to [Forge](https://forge.coreweave.com/wandb) and select your project.\n\n2. In the Weave project sidebar, click **Assets**. This opens the Assets page.\n\n3. In the Assets page, click **Prompts**. This opens the Prompts page where your project's prompts are listed.\n\n4. Under the **Versions** column, click **(x) Versions** for the prompt you want to view. This opens a list of prompt versions.\n\n   ![UI of Prompt Assets, showing the versions of the selected prompt.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/prompt-object.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=abe315d49f66485707927b96f415a079)\n\n5. (Optional) To compare versions of prompts, click the checkboxes beside the listed prompts and then click the **Compare** button in the table toolbar. This lets you see the diff between your prompts.\n\n   ![The Compare prompts UI showing a diff between two different prompt versions.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/prompt-comparison.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=5722f7a9f1f9eda0db3c4782e6ec1d97)\n\n",
+      "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Store and track versions of prompts"
+        },
+        {
+          "section": 1,
+          "heading": "Prompt versions"
+        },
+        {
+          "section": 2,
+          "heading": "How prompt versions are created"
+        },
+        {
+          "section": 3,
+          "heading": "Construct a fully qualified ref URI"
+        },
+        {
+          "section": 4,
+          "heading": "Retrieve a prompt version in code"
+        },
+        {
+          "section": 5,
+          "heading": "Use prompts in production"
+        },
+        {
+          "section": 6,
+          "heading": "View and compare prompt versions"
+        },
+        {
+          "section": 7,
+          "heading": "Add prompt tags and aliases"
+        },
+        {
+          "section": 8,
+          "heading": "Modify tags and aliases in code"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/prompts",
+          "title": "Create prompt objects"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "all_read_evidence": [
+    {
+      "source_id": "S1",
+      "page_id": "guides/core-types/prompts-version",
+      "section": 4,
+      "title": "Store and track versions of prompts",
+      "heading": "Retrieve a prompt version in code",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+      "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+      "text": "## Retrieve a prompt version in code\n\nTo retrieve a prompt, create a reference to its name and version, then call `.get()` to load it. A ref points to a stored object; `.get()` fetches that object so you can use it in your application.\n\nYou can construct refs with a few different styles:\n\n* `weave.ref(<name>)`: Retrieves the `:latest` version of a prompt. Requires calling `weave.init(...)`.\n* `weave.ref(<name>:<alias_or_version>)`: Retrieves a prompt by alias, version hash, or version index. Requires calling `weave.init(...)`.\n* `weave.ref(<fully_qualified_ref_uri>)`: Retrieves the prompt located at the specified [fully qualified ref URI](#construct-a-fully-qualified-ref-uri). Does not require calling `weave.init(...)`.\n\nThe following example loads the `support_prompt:v3` version so you can use it in your application:\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"your-team-name/your-project-name\")\n\nprompt = weave.ref(\"support_prompt:v3\").get()\n```\n\n",
+      "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Store and track versions of prompts"
+        },
+        {
+          "section": 1,
+          "heading": "Prompt versions"
+        },
+        {
+          "section": 2,
+          "heading": "How prompt versions are created"
+        },
+        {
+          "section": 3,
+          "heading": "Construct a fully qualified ref URI"
+        },
+        {
+          "section": 4,
+          "heading": "Retrieve a prompt version in code"
+        },
+        {
+          "section": 5,
+          "heading": "Use prompts in production"
+        },
+        {
+          "section": 6,
+          "heading": "View and compare prompt versions"
+        },
+        {
+          "section": 7,
+          "heading": "Add prompt tags and aliases"
+        },
+        {
+          "section": 8,
+          "heading": "Modify tags and aliases in code"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/prompts",
+          "title": "Create prompt objects"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/core-types/prompts-version",
+      "section": 0,
+      "title": "Store and track versions of prompts",
+      "heading": "Store and track versions of prompts",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+      "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+      "text": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Store and track versions of prompts"
+        },
+        {
+          "section": 1,
+          "heading": "Prompt versions"
+        },
+        {
+          "section": 2,
+          "heading": "How prompt versions are created"
+        },
+        {
+          "section": 3,
+          "heading": "Construct a fully qualified ref URI"
+        },
+        {
+          "section": 4,
+          "heading": "Retrieve a prompt version in code"
+        },
+        {
+          "section": 5,
+          "heading": "Use prompts in production"
+        },
+        {
+          "section": 6,
+          "heading": "View and compare prompt versions"
+        },
+        {
+          "section": 7,
+          "heading": "Add prompt tags and aliases"
+        },
+        {
+          "section": 8,
+          "heading": "Modify tags and aliases in code"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/prompts",
+          "title": "Create prompt objects"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "guides/core-types/prompts-version",
+      "section": 1,
+      "title": "Store and track versions of prompts",
+      "heading": "Prompt versions",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+      "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+      "text": "## Prompt versions\n\nWeave stores prompts as **versioned objects**. This lets you safely iterate on prompts while ensuring that evaluations, experiments, and production systems can reference the exact prompt version they ran with.\n\nYou access prompt versions using Weave object references. This page explains how Weave creates prompt versions, how to retrieve a specific version in code, and how to inspect and compare versions in the Weights & Biases UI.\n\n",
+      "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Store and track versions of prompts"
+        },
+        {
+          "section": 1,
+          "heading": "Prompt versions"
+        },
+        {
+          "section": 2,
+          "heading": "How prompt versions are created"
+        },
+        {
+          "section": 3,
+          "heading": "Construct a fully qualified ref URI"
+        },
+        {
+          "section": 4,
+          "heading": "Retrieve a prompt version in code"
+        },
+        {
+          "section": 5,
+          "heading": "Use prompts in production"
+        },
+        {
+          "section": 6,
+          "heading": "View and compare prompt versions"
+        },
+        {
+          "section": 7,
+          "heading": "Add prompt tags and aliases"
+        },
+        {
+          "section": 8,
+          "heading": "Modify tags and aliases in code"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/prompts",
+          "title": "Create prompt objects"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S4",
+      "page_id": "guides/core-types/prompts-version",
+      "section": 3,
+      "title": "Store and track versions of prompts",
+      "heading": "Construct a fully qualified ref URI",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+      "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+      "text": "## Construct a fully qualified ref URI\n\nBefore retrieving a prompt version in code, it helps to understand how Weave identifies stored objects. A fully qualified ref URI uniquely identifies a Weave object.\n\nA fully qualified Weave object ref URI looks like this:\n\n```text theme={\"system\"}\nweave:///<your-team-name>/<your-project-name>/object/<object_name>:<object_version>\n```\n\n* `your-team-name`: Weights & Biases entity (username or team name)\n* `your-project-name`: Weights & Biases project\n* `object_name`: object name\n* `object_version`: either a version hash, a version index like `v0` or `v1`, or an alias like `:latest` or `:production`. All objects have the `:latest` alias.\n\nFor example, a fully qualified Weave prompt URI looks like this:\n\n```text theme={\"system\"}\nweave:///your-team-name/your-project-name/object/support_prompt:v3\n```\n\n",
+      "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Store and track versions of prompts"
+        },
+        {
+          "section": 1,
+          "heading": "Prompt versions"
+        },
+        {
+          "section": 2,
+          "heading": "How prompt versions are created"
+        },
+        {
+          "section": 3,
+          "heading": "Construct a fully qualified ref URI"
+        },
+        {
+          "section": 4,
+          "heading": "Retrieve a prompt version in code"
+        },
+        {
+          "section": 5,
+          "heading": "Use prompts in production"
+        },
+        {
+          "section": 6,
+          "heading": "View and compare prompt versions"
+        },
+        {
+          "section": 7,
+          "heading": "Add prompt tags and aliases"
+        },
+        {
+          "section": 8,
+          "heading": "Modify tags and aliases in code"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/prompts",
+          "title": "Create prompt objects"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S5",
+      "page_id": "guides/core-types/prompts-version",
+      "section": 5,
+      "title": "Store and track versions of prompts",
+      "heading": "Use prompts in production",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+      "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+      "text": "## Use prompts in production\n\nWhen deploying prompts in production systems, use an [alias](#add-prompt-tags-and-aliases) like `production` rather than a version index or the latest version. In your production application, load the prompt with `weave.ref(<name>:<alias>).get()`.\n\nUsing an alias keeps production behavior stable and predictable. When you're ready to promote a new version, move the alias to that version. All consumers then automatically pick up the change.\n\nA common workflow looks like this:\n\n1. Develop and test a new prompt version.\n2. Evaluate the new prompt against datasets or evaluation suites.\n3. Move the `production` alias to the new version with `client.set_aliases(new_ref, \"production\")`.\n\nThis approach lets teams safely iterate on prompts without unexpectedly changing production behavior.\n\n",
+      "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Store and track versions of prompts"
+        },
+        {
+          "section": 1,
+          "heading": "Prompt versions"
+        },
+        {
+          "section": 2,
+          "heading": "How prompt versions are created"
+        },
+        {
+          "section": 3,
+          "heading": "Construct a fully qualified ref URI"
+        },
+        {
+          "section": 4,
+          "heading": "Retrieve a prompt version in code"
+        },
+        {
+          "section": 5,
+          "heading": "Use prompts in production"
+        },
+        {
+          "section": 6,
+          "heading": "View and compare prompt versions"
+        },
+        {
+          "section": 7,
+          "heading": "Add prompt tags and aliases"
+        },
+        {
+          "section": 8,
+          "heading": "Modify tags and aliases in code"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/prompts",
+          "title": "Create prompt objects"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S6",
+      "page_id": "guides/core-types/prompts-version",
+      "section": 6,
+      "title": "Store and track versions of prompts",
+      "heading": "View and compare prompt versions",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+      "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+      "text": "## View and compare prompt versions\n\nThe Weights & Biases UI lets you browse all versions of a prompt and view side-by-side diffs between them, which is useful for reviewing how a prompt has evolved.\n\nTo view versions of the prompt in the UI:\n\n1. Navigate to [Forge](https://forge.coreweave.com/wandb) and select your project.\n\n2. In the Weave project sidebar, click **Assets**. This opens the Assets page.\n\n3. In the Assets page, click **Prompts**. This opens the Prompts page where your project's prompts are listed.\n\n4. Under the **Versions** column, click **(x) Versions** for the prompt you want to view. This opens a list of prompt versions.\n\n   ![UI of Prompt Assets, showing the versions of the selected prompt.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/prompt-object.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=abe315d49f66485707927b96f415a079)\n\n5. (Optional) To compare versions of prompts, click the checkboxes beside the listed prompts and then click the **Compare** button in the table toolbar. This lets you see the diff between your prompts.\n\n   ![The Compare prompts UI showing a diff between two different prompt versions.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/prompt-comparison.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=5722f7a9f1f9eda0db3c4782e6ec1d97)\n\n",
+      "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Store and track versions of prompts"
+        },
+        {
+          "section": 1,
+          "heading": "Prompt versions"
+        },
+        {
+          "section": 2,
+          "heading": "How prompt versions are created"
+        },
+        {
+          "section": 3,
+          "heading": "Construct a fully qualified ref URI"
+        },
+        {
+          "section": 4,
+          "heading": "Retrieve a prompt version in code"
+        },
+        {
+          "section": 5,
+          "heading": "Use prompts in production"
+        },
+        {
+          "section": 6,
+          "heading": "View and compare prompt versions"
+        },
+        {
+          "section": 7,
+          "heading": "Add prompt tags and aliases"
+        },
+        {
+          "section": 8,
+          "heading": "Modify tags and aliases in code"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "guides/core-types/prompts",
+          "title": "Create prompt objects"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "verification": {
+    "passed": true,
+    "issues": [],
+    "missing_parts": [],
+    "mode": "support",
+    "status": "passed"
+  },
+  "verification_attempts": [
+    {
+      "candidate": {
+        "source_ids": [
+          "S2",
+          "S6",
+          "S1",
+          "S5",
+          "S4"
+        ],
+        "answer": "You can pin the nightly test to that exact revision by loading it with a ref (a pointer to a stored object) that names the specific version, not just the prompt name. Each `weave.publish` creates a new version that can't be changed afterward. So if your teammates publish edits, they add new versions and Friday's version stays as it was [S2].\n\n**Steps**\n\n1. **Find Friday's version.** In the Weave project, open **Assets** \u2192 **Prompts**, then click **(x) Versions** for your prompt. You can tick two versions and click **Compare** to check which one has the wording you published [S6]. Note its version hash or version index (such as `v3`).\n2. **Load that version by name.** `weave.ref(\"<name>:<version>\")` accepts an alias, a version hash, or a version index. Call `.get()` to load the prompt [S1].\n3. **Or use the full ref address.** A fully qualified ref URI (the prompt's complete address, including team and project) doesn't need `weave.init` [S1, S4]:\n   `weave:///<your-team-name>/<your-project-name>/object/<prompt_name>:<version>`\n\n```python\nimport weave\n\nweave.init(\"<your-team-name>/<your-project-name>\")\n\nprompt = weave.ref(\"<prompt_name>:<friday_version_hash_or_index>\").get()\n```\n\n**What to avoid**\n\n- **The bare name or `:latest`.** `weave.ref(\"<name>\")` loads the newest version [S1], so it would pick up your teammates' edits.\n- **Movable aliases like `production`.** An alias is a label that can be moved to a newer version, and everything using it then gets the new version automatically [S5]. That works well for a production release, but not for a test that must never change.\n\nFor the most reliable pin, I'd suggest the version hash, which is the version's unique ID. This is my recommendation, not something the docs say directly. A version index like `v3` also names a specific version [S4].",
+        "kind": "answer"
+      },
+      "passed": false,
+      "issues": [
+        "Malformed source citations; use [Snumber] or [Cnumber]: ['[S1, S4] (source markers cannot be links or definitions)']"
+      ],
+      "missing_parts": [],
+      "mode": "support",
+      "status": "failed"
+    },
+    {
+      "candidate": {
+        "source_ids": [
+          "S1",
+          "S2",
+          "S4",
+          "S5",
+          "S6"
+        ],
+        "answer": "You can pin the nightly test to that exact revision by loading it with a ref (a pointer to a stored object) that names the specific version, not just the prompt name. Each `weave.publish` creates a new version that can't be changed afterward. So if your teammates publish edits, they add new versions and Friday's version stays as it was [S2].\n\n**Steps**\n\n1. **Find Friday's version.** In the Weave project, open **Assets** \u2192 **Prompts**, then click **(x) Versions** for your prompt. You can tick two versions and click **Compare** to check which one has the wording you published [S6]. Note its version hash or version index (such as `v3`).\n2. **Load that version by name.** `weave.ref(\"<name>:<version>\")` accepts an alias, a version hash, or a version index. Call `.get()` to load the prompt [S1].\n3. **Or use the full ref address.** A fully qualified ref URI (the prompt's complete address, including team and project) has the form `weave:///<your-team-name>/<your-project-name>/object/<prompt_name>:<version>`. Loading a prompt this way doesn't need `weave.init` [S1, S4].\n\n```python\nimport weave\n\nweave.init(\"<your-team-name>/<your-project-name>\")\n\nprompt = weave.ref(\"<prompt_name>:<friday_version_hash_or_index>\").get()\n```\n\n**What to avoid**\n\n- **The bare name or `:latest`.** `weave.ref(\"<name>\")` loads the newest version [S1], so it would pick up your teammates' edits.\n- **Movable aliases like `production`.** An alias is a label that can be moved to a newer version, and everything using it then gets the new version automatically [S5]. That works well for a production release, but not for a test that must never change.\n\nFor the most reliable pin, I'd suggest the version hash, which is the version's unique ID. This is my recommendation, not something the docs say directly. A version index like `v3` also names a specific version [S4].",
+        "kind": "answer"
+      },
+      "passed": true,
+      "issues": [],
+      "missing_parts": [],
+      "mode": "support",
+      "status": "passed"
+    }
+  ],
+  "actions": [
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "retrieve specific prompt version ref"
+      },
+      "result": {
+        "query": "retrieve specific prompt version ref",
+        "results": [
+          {
+            "page_id": "guides/core-types/prompts-version",
+            "section": 4,
+            "title": "Store and track versions of prompts",
+            "heading": "Retrieve a prompt version in code",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+            "snippet": "## Retrieve a prompt version in code\n\nTo retrieve a prompt, create a reference to its name and version, then call `.get()` to load it. A ref points to a stored object; `.get()` fetches that object so you can use it in your application.\n\nYou can construct refs with a few different styles:\n\n* `weave.ref(<name>)`: Retrieves the `:latest` version of a prompt. Requires calling `weave.init(...)`.\n* `weave.ref(<name>:<alias_or_version>)`: Retrieves a prompt by alias, version hash, or version index. Requires calling `weave.init(...)`.\n* `weave.ref(<fully_qualified_ref_uri>)`: Retrieves the prompt located at the specified [fully qualified ref URI](#construct-a-fully-qualified-ref-uri). Does not require calling `weave.init(...)`.\n\nThe following example loads the `support_prompt:v3` version so you can use it in your application:\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"your-team-name/your-project-name\")\n\nprompt = weave.ref(\"support_prompt:v3\").get()\n```\n\n"
+          },
+          {
+            "page_id": "guides/core-types/prompts-version",
+            "section": 0,
+            "title": "Store and track versions of prompts",
+            "heading": "Store and track versions of prompts",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+            "snippet": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n"
+          },
+          {
+            "page_id": "guides/evaluation/scorers",
+            "section": 20,
+            "title": "Scoring overview",
+            "heading": "All calls by scorer API",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/evaluation/scorers",
+            "snippet": "#### All calls by scorer API\n\nTo retrieve all calls scored by a specific scorer, use the `get_calls` method.\n\n```python lines theme={\"system\"}\nclient = weave.init(\"my-project\")\n\n# To get all the calls scored by any version of a scorer, use the scorer name (typically the class name)\ncalls = client.get_calls(scored_by=[\"MyScorer\"], include_feedback=True)\n\n# To get all the calls scored by a specific version of a scorer, use the entire ref\n# Refs can be obtained from the scorer object or via the UI.\ncalls = client.get_calls(scored_by=[myScorer.ref.uri()], include_feedback=True)\n\n# Iterate over the calls and access the feedback which contains the scores\nfor call in calls:\n    feedback = list(call.feedback)\n```\n\n"
+          },
+          {
+            "page_id": "guides/core-types/datasets",
+            "section": 1,
+            "title": "Collect and track datasets",
+            "heading": "Dataset quickstart",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/datasets",
+            "snippet": "## Dataset quickstart\n\nThe following code samples demonstrate how to perform fundamental `Dataset` operations using Python and TypeScript. Using the SDKs, you can:\n\n* Create a `Dataset`\n* Publish the `Dataset`\n* Retrieve the `Dataset`\n* Access a specific example in the `Dataset`\n\nSelect a tab to see Python and TypeScript-specific code.\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\nfrom weave import Dataset\n# Initialize Weave\nweave.init('intro-example')\n\n# Create a dataset\ndataset = Dataset(\n    name='grammar',\n    rows=[\n        {'id': '0', 'sentence': \"He no likes ice cream.\", 'correction': \"He doesn't like ice cream.\"},\n        {'id': '1', 'sentence': \"She goed to the store.\", 'correction': \"She went to the store.\"},\n        {'id': '2', 'sentence': \"They plays video games all day.\", 'correction': \"They play video games all day.\"}\n    ]\n)\n\n# Publish the dataset\nweave.publish(dataset)\n\n# Retrieve the dataset\ndataset_ref = weave.ref('grammar').get()\n\n# Access a specific example\nexample_label = dataset_ref.rows[2]['sentence']\n```\n\n**TypeScript**\n\n```typescript twoslash lin"
+          },
+          {
+            "page_id": "reference/python-sdk",
+            "section": 280,
+            "title": "weave",
+            "heading": "<kbd>function</kbd> `ref`",
+            "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk",
+            "snippet": "### <kbd>function</kbd> `ref`\n\n```python theme={\"system\"}\nref(location: 'str') \u2192 ObjectRef\n```\n\nCreates a Ref to an existing Weave object. This does not directly retrieve the object but allows you to pass it to other Weave API functions.\n\n**Args:**\n\n* **`location`**: A Weave Ref URI, or if `weave.init()` has been called, `name:version` or `name`. If no version is provided, `latest` is used.\n\n**Returns:**\nA Weave Ref to the object.\n\n***\n\n[Source](https://github.com/wandb/weave/blob/v0.53.1/weave/trace/api.py#L320)\n\n"
+          },
+          {
+            "page_id": "guides/tracking/objects",
+            "section": 6,
+            "title": "Track and version objects",
+            "heading": "Organize object versions with tags and aliases",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/objects",
+            "snippet": "## Organize object versions with tags and aliases\n\nUse **tags** and **aliases** to label specific versions of any Weave object, including `Dataset`, `Model`, `Prompt`, or any other object you publish with `weave.publish`. These labels work on any `ObjectRef`, so the same APIs apply across object types.\n\n* **Alias:** A unique name that resolves to a single version. You can move an alias to a different version at any time, making it useful for stable references like `production` or `staging`. Every object automatically has a `:latest` alias that points to the most recent version.\n* **Tag:** A descriptive label attached to a version. A version can have multiple tags, and the same tag can appear on multiple versions. Use tags to categorize and filter versions, such as `reviewed` or `passed-eval`.\n\nFor the characters and lengths that tags and aliases accept, see [Naming rules](#naming-rules).\n\nResolve an alias or specific version by appending it to the object name in a ref:\n\nThe following example publishes two versions of a dataset, then assigns and updates tags and aliases on each versio"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/core-types/prompts-version",
+        "section": 4
+      },
+      "result": {
+        "source_id": "S1",
+        "page_id": "guides/core-types/prompts-version",
+        "section": 4,
+        "title": "Store and track versions of prompts",
+        "heading": "Retrieve a prompt version in code",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+        "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+        "text": "## Retrieve a prompt version in code\n\nTo retrieve a prompt, create a reference to its name and version, then call `.get()` to load it. A ref points to a stored object; `.get()` fetches that object so you can use it in your application.\n\nYou can construct refs with a few different styles:\n\n* `weave.ref(<name>)`: Retrieves the `:latest` version of a prompt. Requires calling `weave.init(...)`.\n* `weave.ref(<name>:<alias_or_version>)`: Retrieves a prompt by alias, version hash, or version index. Requires calling `weave.init(...)`.\n* `weave.ref(<fully_qualified_ref_uri>)`: Retrieves the prompt located at the specified [fully qualified ref URI](#construct-a-fully-qualified-ref-uri). Does not require calling `weave.init(...)`.\n\nThe following example loads the `support_prompt:v3` version so you can use it in your application:\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"your-team-name/your-project-name\")\n\nprompt = weave.ref(\"support_prompt:v3\").get()\n```\n\n",
+        "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Store and track versions of prompts"
+          },
+          {
+            "section": 1,
+            "heading": "Prompt versions"
+          },
+          {
+            "section": 2,
+            "heading": "How prompt versions are created"
+          },
+          {
+            "section": 3,
+            "heading": "Construct a fully qualified ref URI"
+          },
+          {
+            "section": 4,
+            "heading": "Retrieve a prompt version in code"
+          },
+          {
+            "section": 5,
+            "heading": "Use prompts in production"
+          },
+          {
+            "section": 6,
+            "heading": "View and compare prompt versions"
+          },
+          {
+            "section": 7,
+            "heading": "Add prompt tags and aliases"
+          },
+          {
+            "section": 8,
+            "heading": "Modify tags and aliases in code"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/prompts",
+            "title": "Create prompt objects"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/core-types/prompts-version",
+        "section": 0
+      },
+      "result": {
+        "source_id": "S2",
+        "page_id": "guides/core-types/prompts-version",
+        "section": 0,
+        "title": "Store and track versions of prompts",
+        "heading": "Store and track versions of prompts",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+        "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+        "text": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+        "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Store and track versions of prompts"
+          },
+          {
+            "section": 1,
+            "heading": "Prompt versions"
+          },
+          {
+            "section": 2,
+            "heading": "How prompt versions are created"
+          },
+          {
+            "section": 3,
+            "heading": "Construct a fully qualified ref URI"
+          },
+          {
+            "section": 4,
+            "heading": "Retrieve a prompt version in code"
+          },
+          {
+            "section": 5,
+            "heading": "Use prompts in production"
+          },
+          {
+            "section": 6,
+            "heading": "View and compare prompt versions"
+          },
+          {
+            "section": 7,
+            "heading": "Add prompt tags and aliases"
+          },
+          {
+            "section": 8,
+            "heading": "Modify tags and aliases in code"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/prompts",
+            "title": "Create prompt objects"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/core-types/prompts-version",
+        "section": 1
+      },
+      "result": {
+        "source_id": "S3",
+        "page_id": "guides/core-types/prompts-version",
+        "section": 1,
+        "title": "Store and track versions of prompts",
+        "heading": "Prompt versions",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+        "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+        "text": "## Prompt versions\n\nWeave stores prompts as **versioned objects**. This lets you safely iterate on prompts while ensuring that evaluations, experiments, and production systems can reference the exact prompt version they ran with.\n\nYou access prompt versions using Weave object references. This page explains how Weave creates prompt versions, how to retrieve a specific version in code, and how to inspect and compare versions in the Weights & Biases UI.\n\n",
+        "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Store and track versions of prompts"
+          },
+          {
+            "section": 1,
+            "heading": "Prompt versions"
+          },
+          {
+            "section": 2,
+            "heading": "How prompt versions are created"
+          },
+          {
+            "section": 3,
+            "heading": "Construct a fully qualified ref URI"
+          },
+          {
+            "section": 4,
+            "heading": "Retrieve a prompt version in code"
+          },
+          {
+            "section": 5,
+            "heading": "Use prompts in production"
+          },
+          {
+            "section": 6,
+            "heading": "View and compare prompt versions"
+          },
+          {
+            "section": 7,
+            "heading": "Add prompt tags and aliases"
+          },
+          {
+            "section": 8,
+            "heading": "Modify tags and aliases in code"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/prompts",
+            "title": "Create prompt objects"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/core-types/prompts-version",
+        "section": 3
+      },
+      "result": {
+        "source_id": "S4",
+        "page_id": "guides/core-types/prompts-version",
+        "section": 3,
+        "title": "Store and track versions of prompts",
+        "heading": "Construct a fully qualified ref URI",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+        "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+        "text": "## Construct a fully qualified ref URI\n\nBefore retrieving a prompt version in code, it helps to understand how Weave identifies stored objects. A fully qualified ref URI uniquely identifies a Weave object.\n\nA fully qualified Weave object ref URI looks like this:\n\n```text theme={\"system\"}\nweave:///<your-team-name>/<your-project-name>/object/<object_name>:<object_version>\n```\n\n* `your-team-name`: Weights & Biases entity (username or team name)\n* `your-project-name`: Weights & Biases project\n* `object_name`: object name\n* `object_version`: either a version hash, a version index like `v0` or `v1`, or an alias like `:latest` or `:production`. All objects have the `:latest` alias.\n\nFor example, a fully qualified Weave prompt URI looks like this:\n\n```text theme={\"system\"}\nweave:///your-team-name/your-project-name/object/support_prompt:v3\n```\n\n",
+        "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Store and track versions of prompts"
+          },
+          {
+            "section": 1,
+            "heading": "Prompt versions"
+          },
+          {
+            "section": 2,
+            "heading": "How prompt versions are created"
+          },
+          {
+            "section": 3,
+            "heading": "Construct a fully qualified ref URI"
+          },
+          {
+            "section": 4,
+            "heading": "Retrieve a prompt version in code"
+          },
+          {
+            "section": 5,
+            "heading": "Use prompts in production"
+          },
+          {
+            "section": 6,
+            "heading": "View and compare prompt versions"
+          },
+          {
+            "section": 7,
+            "heading": "Add prompt tags and aliases"
+          },
+          {
+            "section": 8,
+            "heading": "Modify tags and aliases in code"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/prompts",
+            "title": "Create prompt objects"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/core-types/prompts-version",
+        "section": 5
+      },
+      "result": {
+        "source_id": "S5",
+        "page_id": "guides/core-types/prompts-version",
+        "section": 5,
+        "title": "Store and track versions of prompts",
+        "heading": "Use prompts in production",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+        "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+        "text": "## Use prompts in production\n\nWhen deploying prompts in production systems, use an [alias](#add-prompt-tags-and-aliases) like `production` rather than a version index or the latest version. In your production application, load the prompt with `weave.ref(<name>:<alias>).get()`.\n\nUsing an alias keeps production behavior stable and predictable. When you're ready to promote a new version, move the alias to that version. All consumers then automatically pick up the change.\n\nA common workflow looks like this:\n\n1. Develop and test a new prompt version.\n2. Evaluate the new prompt against datasets or evaluation suites.\n3. Move the `production` alias to the new version with `client.set_aliases(new_ref, \"production\")`.\n\nThis approach lets teams safely iterate on prompts without unexpectedly changing production behavior.\n\n",
+        "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Store and track versions of prompts"
+          },
+          {
+            "section": 1,
+            "heading": "Prompt versions"
+          },
+          {
+            "section": 2,
+            "heading": "How prompt versions are created"
+          },
+          {
+            "section": 3,
+            "heading": "Construct a fully qualified ref URI"
+          },
+          {
+            "section": 4,
+            "heading": "Retrieve a prompt version in code"
+          },
+          {
+            "section": 5,
+            "heading": "Use prompts in production"
+          },
+          {
+            "section": 6,
+            "heading": "View and compare prompt versions"
+          },
+          {
+            "section": 7,
+            "heading": "Add prompt tags and aliases"
+          },
+          {
+            "section": 8,
+            "heading": "Modify tags and aliases in code"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/prompts",
+            "title": "Create prompt objects"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/core-types/prompts-version",
+        "section": 6
+      },
+      "result": {
+        "source_id": "S6",
+        "page_id": "guides/core-types/prompts-version",
+        "section": 6,
+        "title": "Store and track versions of prompts",
+        "heading": "View and compare prompt versions",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts-version",
+        "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+        "text": "## View and compare prompt versions\n\nThe Weights & Biases UI lets you browse all versions of a prompt and view side-by-side diffs between them, which is useful for reviewing how a prompt has evolved.\n\nTo view versions of the prompt in the UI:\n\n1. Navigate to [Forge](https://forge.coreweave.com/wandb) and select your project.\n\n2. In the Weave project sidebar, click **Assets**. This opens the Assets page.\n\n3. In the Assets page, click **Prompts**. This opens the Prompts page where your project's prompts are listed.\n\n4. Under the **Versions** column, click **(x) Versions** for the prompt you want to view. This opens a list of prompt versions.\n\n   ![UI of Prompt Assets, showing the versions of the selected prompt.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/prompt-object.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=abe315d49f66485707927b96f415a079)\n\n5. (Optional) To compare versions of prompts, click the checkboxes beside the listed prompts and then click the **Compare** button in the table toolbar. This lets you see the diff between your prompts.\n\n   ![The Compare prompts UI showing a diff between two different prompt versions.](https://mintcdn.com/coreweave-dbfa0e8d/3Dv_sw2eg8feUJlx/products/wandb/weave/_media/prompt-comparison.png?fit=max\\&auto=format\\&n=3Dv_sw2eg8feUJlx\\&q=85\\&s=5722f7a9f1f9eda0db3c4782e6ec1d97)\n\n",
+        "page_context": "# Store and track versions of prompts\n\n> Retrieve and manage versions of your prompts for LLM applications\n\nAfter [creating and publishing prompts](https://docs.coreweave.com/products/wandb/weave/guides/core-types/prompts.md), you can reference, retrieve, and use specific versions in code and in production.\n\nWhen you publish a prompt with `weave.publish`, W\\&B Weave creates an immutable version. You can reference each version by name and version, retrieve it in code with `weave.ref(...).get()`, and view it in the Weights & Biases UI.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Store and track versions of prompts"
+          },
+          {
+            "section": 1,
+            "heading": "Prompt versions"
+          },
+          {
+            "section": 2,
+            "heading": "How prompt versions are created"
+          },
+          {
+            "section": 3,
+            "heading": "Construct a fully qualified ref URI"
+          },
+          {
+            "section": 4,
+            "heading": "Retrieve a prompt version in code"
+          },
+          {
+            "section": 5,
+            "heading": "Use prompts in production"
+          },
+          {
+            "section": 6,
+            "heading": "View and compare prompt versions"
+          },
+          {
+            "section": 7,
+            "heading": "Add prompt tags and aliases"
+          },
+          {
+            "section": 8,
+            "heading": "Modify tags and aliases in code"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "guides/core-types/prompts",
+            "title": "Create prompt objects"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "answer": "You can pin the nightly test to that exact revision by loading it with a ref (a pointer to a stored object) that names the specific version, not just the prompt name. Each `weave.publish` creates a new version that can't be changed afterward. So if your teammates publish edits, they add new versions and Friday's version stays as it was [S2].\n\n**Steps**\n\n1. **Find Friday's version.** In the Weave project, open **Assets** \u2192 **Prompts**, then click **(x) Versions** for your prompt. You can tick two versions and click **Compare** to check which one has the wording you published [S6]. Note its version hash or version index (such as `v3`).\n2. **Load that version by name.** `weave.ref(\"<name>:<version>\")` accepts an alias, a version hash, or a version index. Call `.get()` to load the prompt [S1].\n3. **Or use the full ref address.** A fully qualified ref URI (the prompt's complete address, including team and project) doesn't need `weave.init` [S1, S4]:\n   `weave:///<your-team-name>/<your-project-name>/object/<prompt_name>:<version>`\n\n```python\nimport weave\n\nweave.init(\"<your-team-name>/<your-project-name>\")\n\nprompt = weave.ref(\"<prompt_name>:<friday_version_hash_or_index>\").get()\n```\n\n**What to avoid**\n\n- **The bare name or `:latest`.** `weave.ref(\"<name>\")` loads the newest version [S1], so it would pick up your teammates' edits.\n- **Movable aliases like `production`.** An alias is a label that can be moved to a newer version, and everything using it then gets the new version automatically [S5]. That works well for a production release, but not for a test that must never change.\n\nFor the most reliable pin, I'd suggest the version hash, which is the version's unique ID. This is my recommendation, not something the docs say directly. A version index like `v3` also names a specific version [S4].",
+        "source_ids": [
+          "S2",
+          "S6",
+          "S1",
+          "S5",
+          "S4"
+        ],
+        "kind": "answer"
+      },
+      "result": {
+        "passed": false,
+        "issues": [
+          "Malformed source citations; use [Snumber] or [Cnumber]: ['[S1, S4] (source markers cannot be links or definitions)']"
+        ],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "failed"
+      },
+      "origin": "application_normalization"
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "answer": "You can pin the nightly test to that exact revision by loading it with a ref (a pointer to a stored object) that names the specific version, not just the prompt name. Each `weave.publish` creates a new version that can't be changed afterward. So if your teammates publish edits, they add new versions and Friday's version stays as it was [S2].\n\n**Steps**\n\n1. **Find Friday's version.** In the Weave project, open **Assets** \u2192 **Prompts**, then click **(x) Versions** for your prompt. You can tick two versions and click **Compare** to check which one has the wording you published [S6]. Note its version hash or version index (such as `v3`).\n2. **Load that version by name.** `weave.ref(\"<name>:<version>\")` accepts an alias, a version hash, or a version index. Call `.get()` to load the prompt [S1].\n3. **Or use the full ref address.** A fully qualified ref URI (the prompt's complete address, including team and project) has the form `weave:///<your-team-name>/<your-project-name>/object/<prompt_name>:<version>`. Loading a prompt this way doesn't need `weave.init` [S1, S4].\n\n```python\nimport weave\n\nweave.init(\"<your-team-name>/<your-project-name>\")\n\nprompt = weave.ref(\"<prompt_name>:<friday_version_hash_or_index>\").get()\n```\n\n**What to avoid**\n\n- **The bare name or `:latest`.** `weave.ref(\"<name>\")` loads the newest version [S1], so it would pick up your teammates' edits.\n- **Movable aliases like `production`.** An alias is a label that can be moved to a newer version, and everything using it then gets the new version automatically [S5]. That works well for a production release, but not for a test that must never change.\n\nFor the most reliable pin, I'd suggest the version hash, which is the version's unique ID. This is my recommendation, not something the docs say directly. A version index like `v3` also names a specific version [S4].",
+        "source_ids": [
+          "S1",
+          "S2",
+          "S4",
+          "S5",
+          "S6"
+        ]
+      },
+      "result": {
+        "passed": true,
+        "issues": [],
+        "missing_parts": [],
+        "mode": "support",
+        "status": "passed"
+      },
+      "origin": "provider_tool_call"
+    }
+  ],
+  "task_complete": true,
+  "missing_outcomes": [],
+  "completion_status": "complete",
+  "review_reason": "none",
+  "conversation_context": [],
+  "conversation_id": "18ed2c9f-2ae4-418a-bc0c-f7d83e3497b7",
+  "trace_id": "e55100d6b88a25e6511e6ecba806bfa9",
+  "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/18ed2c9f-2ae4-418a-bc0c-f7d83e3497b7",
+  "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+  "source_sha256": "b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0",
+  "prompt_sha256": "0db790fffbb9edc24333d987516f479c1bd7cab6aaf0ad382a836264c6a00a9c",
+  "config_sha256": "40d8a7bacd0c2eb781964747644ff5335f6e517841b0105821b87cc0fd0b42ca",
+  "citation_contract_version": 3,
+  "verification_contract_version": 6,
+  "verify_mode": "support",
+  "cache_enabled": true,
+  "model": "claude-opus-5-5",
+  "elapsed_seconds": 28.05,
+  "metrics": {
+    "calls": [
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFdi77iNmxuoQ9zEF34",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 2340,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 107,
+          "output_tokens_details": {
+            "thinking_tokens": 47
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.4836,
+        "estimated_usd": 0.002624
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFdsF3Z1Y7hynoHM8w9",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 2828
+          },
+          "cache_creation_input_tokens": 2828,
+          "cache_read_input_tokens": 2340,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 159,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 1.9449,
+        "estimated_usd": 0.017804
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFe1JDcNu1CwdWWKs4U",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 2258
+          },
+          "cache_creation_input_tokens": 2258,
+          "cache_read_input_tokens": 5168,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 344,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 3.6378,
+        "estimated_usd": 0.0192196
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFeGyoQmznVeVgV2yNM",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 4677
+          },
+          "cache_creation_input_tokens": 4677,
+          "cache_read_input_tokens": 7426,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 784,
+          "output_tokens_details": {
+            "thinking_tokens": 159
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 9.1532,
+        "estimated_usd": 0.0405662
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFex4HRahasvJcM7uXw",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 929
+          },
+          "cache_creation_input_tokens": 929,
+          "cache_read_input_tokens": 12103,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 782,
+          "output_tokens_details": {
+            "thinking_tokens": 59
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 6.0806,
+        "estimated_usd": 0.0227216
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-opus-5-5",
+        "effort": "medium",
+        "response_model": "claude-opus-5-5",
+        "response_id": "msg_011CgWFfQ2jyqjUKvX2TDHwg",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 10108
+          },
+          "cache_creation_input_tokens": 10108,
+          "cache_read_input_tokens": 1663,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 459,
+          "output_tokens_details": {
+            "thinking_tokens": 359
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 4.716,
+        "estimated_usd": 0.0600686
+      }
+    ],
+    "model_calls": 6,
+    "tokens": {
+      "input_tokens": 24,
+      "output_tokens": 2635,
+      "cache_creation_input_tokens": 20800,
+      "cache_read_input_tokens": 31040
+    },
+    "total_input_tokens": 51864,
+    "estimated_usd": 0.163004,
+    "known_estimated_usd": 0.163004,
+    "unpriced_calls": 0,
+    "by_purpose": {
+      "planner": {
+        "calls": 5,
+        "known_estimated_usd": 0.10293540000000001
+      },
+      "verification": {
+        "calls": 1,
+        "known_estimated_usd": 0.0600686
+      }
+    },
+    "research": {
+      "searches": 1,
+      "passage_reads": 6,
+      "distinct_pages_read": 1,
+      "repeated_tool_requests": 0,
+      "drafts_submitted": 2,
+      "code_runs": 0
+    },
+    "pricing": {
+      "checked_at": "2026-10-25",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": {
+        "claude-sonnet-5-5": {
+          "input": 2,
+          "output": 10,
+          "write_5m": 2.5,
+          "write_1h": 4,
+          "read": 0.1
+        },
+        "claude-opus-5-5": {
+          "input": 4,
+          "output": 20,
+          "write_5m": 5,
+          "write_1h": 8,
+          "read": 0.2
+        }
+      }
+    },
+    "scope": "Estimated from Claude's reported usage and published prices. Includes research and answer checks. Excludes Weave Signals, separate evaluation runs, hosting, taxes and any usage missing after failed requests or retries. We count requests made by the app, not every network attempt. Your final bill may differ."
+  },
+  "error_type": null
+}
