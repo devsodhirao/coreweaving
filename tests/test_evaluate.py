@@ -325,6 +325,7 @@ def test_judge_is_blind_to_mode_and_invalid_verdict_keeps_metered_usage(monkeypa
     off, support, invalid = [asyncio.run(score(mode)) for mode in ("off", "support", "off")]
     assert off["passed"] and support["passed"]
     assert requests[0]["messages"] == requests[1]["messages"]
+    assert all(request["cache_enabled"] is False for request in requests)
     assert "verification" not in json.loads(requests[0]["messages"][0]["content"])
     assert not invalid["passed"] and invalid["judge_error"] == "ValueError"
     assert invalid["judge_metrics"]["tokens"]["input_tokens"] == 200
@@ -556,6 +557,7 @@ def test_run_returns_summary_and_preserves_unscored_prediction_on_failure(
     result = asyncio.run(evaluate.run_evaluation(args))
     assert result["run_error"] == "ConnectionError" and result["status"] == "partial"
     assert result["predictions_recorded"] == 1 and result["completed_cases"] == 0
+    assert result["cache_enabled"] is True and result["judge_cache_enabled"] is False
     assert result["usage"]["agent"]["model_calls"] == 1
     assert result["missing_example_ids"] == ["a:trial:1"]
     assert (tmp_path / "results/partial/summary.json").exists()

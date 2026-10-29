@@ -1,4 +1,28 @@
-# Retrieval experiment
+# Optional experiments
+
+The application does not import these runners. The required regression and
+capability evaluations remain in `coreweaving.evaluate`; these scripts support
+separate, explicitly requested investigations. All completed evidence stays in
+`results/` with its original runtime and rubric identity.
+
+| Runner | Command from the repository root | Boundary |
+| --- | --- | --- |
+| Verifier comparison | `uv run python -m scripts.experiments.compare --name new-comparison --trials 2 --budget-usd 10` | Paid agent and judge calls. New runs compare current `off` and `support` modes; old coverage records remain readable by `compare_records`. |
+| Cache transport probe | `uv run python -m scripts.experiments.check_experiment cache --name new-cache-probe` | Paid calls with a $1 estimated budget. Measures identical requests with caching changed. |
+| Judge calibration | `uv run python -m scripts.experiments.check_experiment calibration --name new-calibration` | Paid calls with a $1 estimated budget. Four labeled fixtures, not general judge validation. |
+
+Names must be new: these runners refuse to overwrite existing results. Replaying
+the retired three-arm coverage experiment requires its recorded Git revision;
+running today's code does not reproduce that earlier policy.
+
+The evaluation judge now disables prompt caching independently of the agent. The
+[last full run](../../results/product-final-regression-v1/summary.json) wrote
+221,142 judge cache tokens and read zero. Each question changes the assertion
+schema in the tools, invalidating the reusable prefix. This removes cache-write
+overhead without changing the frozen assertions, judge prompt or answer checks;
+the agent still caches repeated conversation context.
+
+## Retrieval experiment
 
 These helpers compare search backends while using the assistant's existing
 `Agent`, source reads, verifier, judge and budget. The app still uses

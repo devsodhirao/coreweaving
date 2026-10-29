@@ -1,4 +1,4 @@
-"""A small, reproducible paired pilot with one shared agent-and-judge budget."""
+"""Optional paired experiments; historical aggregation retains retired verifier arms."""
 
 import argparse
 import asyncio
@@ -9,9 +9,10 @@ from datetime import UTC, datetime
 
 from coreweaving.budget import model_budget
 from coreweaving.config import ROOT
-from coreweaving.evaluate import aggregate_records, run_evaluation
+from coreweaving.evaluate import VERIFY_MODES, aggregate_records, run_evaluation
 
-MODES = ("off", "support", "support+coverage")
+# Old evidence remains readable; new runs use only the current runtime modes.
+RECORDED_MODES = ("off", "support", "support+coverage")
 
 
 def compare_records(
@@ -63,7 +64,7 @@ def compare_records(
             "prediction_id": record["prediction_id"],
             "trace_url": record["output"].get("trace_url"),
         }
-    for mode in MODES:
+    for mode in RECORDED_MODES:
         selected = [record for record in records if record["verify_mode"] == mode]
         attempted = [row for row in attempts if row["verify_mode"] == mode]
         outputs = [row for row in predictions if row["verify_mode"] == mode]
@@ -165,7 +166,8 @@ async def run_comparison(name: str, budget_usd: float = 10, trials: int = 2) -> 
         for trial in range(trials):
             # Rotate the arm order across repeats, with the same shuffled cases
             # within every arm. It reduces fixed-order bias, not all cache effects.
-            order = MODES[trial % 3 :] + MODES[: trial % 3]
+            offset = trial % len(VERIFY_MODES)
+            order = VERIFY_MODES[offset:] + VERIFY_MODES[:offset]
             for mode in order:
                 label = mode.replace("+", "-")
                 run_name = f"{name}-{label}-t{trial + 1}"
@@ -220,7 +222,7 @@ async def run_comparison(name: str, budget_usd: float = 10, trials: int = 2) -> 
                 summary = {
                     "name": name,
                     "created_at": datetime.now(UTC).isoformat(),
-                    "planned_case_trials": 6 * len(MODES) * trials,
+                    "planned_case_trials": 6 * len(VERIFY_MODES) * trials,
                     "planned_trials_per_case": trials,
                     "runs": runs,
                     "stop_reason": stop,

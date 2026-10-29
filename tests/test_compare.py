@@ -1,8 +1,12 @@
+import runpy
 import uuid
+from pathlib import Path
 
 import pytest
 
-from coreweaving.compare import compare_records
+compare_records = runpy.run_path(
+    str(Path(__file__).resolve().parents[1] / "scripts/experiments/compare.py")
+)["compare_records"]
 
 
 def record(case, trial, mode, passed, judge_error=None):

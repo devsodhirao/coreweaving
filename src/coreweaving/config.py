@@ -18,7 +18,7 @@ from markdown_it import MarkdownIt
 
 ROOT = Path(__file__).resolve().parents[2]
 AGENT_NAME = "coreweaving"
-VerifyMode = Literal["off", "support", "support+coverage"]
+VerifyMode = Literal["off", "support"]
 REDACTED = "[REDACTED_SECRET]"
 _SECRET_ENV = ("ANTHROPIC_API_KEY", "WANDB_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN")
 _SECRET_KEY = re.compile(
@@ -333,8 +333,8 @@ class Settings:
     verifier_model: str = "claude-opus-5-5"
 
     def __post_init__(self):
-        if self.verify_mode not in ("off", "support", "support+coverage"):
-            raise ValueError("VERIFY_MODE must be off, support, or support+coverage.")
+        if self.verify_mode not in ("off", "support"):
+            raise ValueError("VERIFY_MODE must be off or support.")
         if type(self.cache_enabled) is not bool:
             raise ValueError("cache_enabled must be a boolean.")
 
