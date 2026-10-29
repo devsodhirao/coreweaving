@@ -1,0 +1,22 @@
+I can't give you that call. I found no weave.enable_hallucination_free_mode() in the Weave docs, so I won't make one up. What the docs do describe is a way to detect hallucinations, not prevent them: the built-in HallucinationFreeScorer. It "checks whether your AI system's output includes any hallucinations based on the input data" [S1]. A scorer like this measures outputs, usually during an evaluation. It does not change how your agent generates answers, so it can't guarantee your agent will never hallucinate. How to use it: Import it with from weave.scorers import HallucinationFreeScorer [S1]. Its score method expects an input column named context. If your dataset uses a different column name, map it with column_map [S1]. You can change what counts as a "hallucination" by customizing the scorer's system_prompt and user_prompt fields [S1]. model_id sets the model the scorer uses as a judge. Any model supported by litellm works [S1]. The results include a has_hallucination summary, such as true_count and true_fraction [S1]. Use them to measure how often your agent hallucinates and track whether it improves. They don't certify that it never does.
+
+```
+import asyncio
+import weave
+from weave.scorers import HallucinationFreeScorer
+
+hallucination_scorer = HallucinationFreeScorer(
+    model_id="openai/gpt-4o",
+    column_map={"context": "input"},
+)
+
+dataset = [{"input": "John likes various types of cheese."}]
+
+@weave.op
+def model(input: str) -> str:
+    return "The person's favorite cheese is cheddar."
+
+evaluation = weave.Evaluation(dataset=dataset, scorers=[hallucination_scorer])
+result = asyncio.run(evaluation.evaluate(model))
+print(result)
+```

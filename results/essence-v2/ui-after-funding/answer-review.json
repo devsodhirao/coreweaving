@@ -1,0 +1,990 @@
+{
+  "review_type": "AI review of actual browser-delivered answers, frozen criteria and read evidence; not an LLM benchmark judge or human calibration.",
+  "tasks_file": "results/product-final-v1/tasks.json",
+  "tasks_sha256": "41204c6f213a3d8bfe05b5d4f4d86ea228a0a0a0ff69236174ad02139a41784a",
+  "source_sha256": "bd74bb83b9fd34273acb50edcec66ea4ba0a5cf865ae867b2fc04cd84229a839",
+  "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+  "planned_tasks": 6,
+  "planned_turns": 7,
+  "planned_criteria": 18,
+  "extra_preset_policy": "Separate usability observation; excluded from six-task/seven-turn quality/timing aggregates.",
+  "tasks": [
+    {
+      "id": "01-overview",
+      "included_in_frozen_aggregate": true,
+      "criteria": [
+        {
+          "id": "01-overview-a1",
+          "description": "Explains the distinct roles of tracing, dataset-based evaluation, and Signals and how they can be used together.",
+          "status": "pass",
+          "reason": "Explains tracing, repeatable dataset evaluation and production Signal roles and how failures can inform tests."
+        },
+        {
+          "id": "01-overview-a2",
+          "description": "Explains that Signals score completed turns; does not confuse their execution timing with an inline answer-release check.",
+          "status": "fail",
+          "reason": "Omits completed-turn execution timing. It correctly identifies turns in the dedicated paragraph, with imprecise conversation wording elsewhere; the missing timing alone fails the preserved criterion."
+        },
+        {
+          "id": "01-overview-a3",
+          "description": "Does not claim monitoring prevents errors, proves correctness, or guarantees safety.",
+          "status": "pass",
+          "reason": "No guarantee of correctness, safety or prevention."
+        }
+      ],
+      "status": "reviewed",
+      "literal_request_fulfilled": true,
+      "user_useful": true,
+      "frozen_task_passed": false,
+      "material_unsupported_claims": [],
+      "observations": [
+        "Explains the distinct roles and a useful trace\u2192monitor\u2192evaluate improvement loop with sources.",
+        "Completed-turn timing is not explained, so frozen a2 fails. The literal broad overview question does not itself require that timing detail.",
+        "Opening and final conversation-scoring wording is imprecise; the explicit middle statement that Signals score turns limits this to an ambiguity rather than an established material false instruction.",
+        "No unsafe scope-setting code or whole-conversation scoring claim is supplied."
+      ],
+      "code_review": "No code.",
+      "initial_assessment": {
+        "literal_request_fulfilled": false,
+        "material_unsupported_claims": [
+          {
+            "severity": "moderate",
+            "claim": "Signals score the conversations shown in the Agents view.",
+            "reason": "S1 states agent turns are scored and conversation tags/ratings are displayed. The correct middle sentence does not remove contradictory opening and final operational-target claims; UI grouping and scored unit remain conflated.",
+            "source_id": "S1"
+          }
+        ],
+        "reason": "Initial review treated repeated conversation-scoring phrasing as a material target conflation."
+      },
+      "minor_factual_imprecisions": [
+        {
+          "claim": "Signals score the conversations shown in the Agents view.",
+          "assessment": "Imprecise summary wording. The same answer explicitly states Signals score agent turns, so the full answer can reasonably mean scoring turns within conversations; it does not explicitly claim whole conversations are scoring targets. Prefer consistent turn-level wording.",
+          "source_id": "S1"
+        }
+      ],
+      "scope_refinement": {
+        "reviewed_at": "2026-10-29T06:59:19.478865+00:00",
+        "why": "Re-read the whole answer after a challenge to distinguish literal usefulness from the stricter frozen criterion. Unlike the earlier v1 overview, this answer directly states that agent turns are scored. Repeated conversation wording is poor precision, but does not unambiguously override that correct definition.",
+        "effect": "Literal fulfillment becomes true and ambiguity is recorded as minor. Frozen a2 remains failed; frozen task score is unchanged.",
+        "independence_limit": "This is an AI adjudication refinement, not blinded human review."
+      }
+    },
+    {
+      "id": "03-paraphrase",
+      "included_in_frozen_aggregate": true,
+      "criteria": [
+        {
+          "id": "03-paraphrase-a1",
+          "description": "Recommends appropriate Op input/output postprocessing hooks to change recorded representations without changing the business function.",
+          "status": "pass",
+          "reason": "Uses @weave.op postprocess_inputs and postprocess_output for recorded representations."
+        },
+        {
+          "id": "03-paraphrase-a2",
+          "description": "Explains that the input callback receives and returns an argument dictionary, while the output callback transforms the normal return value.",
+          "status": "pass",
+          "reason": "Explicit input argument dict\u2192dict and normal-return-value\u2192recorded-output contracts."
+        },
+        {
+          "id": "03-paraphrase-a3",
+          "description": "Describes a suitable masking or omission approach that preserves the real function inputs and behavior. Code is optional; supplied code must implement the described behavior.",
+          "status": "pass",
+          "reason": "Drops hide_me from a new recorded-input dict and constructs a new CustomObject with REDACTED secret, preserving real function data."
+        }
+      ],
+      "status": "reviewed",
+      "literal_request_fulfilled": true,
+      "user_useful": true,
+      "frozen_task_passed": true,
+      "material_unsupported_claims": [],
+      "observations": [
+        "Recommends exact input/output postprocessing hooks, argument dictionary transformation and return-object masking.",
+        "Example constructs new dictionary/object rather than mutating business inputs or actual return object; aligns with the frozen docs.",
+        "Runtime answer quality passes while render timing fails consistency: exported code was absent from observer snapshot but visible in final screenshot."
+      ],
+      "code_review": "Static example matches documented dataclass/hooks pattern. Python syntax checked; no live Weave SDK execution."
+    },
+    {
+      "id": "04-evaluation-workflow",
+      "included_in_frozen_aggregate": true,
+      "criteria": [
+        {
+          "id": "04-evaluation-workflow-a1",
+          "description": "Explains the mapping from dataset fields to agent or prediction inputs and from predictions plus relevant reference fields to scorer inputs.",
+          "status": "pass",
+          "reason": "Shows dataset user_request feeding run_agent_turn and task criteria/transcript feeding judge_task_completion."
+        },
+        {
+          "id": "04-evaluation-workflow-a2",
+          "description": "Gives a usable documented evaluation invocation or concrete API-level procedure; accept equivalent supported APIs rather than requiring one particular evaluation class.",
+          "status": "pass",
+          "reason": "Concrete supported EvaluationLogger loop and log_summary; alternative to Evaluation explicitly allowed by frozen criterion."
+        },
+        {
+          "id": "04-evaluation-workflow-a3",
+          "description": "Describes a task-relevant LLM judge rubric and how its scores or reasons are recorded or reviewed, without presenting the verdict as certain. An unsolicited fallibility lecture is not required.",
+          "status": "pass",
+          "reason": "Judge checks task success criteria against trajectory, returns passed/reason, and records/reviews results per task without certainty claims."
+        }
+      ],
+      "status": "reviewed",
+      "literal_request_fulfilled": true,
+      "user_useful": true,
+      "frozen_task_passed": true,
+      "material_unsupported_claims": [],
+      "observations": [
+        "Uses the documented agent EvaluationLogger workflow, which the frozen criteria explicitly accept.",
+        "Maps user_request to agent input and full task/success_criteria plus transcript to judge; records reply and passed/reason score against each row.",
+        "Provides concrete logging/invocation and result-review steps. Judge prompt instructions reward task completion rather than politeness.",
+        "The snippet intentionally leaves imports and agent/judge/helper implementations to the reader and links the full tutorial; it is an API-level procedure, not a standalone runnable program."
+      ],
+      "code_review": "Static EvaluationLogger/log_prediction/pred.output/log_score/log_summary pattern matches agent-evals section 4. No live SDK execution."
+    },
+    {
+      "id": "05-anthropic-followup",
+      "included_in_frozen_aggregate": true,
+      "criteria": [
+        {
+          "id": "05-anthropic-followup-a1",
+          "description": "Across both turns, retains the direct-Anthropic, Python, custom-loop context and gives appropriate conversation/turn/model/tool instrumentation; does not confuse tracing identity with LLM memory.",
+          "status": "pass",
+          "reason": "Same Python/direct-Anthropic loop across both turns, proper conversation/turn/model/tool structure, explicit retained history rather than tracing-as-memory."
+        },
+        {
+          "id": "05-anthropic-followup-a2",
+          "description": "Explains how to record model identity and input, output, cache-read, and cache-creation usage on the model span using suitable documented APIs or adapters; does not silently switch to an OpenAI-only response schema.",
+          "status": "pass",
+          "reason": "Uses Anthropic resp.usage and weave.Usage fields plus resp.model on llm.record, not OpenAI-only schema."
+        },
+        {
+          "id": "05-anthropic-followup-a3",
+          "description": "Handles provider-to-Weave input totals without double counting cache tokens, distinguishes cached categories where available, and does not fabricate exact dollar costs. If conversation or tool-call code is supplied, it must preserve the relevant preceding assistant messages.",
+          "status": "pass",
+          "reason": "Adds separately reported cache counts once into total input, reports cache categories separately, preserves assistant/tool history and fabricates no dollar amount."
+        }
+      ],
+      "status": "reviewed",
+      "literal_request_fulfilled": true,
+      "user_useful": true,
+      "frozen_task_passed": true,
+      "material_unsupported_claims": [],
+      "observations": [
+        "Retains direct-Anthropic/Python setup and explicitly separates model history from conversation trace grouping.",
+        "Scaffold appends full assistant response before matching tool-result messages; real app follow-up also keeps same conversation ID and both earlier roles.",
+        "Follow-up replaces the initial usage sketch with inclusive Anthropic input + cache-read + cache-creation, separate cache categories and actual response_model.",
+        "The initial 66.775-second render-ready turn included a source-support repair: the draft attributed automatic tool parenting to a passage showing explicit turn.start_tool usage, while the broader OTel-parenting rule appeared only in an unread search snippet. The writer read/cited the SDK reference and clarified active-span parenting. This is evidence-provenance improvement, not proof of a false API, broken code or improved factual-assertion accuracy.",
+        "The scaffold leaves tools and actual model ID as explicit placeholders, has no production loop bound, and records text output rather than complete structured LLM input/output messages. Those limits do not defeat the requested instrumentation explanation."
+      ],
+      "code_review": "Static Python syntax, message ordering, tool-result IDs and cache arithmetic checked against read docs. No Anthropic/Weave SDK execution or production readiness claim."
+    },
+    {
+      "id": "06-false-premise",
+      "included_in_frozen_aggregate": true,
+      "criteria": [
+        {
+          "id": "06-false-premise-a1",
+          "description": "Does not present weave.enable_hallucination_free_mode() as a real supported API; scopes documentation absence claims to the evidence available.",
+          "status": "pass",
+          "reason": "No invented call; says the API was not found in the Weave docs rather than asserting universal nonexistence."
+        },
+        {
+          "id": "06-false-premise-a2",
+          "description": "Rejects the requested never-hallucinate guarantee.",
+          "status": "pass",
+          "reason": "Explicitly states scorer cannot guarantee agent never hallucinates."
+        },
+        {
+          "id": "06-false-premise-a3",
+          "description": "Offers relevant documented measurement, monitoring, or guardrail alternatives with support, without promoting them to a guarantee.",
+          "status": "pass",
+          "reason": "Provides source-backed scorer/evaluation alternative and does not present its verdict as certainty."
+        }
+      ],
+      "status": "reviewed",
+      "literal_request_fulfilled": true,
+      "user_useful": true,
+      "frozen_task_passed": true,
+      "material_unsupported_claims": [],
+      "observations": [
+        "Declines fabricated API with absence scoped to docs found and rejects the never-hallucinate guarantee.",
+        "Documents HallucinationFreeScorer, context column mapping, judge model and customizable prompts; evaluation alternative is supported.",
+        "Example is a scorer/evaluation illustration, not complete account/package initialization instructions. Reported fractions are judge detections, not independently established true hallucination rates; final caveat avoids a guarantee."
+      ],
+      "code_review": "Static example matches supported scorer and Evaluation usage, with context\u2192input mapping. It requires provider credentials/dependencies and no SDK execution was performed."
+    },
+    {
+      "id": "02-exact-api",
+      "included_in_frozen_aggregate": true,
+      "criteria": [
+        {
+          "id": "02-exact-api-a1",
+          "description": "Distinguishes an explicitly selected prompt version or alias from an unqualified name resolving to latest.",
+          "status": "pass",
+          "reason": "Explicit version index v3 versus name-only latest; aliases/version hashes distinguished."
+        },
+        {
+          "id": "02-exact-api-a2",
+          "description": "Explains that .get() retrieves the referenced object.",
+          "status": "pass",
+          "reason": "Says .get fetches the referenced stored object."
+        },
+        {
+          "id": "02-exact-api-a3",
+          "description": "Correctly distinguishes weave.init requirements for shorthand references versus fully qualified reference URIs.",
+          "status": "pass",
+          "reason": "Both shorthand forms require weave.init; fully qualified weave:/// reference does not, matching the cited snapshot."
+        }
+      ],
+      "status": "reviewed",
+      "literal_request_fulfilled": true,
+      "user_useful": true,
+      "frozen_task_passed": true,
+      "material_unsupported_claims": [],
+      "observations": [
+        "Distinguishes v3 version index from unqualified latest, .get retrieval, and shorthand initialization from fully qualified URI.",
+        "Immutable-published-version claim appears in the actual page_context, not only the named section; exact corpus matching includes that context.",
+        "URI text and code are preserved in visible DOM and exported answer; no credential/redaction substitution."
+      ],
+      "code_review": "Static short-reference sample and qualified URI pattern match docs; no remote object fetch performed."
+    },
+    {
+      "id": "preset-overview",
+      "included_in_frozen_aggregate": false,
+      "criteria": [],
+      "status": "reviewed",
+      "literal_request_fulfilled": true,
+      "user_useful": true,
+      "frozen_task_passed": null,
+      "material_unsupported_claims": [],
+      "observations": [
+        "Actual preset button delivered a useful structured overview, rather than the earlier research-limit refusal.",
+        "Tracing roles, dataset evaluation and production Signal monitoring are supported. It uses generic span/tag wording present in the source without claiming whole-conversation or tool-call targets.",
+        "It still does not explain completed-turn timing; that is a preserved separate criterion on the main benchmark overview, not an additional scored preset criterion.",
+        "One actual preset submission only. The archived never-submitted preset receipt is not another turn or retry."
+      ],
+      "code_review": "No code."
+    }
+  ],
+  "turns": [
+    {
+      "task_id": "01-overview",
+      "turn": 1,
+      "record": "results/essence-v2/ui-after-funding/01-overview-t1/result.json",
+      "record_sha256": "bddb77d4d07356dd56df864b1da8ba9f1b56e037d733052a72d4132ee1348c06",
+      "answer_sha256": "14d23d3104fb16720b25f9a451fb6ecd5b6293da289ce9a313da3b55a7ad8723",
+      "timing_record": "results/essence-v2/ui-after-funding/01-overview-t1/timing.json",
+      "question_matches_frozen": true,
+      "source_matches_frozen": true,
+      "citation_contract_issues": [],
+      "python_syntax_issues": [],
+      "cited_record_matches": [
+        {
+          "source_id": "S1",
+          "page_id": "guides/tracking/view-agent-signals",
+          "section": 0,
+          "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S2",
+          "page_id": "guides/core-types/evaluations",
+          "section": 0,
+          "page_sha256": "d8b701427b175b5c29906e40d24de0c1aa1bdb8c7ce862f8adfd68602e986b15",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S3",
+          "page_id": "concepts/what-is-weave",
+          "section": 0,
+          "page_sha256": "59b4c65e206cf98efe9d8096caba19b2c9d4ac1b3c2d502006bfb1c3dfd16681",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S4",
+          "page_id": "concepts/what-is-weave",
+          "section": 5,
+          "page_sha256": "59b4c65e206cf98efe9d8096caba19b2c9d4ac1b3c2d502006bfb1c3dfd16681",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S5",
+          "page_id": "guides/tracking/view-agent-signals",
+          "section": 2,
+          "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S6",
+          "page_id": "concepts/what-is-weave",
+          "section": 1,
+          "page_sha256": "59b4c65e206cf98efe9d8096caba19b2c9d4ac1b3c2d502006bfb1c3dfd16681",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S7",
+          "page_id": "guides/tracking/view-agent-signals",
+          "section": 1,
+          "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S8",
+          "page_id": "concepts/what-is-weave",
+          "section": 6,
+          "page_sha256": "59b4c65e206cf98efe9d8096caba19b2c9d4ac1b3c2d502006bfb1c3dfd16681",
+          "text_context_hash_match": true
+        }
+      ],
+      "visible_status": "visible_completed",
+      "engine_elapsed_seconds": 44.96,
+      "final_visible_completion_seconds": 46.011,
+      "first_answer_capture_seconds": 45.724,
+      "observer_version": 2,
+      "terminal_prose_seconds": 45.724,
+      "render_ready_seconds": 46.011,
+      "render_export_consistency": {
+        "expected_code_blocks": 0,
+        "observed_code_blocks": 0,
+        "code_content_matches": true,
+        "checked_after_timing": true
+      },
+      "first_answer_capture_text": "In Weave, tracing records what your agent or app does. Evaluations test it against fixed test cases before you ship changes. Signals score the agent conversations you trace in production. Weave describes itself as an observability and evaluation platform that helps you see what your AI app is doing, measure how well it works and improve it over time [S3].\n\nTracing (seeing what happens): Weave shows you agent sessions and multi-turn conversations, or the individual function calls in your code [S6]. There are two ways to trace. Agent tracing is for agents, and those traces appear on the Agents page. Application instrumentation is for code built around separate calls, such as a RAG pipeline (an app that looks up documents before answering). These weave.op calls appear on the Traces page. You can use both in one project, but they create separate traces [S4].\nEvaluations (testing before you ship): An Evaluation object combines a dataset of test examples with one or more scoring functions. You run it against a model or function, and each .evaluate() call creates an evaluation run [S2]. Use this to measure performance on repeatable test cases, compare changes over time and catch regressions (results that get worse after a change) [S2]. It also tracks which model and prompt versions produced which results [S8].\nSignals (monitoring in production): Signals score agent turns. In the Agents view, the Signals tab shows tags and ratings for your agent's conversations. Signals can automatically score answer quality, notice when a user is frustrated or flag NSFW content. They point you to the traces that need attention [S1]. A turn is one exchange between the user and the agent. A rating is a score from 0.0 to 1.0, and a tag is a label such as \"user-frustration\". Both ratings and tags are assigned to matching spans, which are parts of a trace [S5]. To view them, select your project in Forge, then Agents, then the Signals tab [S7].\n\nHow they connect (my inference): You need agent tracing first, because Signals score the conversations shown in the Agents view. Signals then help you find problem conversations in live traffic. Evaluations check, in a controlled way, whether a fix actually helps, since they rerun the same test cases each time. Together this matches Weave's goals of visibility, systematic evaluation and production monitoring [S6].",
+      "first_useful_answer_text_seconds": "unmeasured",
+      "first_useful_timing_reason": "Semantic usefulness is judged after delivery. The v2 observer captures terminal prose and stable populated DOM, not a separately validated first-useful-text onset.",
+      "final_visible_text": "In Weave, tracing records what your agent or app does. Evaluations test it against fixed test cases before you ship changes. Signals score the agent conversations you trace in production. Weave describes itself as an observability and evaluation platform that helps you see what your AI app is doing, measure how well it works and improve it over time [S3].\n\nTracing (seeing what happens): Weave shows you agent sessions and multi-turn conversations, or the individual function calls in your code [S6]. There are two ways to trace. Agent tracing is for agents, and those traces appear on the Agents page. Application instrumentation is for code built around separate calls, such as a RAG pipeline (an app that looks up documents before answering). These weave.op calls appear on the Traces page. You can use both in one project, but they create separate traces [S4].\nEvaluations (testing before you ship): An Evaluation object combines a dataset of test examples with one or more scoring functions. You run it against a model or function, and each .evaluate() call creates an evaluation run [S2]. Use this to measure performance on repeatable test cases, compare changes over time and catch regressions (results that get worse after a change) [S2]. It also tracks which model and prompt versions produced which results [S8].\nSignals (monitoring in production): Signals score agent turns. In the Agents view, the Signals tab shows tags and ratings for your agent's conversations. Signals can automatically score answer quality, notice when a user is frustrated or flag NSFW content. They point you to the traces that need attention [S1]. A turn is one exchange between the user and the agent. A rating is a score from 0.0 to 1.0, and a tag is a label such as \"user-frustration\". Both ratings and tags are assigned to matching spans, which are parts of a trace [S5]. To view them, select your project in Forge, then Agents, then the Signals tab [S7].\n\nHow they connect (my inference): You need agent tracing first, because Signals score the conversations shown in the Agents view. Signals then help you find problem conversations in live traffic. Evaluations check, in a controlled way, whether a fix actually helps, since they rerun the same test cases each time. Together this matches Weave's goals of visibility, systematic evaluation and production monitoring [S6].",
+      "final_screenshot": "results/essence-v2/ui-after-funding/01-overview-t1/final-ui.png",
+      "code_executed_by_reviewer": false,
+      "first_capture_classification": "terminal_answer_text",
+      "first_capture_useful": true,
+      "final_answer_useful": true,
+      "final_text_and_screenshot_consistent": true,
+      "screenshot_review": "Desktop final screenshot shows complete lower answer and controls, with no obvious layout defect. Contradictory conversation-scoring wording is visible. Code-free DOM/export match.",
+      "mobile_screenshot_review": "390px capture has readable text and controls without horizontal overflow or obvious overlap; screenshot captures lower answer area, not every scroll position.",
+      "full_render_time_validated": true,
+      "full_render_completion_seconds": 46.011,
+      "render_measurement_scope": "Code-free answer; first/final captured prose and screenshot reviewed against export. Observer v2 has no missing-code concern on this turn.",
+      "timing_record_sha256": "e1d1b0aab4c075e131f18683eb4862197c4b9c4d63e06653f606092dfbb5c641"
+    },
+    {
+      "task_id": "02-exact-api",
+      "turn": 1,
+      "record": "results/essence-v2/ui-after-funding/02-exact-api-t1/result.json",
+      "record_sha256": "2f4ead106369699f648841e24e74de7cfad962be38d3840dfce63c67c02ce414",
+      "answer_sha256": "4caf6831f90731ba7fe93c4b6e8a38ef66ad3be64a51a70a00ba4e0cb15c91b7",
+      "timing_record": "results/essence-v2/ui-after-funding/02-exact-api-t1/timing.json",
+      "question_matches_frozen": true,
+      "source_matches_frozen": true,
+      "citation_contract_issues": [],
+      "python_syntax_issues": [],
+      "cited_record_matches": [
+        {
+          "source_id": "S1",
+          "page_id": "guides/core-types/prompts-version",
+          "section": 4,
+          "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S2",
+          "page_id": "guides/core-types/prompts-version",
+          "section": 3,
+          "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S3",
+          "page_id": "guides/core-types/prompts-version",
+          "section": 1,
+          "page_sha256": "9036983e87f9f8896c8a669659c845e1bcf212445ebc37db32e93eda8050555b",
+          "text_context_hash_match": true
+        }
+      ],
+      "visible_status": "visible_completed",
+      "engine_elapsed_seconds": 19.19,
+      "final_visible_completion_seconds": 21.523,
+      "first_answer_capture_seconds": 21.252,
+      "observer_version": 3,
+      "terminal_prose_seconds": 21.252,
+      "render_ready_seconds": 21.523,
+      "render_export_consistency": null,
+      "render_verification": {
+        "postinspection_dom_matches_export": true,
+        "after_inspection": true,
+        "not_used_for_latency": true
+      },
+      "render_measurement": {
+        "status": "matched_preinspection_candidate",
+        "inspection_cutoff_ms": 22649.300000190735,
+        "candidate_count": 1,
+        "selection_happened_after_export": true
+      },
+      "matched_candidate_timing": {
+        "firstSeenMs": 21252.400000572205,
+        "lastSeenMs": 22649.300000190735,
+        "stableAtMs": 21522.70000076294
+      },
+      "first_answer_capture_text": "Short answer: weave.ref(\"support_prompt:v3\").get() loads one specific version of the prompt (version index v3). weave.ref(\"support_prompt\").get() has no version, so it loads the :latest version. Both short forms need weave.init(...). A fully qualified weave:/// URI does not [S1].\n\nHow they differ\n\nweave.ref(<name>) gets the :latest version of the prompt. weave.ref(<name>:<alias_or_version>) gets a version by alias, version hash or version index such as v3 [S1].\nEvery published version is immutable (it can't be changed later). So pinning :v3 lets evaluations, experiments and production use exactly the prompt version they ran with [S1, S3].\nAll objects have a :latest alias [S2]. My inference: the unpinned form can therefore return a different version after you publish a new one.\nA ref points to a stored object, and .get() fetches that object so your code can use it [S1].\n\nDo you need weave.init?\n\nYes for both short forms. They don't name a team or project, so you initialize the project first [S1]:\nimport weave\n\nweave.init(\"your-team-name/your-project-name\")\nprompt = weave.ref(\"support_prompt:v3\").get()\n\nDoes a fully qualified URI change that?\n\nYes. weave.ref(<fully_qualified_ref_uri>) does not require weave.init(...) [S1]. The URI includes the team and project, so it uniquely identifies the object [S2]:\nweave:///<your-team-name>/<your-project-name>/object/<object_name>:<object_version>\nFor example: weave:///your-team-name/your-project-name/object/support_prompt:v3. The <object_version> part can be a version hash, a version index like v3, or an alias like :latest or :production [S2].",
+      "first_useful_answer_text_seconds": "unmeasured",
+      "first_useful_timing_reason": "Semantic usefulness is judged after delivery. The v2 observer captures terminal prose and stable populated DOM, not a separately validated first-useful-text onset.",
+      "final_visible_text": null,
+      "final_screenshot": "results/essence-v2/ui-after-funding/02-exact-api-t1/final-ui.png",
+      "code_executed_by_reviewer": false,
+      "first_capture_classification": "terminal_answer_prose",
+      "first_capture_useful": true,
+      "final_answer_useful": true,
+      "final_text_and_screenshot_consistent": true,
+      "screenshot_review": "Python code, full URI literal and lower explanatory text render correctly; exact prose/code match with no altered question.",
+      "full_render_time_validated": true,
+      "full_render_completion_seconds": 21.523,
+      "timing_record_sha256": "61de1f126d2334e245f2e82a905529988f0f3d8a06d26a3b48301e8c1476b230"
+    },
+    {
+      "task_id": "03-paraphrase",
+      "turn": 1,
+      "record": "results/essence-v2/ui-after-funding/03-paraphrase-t1/result.json",
+      "record_sha256": "f70b8ddd1da423f8ce91cbc575a5d264ba277a283f19d052e37a1c048f078e3b",
+      "answer_sha256": "87a38747025258782ae36868a6f879e7d2de785d4b71bdf50c275243c4f8c7cd",
+      "timing_record": "results/essence-v2/ui-after-funding/03-paraphrase-t1/timing.json",
+      "question_matches_frozen": true,
+      "source_matches_frozen": true,
+      "citation_contract_issues": [],
+      "python_syntax_issues": [],
+      "cited_record_matches": [
+        {
+          "source_id": "S1",
+          "page_id": "guides/tracking/ops",
+          "section": 3,
+          "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+          "text_context_hash_match": true
+        }
+      ],
+      "visible_status": "rendered_evidence_mismatch",
+      "engine_elapsed_seconds": 18.45,
+      "final_visible_completion_seconds": 19.559,
+      "first_answer_capture_seconds": 19.225,
+      "observer_version": 2,
+      "terminal_prose_seconds": 19.225,
+      "render_ready_seconds": 19.559,
+      "render_export_consistency": {
+        "expected_code_blocks": 1,
+        "observed_code_blocks": 0,
+        "code_content_matches": false,
+        "checked_after_timing": true
+      },
+      "first_answer_capture_text": "Pass postprocessing functions to the @weave.op decorator. Weave runs them on the data it logs, so you don't have to change the function body [S1].\n\npostprocess_inputs: receives a dict that maps argument names to argument values. It returns a dict with the transformed inputs to record, so you can drop or mask a field like a password [S1].\npostprocess_output: receives whatever the function would normally return and returns a transformed version to record, for example a copy with the secret field replaced by \"REDACTED\" [S1].\nThe docs present this as a way to change \"the data that Weave logs without modifying the original function,\" with hiding sensitive data as the example [S1]. In the docs' example, the function still receives the real password and puts it in its return value [S1]. My inference is that only the recorded copy is redacted, and your code still gets the real values.\nThis is a Python feature. The docs say it isn't available in TypeScript yet [S1].\n\nThis follows the documented example [S1]. Call weave.init(...) before calling the op. Without it, a decorated function runs normally but Weave doesn't track it [S1].",
+      "first_useful_answer_text_seconds": "unmeasured",
+      "first_useful_timing_reason": "Semantic usefulness is judged after delivery. The v2 observer captures terminal prose and stable populated DOM, not a separately validated first-useful-text onset.",
+      "final_visible_text": "Pass postprocessing functions to the @weave.op decorator. Weave runs them on the data it logs, so you don't have to change the function body [S1].\n\npostprocess_inputs: receives a dict that maps argument names to argument values. It returns a dict with the transformed inputs to record, so you can drop or mask a field like a password [S1].\npostprocess_output: receives whatever the function would normally return and returns a transformed version to record, for example a copy with the secret field replaced by \"REDACTED\" [S1].\nThe docs present this as a way to change \"the data that Weave logs without modifying the original function,\" with hiding sensitive data as the example [S1]. In the docs' example, the function still receives the real password and puts it in its return value [S1]. My inference is that only the recorded copy is redacted, and your code still gets the real values.\nThis is a Python feature. The docs say it isn't available in TypeScript yet [S1].\n\nThis follows the documented example [S1]. Call weave.init(...) before calling the op. Without it, a decorated function runs normally but Weave doesn't track it [S1].",
+      "final_screenshot": "results/essence-v2/ui-after-funding/03-paraphrase-t1/final-ui.png",
+      "code_executed_by_reviewer": false,
+      "first_capture_classification": "terminal_prose_without_code",
+      "first_capture_useful": true,
+      "final_answer_useful": true,
+      "final_text_and_screenshot_consistent": false,
+      "screenshot_review": "Final screenshot visibly contains populated Python code and prose. Observer final text/render-ready snapshot omitted that code; screenshot establishes later visible code, not its exact appearance time.",
+      "full_render_time_validated": false,
+      "full_render_completion_seconds": "unmeasured",
+      "render_measurement_limitation": "Observed 19.559s render_ready has 0 code blocks versus 1 in exported answer; cannot report that as complete-code rendering latency. Useful prose timing is distinct.",
+      "timing_record_sha256": "4c9d210f0f81a4e63b319b8fdb5de8a0c5edff029dd634222bafcb169189aee3"
+    },
+    {
+      "task_id": "04-evaluation-workflow",
+      "turn": 1,
+      "record": "results/essence-v2/ui-after-funding/04-evaluation-workflow-t1/result.json",
+      "record_sha256": "b365d9b74cb24379e32e703ddf9b59e793a9d6f2bea83014e74cd4e78b496a9d",
+      "answer_sha256": "eda2d6df5e7c70d397e122de8ff4f9c7e49ba535699d0df481a23f12adc1aa9d",
+      "timing_record": "results/essence-v2/ui-after-funding/04-evaluation-workflow-t1/timing.json",
+      "question_matches_frozen": true,
+      "source_matches_frozen": true,
+      "citation_contract_issues": [],
+      "python_syntax_issues": [],
+      "cited_record_matches": [
+        {
+          "source_id": "S1",
+          "page_id": "agent-evals",
+          "section": 0,
+          "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S2",
+          "page_id": "agent-evals",
+          "section": 4,
+          "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S3",
+          "page_id": "agent-evals",
+          "section": 2,
+          "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S4",
+          "page_id": "agent-evals",
+          "section": 3,
+          "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S5",
+          "page_id": "agent-evals",
+          "section": 5,
+          "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+          "text_context_hash_match": true
+        }
+      ],
+      "visible_status": "visible_completed",
+      "engine_elapsed_seconds": 21.72,
+      "final_visible_completion_seconds": 23.854,
+      "first_answer_capture_seconds": 23.383,
+      "observer_version": 3,
+      "terminal_prose_seconds": 23.383,
+      "render_ready_seconds": 23.854,
+      "render_export_consistency": null,
+      "render_verification": {
+        "postinspection_dom_matches_export": true,
+        "after_inspection": true,
+        "not_used_for_latency": true
+      },
+      "render_measurement": {
+        "status": "matched_preinspection_candidate",
+        "inspection_cutoff_ms": 24953.699999809265,
+        "candidate_count": 2,
+        "selection_happened_after_export": true
+      },
+      "matched_candidate_timing": {
+        "firstSeenMs": 23574.89999961853,
+        "lastSeenMs": 24953.60000038147,
+        "stableAtMs": 23854.39999961853
+      },
+      "first_answer_capture_text": "To evaluate an agent in Weave, trace each agent run as a conversation. Then go through a task dataset, have an LLM judge score each run's transcript against that task's success criteria, and record everything with weave.EvaluationLogger [S1, S2]. You score a trajectory rather than string-matching one output, because an agent works across several turns and tool calls [S1].\n\nPrerequisites: a CoreWeave Forge account, Python 3.10+, pip install weave anthropic, and ANTHROPIC_API_KEY set. The tutorial uses Anthropic, including for the judge [S3].\n\nSteps\n\nInitialize and trace. Call weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\"). If you're instrumenting a bare provider SDK yourself, set implicitly_patch_integrations to False so spans aren't duplicated. Wrap each run in start_conversation(...) with turns, LLM calls and tool calls nested inside. Framework integrations (Claude Agent SDK, OpenAI Agents) emit these spans automatically if you leave patching on [S4].\nDefine the dataset. Use a list of tasks, each with a user_request and success_criteria [S2].\nWrite the judge. Write a plain function that prompts a judge model with the request, the criteria and the transcript, then returns {\"passed\": bool, \"reason\": str}. Weave doesn't require a particular scorer shape [S2].\nRun and log. Run the agent inside log_prediction(...) so the traced conversation links to that eval row [S2].\n\nrun_agent_turn, new_id and the judge are your own code. Full versions are in the tutorial notebook [S4].\n\nReview. Open the eval link and go to the Evals tab. The Call tab shows a passed column for each task, and View spans opens the linked traces on the Agents page [S2].\nCompare versions. Re-run the evaluation with a new model label (for example \"v2\") and compare the two runs on your scores, latency and cost [S5].",
+      "first_useful_answer_text_seconds": "unmeasured",
+      "first_useful_timing_reason": "Semantic usefulness is judged after delivery. The v2 observer captures terminal prose and stable populated DOM, not a separately validated first-useful-text onset.",
+      "final_visible_text": null,
+      "final_screenshot": "results/essence-v2/ui-after-funding/04-evaluation-workflow-t1/final-ui.png",
+      "code_executed_by_reviewer": false,
+      "first_capture_classification": "terminal_answer_prose",
+      "first_capture_useful": true,
+      "final_answer_useful": true,
+      "final_text_and_screenshot_consistent": true,
+      "screenshot_review": "Final desktop screenshot shows populated code, procedural steps and analysis controls. Long code lines remain within the code block; exact code matched the exported answer.",
+      "full_render_time_validated": true,
+      "full_render_completion_seconds": 23.854,
+      "render_measurement_scope": "V3 selected a stable preinspection DOM candidate matching the later exported prose and code; postinspection match independently confirmed. This is DOM readiness, not measured paint or first-useful onset.",
+      "timing_record_sha256": "0f804195e53c9ec1e43e6282f5dbc035b7b849857ba76a2b3095e724117746d7"
+    },
+    {
+      "task_id": "05-anthropic-followup",
+      "turn": 1,
+      "record": "results/essence-v2/ui-after-funding/05-anthropic-followup-t1/result.json",
+      "record_sha256": "cc19ab3c282004882076e5bcae1e739a3eff8a712605c26e31395c046696187b",
+      "answer_sha256": "5532600c61d245dc58f4f1fd33c2b929c814d1722ebeb63f4dcadc18269a8f95",
+      "timing_record": "results/essence-v2/ui-after-funding/05-anthropic-followup-t1/timing.json",
+      "question_matches_frozen": true,
+      "source_matches_frozen": true,
+      "citation_contract_issues": [],
+      "python_syntax_issues": [],
+      "cited_record_matches": [
+        {
+          "source_id": "S1",
+          "page_id": "agent-evals",
+          "section": 3,
+          "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S2",
+          "page_id": "custom-agents-quickstart",
+          "section": 2,
+          "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S3",
+          "page_id": "custom-agents-quickstart",
+          "section": 3,
+          "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S4",
+          "page_id": "custom-agents-quickstart",
+          "section": 5,
+          "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S5",
+          "page_id": "custom-agents-quickstart",
+          "section": 7,
+          "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S6",
+          "page_id": "custom-agents-quickstart",
+          "section": 4,
+          "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S7",
+          "page_id": "reference/python-sdk",
+          "section": 290,
+          "page_sha256": "458bbcdb9cd103df8921fe985c50079ed7db53b5fad7a5077de2ab9f2c667d2d",
+          "text_context_hash_match": true
+        }
+      ],
+      "visible_status": "visible_completed",
+      "engine_elapsed_seconds": 65.34,
+      "final_visible_completion_seconds": 66.775,
+      "first_answer_capture_seconds": 66.504,
+      "observer_version": 3,
+      "terminal_prose_seconds": 66.504,
+      "render_ready_seconds": 66.775,
+      "render_export_consistency": null,
+      "render_verification": {
+        "postinspection_dom_matches_export": true,
+        "after_inspection": true,
+        "not_used_for_latency": true
+      },
+      "render_measurement": {
+        "status": "matched_preinspection_candidate",
+        "inspection_cutoff_ms": 67923.9000005722,
+        "candidate_count": 1,
+        "selection_happened_after_export": true
+      },
+      "matched_candidate_timing": {
+        "firstSeenMs": 66504.30000019073,
+        "lastSeenMs": 67923.69999980927,
+        "stableAtMs": 66774.9000005722
+      },
+      "first_answer_capture_text": "Instrument the loop yourself with Weave's Agents tracing API. Wrap the session in a conversation. Wrap each user exchange in a turn. Inside the turn, wrap every Anthropic messages.create call in an LLM span and every tool you run in a tool span [S1, S2]. These spans are what make your trace show up in the Agents view [S2].\n\nSetup\n\nYou need a CoreWeave Forge API key (set as WANDB_API_KEY) and Python 3.10+ [S3, S4]. Install weave along with your Anthropic SDK [S6].\nCall weave.init(\"team/project\") first. It authenticates and sets up the exporter that sends agent spans to the Agents view [S4].\nSince you're adding the spans by hand to a plain provider SDK, pass implicitly_patch_integrations: False to weave.init. If you leave automatic patching on, each call is logged twice: once as your span and once as a traced Op [S1].\n\nHow the pieces nest\n\nstart_conversation groups turns. start_turn is one exchange (invoke_agent span), start_llm is one API call (chat span) and start_tool is one tool run (execute_tool span) [S2].\nUse them as with blocks. When the block exits, the span ends and its data is flushed, even if an exception was raised [S2].\nA tool span automatically becomes a child of whatever span is currently active, usually the open turn [S7].\nOn each LLM span, record the output and token usage, and optionally the response ID and model [S5].\nTracing doesn't give the model memory. You still have to pass the message history back to Claude yourself (this example does that).\nimport json\nimport anthropic\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\",\n           settings={\"implicitly_patch_integrations\": False})\nclient = anthropic.Anthropic()\nMODEL = \"[YOUR-CLAUDE-MODEL]\"\nTOOLS = [...]  # your Anthropic tool schemas\n\ndef run_tool(name, args):\n    ...  # your tool implementation\n\ndef run_turn(history, user_message):\n    history.append({\"role\": \"user\", \"content\": user_message})\n    with weave.start_turn(user_message=user_message, model=MODEL):\n        while True:\n            with weave.start_llm(model=MODEL, provider_name=\"anthropic\") as llm:\n                resp = client.messages.create(model=MODEL, max_tokens=1024,\n                                              messages=history, tools=TOOLS)\n                text = \"\".join(b.text for b in resp.content if b.type == \"text\")\n                llm.output(text)\n                llm.record(\n                    usage=weave.Usage(input_tokens=resp.usage.input_tokens,\n                                      output_tokens=resp.usage.output_tokens),\n                    response_id=resp.id, response_model=resp.model)\n            history.append({\"role\": \"assistant\", \"content\": resp.content})\n            tool_uses = [b for b in resp.content if b.type == \"tool_use\"]\n            if not tool_uses:\n                return text\n            results = []\n            for b in tool_uses:\n                with weave.start_tool(name=b.name, arguments=json.dumps(b.input),\n                                      tool_call_id=b.id) as tool:\n                    tool.result = run_tool(b.name, b.input)\n                results.append({\"type\": \"tool_result\", \"tool_use_id\": b.id,\n                                \"content\": str(tool.result)})\n            history.append({\"role\": \"user\", \"content\": results})\n\nwith weave.start_conversation(agent_name=\"[YOUR-AGENT-NAME]\"):\n    history = []\n    print(run_turn(history, \"[USER QUESTION]\"))\n\nThis sketch adapts the docs' OpenAI quickstart and their Anthropic-based tutorial snippet to Anthropic's response format [S1, S5]. I haven't run it.",
+      "first_useful_answer_text_seconds": "unmeasured",
+      "first_useful_timing_reason": "Semantic usefulness is judged after delivery. The v2 observer captures terminal prose and stable populated DOM, not a separately validated first-useful-text onset.",
+      "final_visible_text": null,
+      "final_screenshot": "results/essence-v2/ui-after-funding/05-anthropic-followup-t1/final-ui.png",
+      "code_executed_by_reviewer": false,
+      "first_capture_classification": "terminal_answer_prose",
+      "first_capture_useful": true,
+      "final_answer_useful": true,
+      "final_text_and_screenshot_consistent": true,
+      "screenshot_review": "Populated tool-loop code and explicit unexecuted-sketch note visible; exact prose/code matched export via stable preinspection candidate.",
+      "full_render_time_validated": true,
+      "full_render_completion_seconds": 66.775,
+      "latency_observation": "65.34s engine, 10 model calls, $0.610437 returned-usage estimate. Long observed turn remains in benchmark denominator; not evidence of uniformly fast behavior.",
+      "timing_record_sha256": "5b25f0dd9d99032b270d2a40f4408d77d0632239d86fa00e6d88c7c756715ff2"
+    },
+    {
+      "task_id": "05-anthropic-followup",
+      "turn": 2,
+      "record": "results/essence-v2/ui-after-funding/05-anthropic-followup-t2/result.json",
+      "record_sha256": "78da56b6b2abfb38209409c0a70c3350c8c58e99eb5a908809e4da723372367d",
+      "answer_sha256": "c1322989c7d1076a0480ae94e62770bd03244af24c825aed4ead29d38e019eb7",
+      "timing_record": "results/essence-v2/ui-after-funding/05-anthropic-followup-t2/timing.json",
+      "question_matches_frozen": true,
+      "source_matches_frozen": true,
+      "citation_contract_issues": [],
+      "python_syntax_issues": [],
+      "cited_record_matches": [
+        {
+          "source_id": "S8",
+          "page_id": "custom-agents-quickstart",
+          "section": 8,
+          "page_sha256": "efc74d59153a998f976ab103e2fc0e8d3ee85d636a6020247d4e563bfb66dfdc",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S9",
+          "page_id": "reference/python-sdk",
+          "section": 250,
+          "page_sha256": "458bbcdb9cd103df8921fe985c50079ed7db53b5fad7a5077de2ab9f2c667d2d",
+          "text_context_hash_match": true
+        }
+      ],
+      "visible_status": "visible_completed",
+      "engine_elapsed_seconds": 25.68,
+      "final_visible_completion_seconds": 26.66,
+      "first_answer_capture_seconds": 26.394,
+      "observer_version": 3,
+      "terminal_prose_seconds": 26.394,
+      "render_ready_seconds": 26.66,
+      "render_export_consistency": null,
+      "render_verification": {
+        "postinspection_dom_matches_export": true,
+        "after_inspection": true,
+        "not_used_for_latency": true
+      },
+      "render_measurement": {
+        "status": "matched_preinspection_candidate",
+        "inspection_cutoff_ms": 27739.800000190735,
+        "candidate_count": 1,
+        "selection_happened_after_export": true
+      },
+      "matched_candidate_timing": {
+        "firstSeenMs": 26393.800000190735,
+        "lastSeenMs": 27739.699999809265,
+        "stableAtMs": 26660.099999427795
+      },
+      "first_answer_capture_text": "To get costs in the trace, call llm.record(...) on each LLM span with a complete weave.Usage. Weave needs two things: the full input token count (cached tokens included) and an exact model ID it has a price for [S8].\n\nWhy it matters\n\nWeave shows token counts from the usage you record. It works out cost from that usage plus the model ID. If either is missing or wrong, the trace shows 0 in / 0 out or Cost -, even when everything else looks right [S8].\nweave.Usage has these fields: input_tokens, output_tokens, reasoning_tokens, cache_creation_input_tokens and cache_read_input_tokens [S9].\n\nAnthropic-specific rules\n\ninput_tokens must be the total. Anthropic reports cached tokens separately from input_tokens, so add cache reads and cache writes back in. Weave prices cache reads and writes at their own rates and subtracts them from that total, so also pass both cache fields. If you leave cached tokens out, usage and cost can show as roughly zero, because cached tokens often make up most of the input with Anthropic [S8].\nUse a model ID Weave can price. Weave looks up cost using response_model first, then falls back to the model you gave start_llm. Short names like sonnet can't be priced, so pass resp.model as response_model [S8].\nrecord(...) only applies the fields you pass to it [S8].\n\nInside your existing loop, replace the LLM span with this:\n\nwith weave.start_llm(model=MODEL, provider_name=\"anthropic\") as llm:\n    resp = client.messages.create(model=MODEL, max_tokens=1024,\n                                  messages=history, tools=TOOLS)\n    u = resp.usage\n    text = \"\".join(b.text for b in resp.content if b.type == \"text\")\n    llm.output(text)\n    llm.record(\n        usage=weave.Usage(\n            input_tokens=u.input_tokens\n            + u.cache_read_input_tokens\n            + u.cache_creation_input_tokens,\n            output_tokens=u.output_tokens,\n            cache_read_input_tokens=u.cache_read_input_tokens,\n            cache_creation_input_tokens=u.cache_creation_input_tokens,\n        ),\n        response_id=resp.id,\n        response_model=resp.model,\n    )\n\nThis follows the docs' Anthropic example, adjusted for the tool loop from my earlier answer [S8]. I haven't run it.",
+      "first_useful_answer_text_seconds": "unmeasured",
+      "first_useful_timing_reason": "Semantic usefulness is judged after delivery. The v2 observer captures terminal prose and stable populated DOM, not a separately validated first-useful-text onset.",
+      "final_visible_text": null,
+      "final_screenshot": "results/essence-v2/ui-after-funding/05-anthropic-followup-t2/final-ui.png",
+      "code_executed_by_reviewer": false,
+      "first_capture_classification": "terminal_answer_prose",
+      "first_capture_useful": true,
+      "final_answer_useful": true,
+      "final_text_and_screenshot_consistent": true,
+      "screenshot_review": "Populated cache-usage code and follow-up context visible; stable preinspection DOM matches exact exported answer.",
+      "full_render_time_validated": true,
+      "full_render_completion_seconds": 26.66,
+      "same_conversation_and_retained_history_confirmed": true,
+      "timing_record_sha256": "1bcc28d222609318ef45043632c4f0b110b4b90d318821fd8a2e5a896fbf8b3d"
+    },
+    {
+      "task_id": "06-false-premise",
+      "turn": 1,
+      "record": "results/essence-v2/ui-after-funding/06-false-premise-t1/result.json",
+      "record_sha256": "f498896cfebe0dea2ced18f6920c65a367b9d93def732d6549ff5ad662807b13",
+      "answer_sha256": "67f958b5bb61d0b0c7751abd3e5367afb60fe24c817e9cec1e6a5778205b15e2",
+      "timing_record": "results/essence-v2/ui-after-funding/06-false-premise-t1/timing.json",
+      "question_matches_frozen": true,
+      "source_matches_frozen": true,
+      "citation_contract_issues": [],
+      "python_syntax_issues": [],
+      "cited_record_matches": [
+        {
+          "source_id": "S1",
+          "page_id": "guides/evaluation/builtin_scorers",
+          "section": 2,
+          "page_sha256": "6ae9f99c1ee4d779d23d3dbe0058facc3d7e6456be3b3a03ec393e9e32aa862d",
+          "text_context_hash_match": true
+        }
+      ],
+      "visible_status": "visible_completed",
+      "engine_elapsed_seconds": 16.88,
+      "final_visible_completion_seconds": 18.529,
+      "first_answer_capture_seconds": 18.242,
+      "observer_version": 3,
+      "terminal_prose_seconds": 18.242,
+      "render_ready_seconds": 18.529,
+      "render_export_consistency": null,
+      "render_verification": {
+        "postinspection_dom_matches_export": true,
+        "after_inspection": true,
+        "not_used_for_latency": true
+      },
+      "render_measurement": {
+        "status": "matched_preinspection_candidate",
+        "inspection_cutoff_ms": 19672.5,
+        "candidate_count": 1,
+        "selection_happened_after_export": true
+      },
+      "matched_candidate_timing": {
+        "firstSeenMs": 18242.199999809265,
+        "lastSeenMs": 19672.29999923706,
+        "stableAtMs": 18528.699999809265
+      },
+      "first_answer_capture_text": "I can't give you that call. I found no weave.enable_hallucination_free_mode() in the Weave docs, so I won't make one up. What the docs do describe is a way to detect hallucinations, not prevent them: the built-in HallucinationFreeScorer. It \"checks whether your AI system's output includes any hallucinations based on the input data\" [S1]. A scorer like this measures outputs, usually during an evaluation. It does not change how your agent generates answers, so it can't guarantee your agent will never hallucinate.\n\nHow to use it:\n\nImport it with from weave.scorers import HallucinationFreeScorer [S1].\nIts score method expects an input column named context. If your dataset uses a different column name, map it with column_map [S1].\nYou can change what counts as a \"hallucination\" by customizing the scorer's system_prompt and user_prompt fields [S1].\nmodel_id sets the model the scorer uses as a judge. Any model supported by litellm works [S1].\nimport asyncio\nimport weave\nfrom weave.scorers import HallucinationFreeScorer\n\nhallucination_scorer = HallucinationFreeScorer(\n    model_id=\"openai/gpt-4o\",\n    column_map={\"context\": \"input\"},\n)\n\ndataset = [{\"input\": \"John likes various types of cheese.\"}]\n\n@weave.op\ndef model(input: str) -> str:\n    return \"The person's favorite cheese is cheddar.\"\n\nevaluation = weave.Evaluation(dataset=dataset, scorers=[hallucination_scorer])\nresult = asyncio.run(evaluation.evaluate(model))\nprint(result)\n\nThe results include a has_hallucination summary, such as true_count and true_fraction [S1]. Use them to measure how often your agent hallucinates and track whether it improves. They don't certify that it never does.",
+      "first_useful_answer_text_seconds": "unmeasured",
+      "first_useful_timing_reason": "Semantic usefulness is judged after delivery. The v2 observer captures terminal prose and stable populated DOM, not a separately validated first-useful-text onset.",
+      "final_visible_text": null,
+      "final_screenshot": "results/essence-v2/ui-after-funding/06-false-premise-t1/final-ui.png",
+      "code_executed_by_reviewer": false,
+      "first_capture_classification": "terminal_answer_prose",
+      "first_capture_useful": true,
+      "final_answer_useful": true,
+      "final_text_and_screenshot_consistent": true,
+      "screenshot_review": "Populated scoring/evaluation code and no-guarantee caution visible; exported code and prose match stable preinspection DOM.",
+      "full_render_time_validated": true,
+      "full_render_completion_seconds": 18.529,
+      "timing_record_sha256": "9a48fa9b4fca2f5b13a976a6df0818231397800b4f54e02c28d761255a46fbf1"
+    },
+    {
+      "task_id": "preset-overview",
+      "turn": 1,
+      "record": "results/essence-v2/ui-after-funding/preset-overview-t1/result.json",
+      "record_sha256": "0c6f07e6e7c44ddc3dba1a85e69e859be348eaa8e066ab91a37d22c77c9f4574",
+      "answer_sha256": "4cd1504acc19d4b80af6cd6cac8a83ed1df93efc277ea1d481aa56be39c369a8",
+      "timing_record": "results/essence-v2/ui-after-funding/preset-overview-t1/timing.json",
+      "question_matches_frozen": true,
+      "source_matches_frozen": true,
+      "citation_contract_issues": [],
+      "python_syntax_issues": [],
+      "cited_record_matches": [
+        {
+          "source_id": "S1",
+          "page_id": "guides/tracking/view-agent-signals",
+          "section": 0,
+          "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S2",
+          "page_id": "guides/core-types/evaluations",
+          "section": 0,
+          "page_sha256": "d8b701427b175b5c29906e40d24de0c1aa1bdb8c7ce862f8adfd68602e986b15",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S3",
+          "page_id": "guides/integrations",
+          "section": 0,
+          "page_sha256": "3a5704e961846feaf3577546a1a3d106561a69cf0ec4bf094d80b7e0eb88e812",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S4",
+          "page_id": "guides/tracking/view-agent-signals",
+          "section": 2,
+          "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S6",
+          "page_id": "guides/tracking/view-agent-signals",
+          "section": 1,
+          "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S7",
+          "page_id": "guides/tracking/trace-agents",
+          "section": 0,
+          "page_sha256": "66bcc2c1aee6b564028248b87446bdbc5dffae574b7bce7da56bdefc819fd1af",
+          "text_context_hash_match": true
+        },
+        {
+          "source_id": "S8",
+          "page_id": "guides/tracking/view-agent-signals",
+          "section": 5,
+          "page_sha256": "e0119e02460c964212ed82bb209ed25bd177068510109c3bb8e5703b08fd7282",
+          "text_context_hash_match": true
+        }
+      ],
+      "visible_status": "visible_completed",
+      "engine_elapsed_seconds": 28.56,
+      "final_visible_completion_seconds": 29.575,
+      "first_answer_capture_seconds": 29.274,
+      "observer_version": 3,
+      "terminal_prose_seconds": 29.274,
+      "render_ready_seconds": 29.575,
+      "render_export_consistency": null,
+      "render_verification": {
+        "postinspection_dom_matches_export": true,
+        "after_inspection": true,
+        "not_used_for_latency": true
+      },
+      "render_measurement": {
+        "status": "matched_preinspection_candidate",
+        "inspection_cutoff_ms": 30685.900000572205,
+        "candidate_count": 1,
+        "selection_happened_after_export": true
+      },
+      "matched_candidate_timing": {
+        "firstSeenMs": 29273.800000190735,
+        "lastSeenMs": 30685.800000190735,
+        "stableAtMs": 29574.5
+      },
+      "first_answer_capture_text": "They're three layers of the same workflow. Tracing records what your app or agent actually did. Evaluations measure quality offline against a fixed set of test cases. Signals score live agent traffic automatically in production.\n\n1. Tracing: the foundation\n\nWeave has two ways to trace. Agent integrations record sessions, turns, LLM calls and tool calls, and show them in the Agents view. LLM-application integrations record individual LLM calls and pipeline steps as Calls in the Traces view [S3].\nThe Weave SDK for Agents models agent \u2192 conversation \u2192 turn \u2192 LLM call \u2192 tool call. Each turn, LLM call and tool call sends an OpenTelemetry span, which is a structured record of one operation [S7]. The stated goal is to let you view, debug and evaluate your agent [S7].\n\n2. Evaluations: repeatable offline testing\n\nAn Evaluation object combines a dataset of test examples with one or more scoring functions. You run it against a Model or a function. Each .evaluate() call produces an evaluation run [S2].\nUse evaluations to compare changes over time and catch regressions (drops in quality) before you ship [S2].\n\n3. Signals: production monitoring on agent traces\n\nSignals live in the Signals tab of the Agents view. They tag and rate your agent's conversations to flag quality and safety problems and point you to the traces that need attention [S1, S6].\nTags are labels such as user-frustration. Ratings are scores from 0 to 1 attached to matching spans [S4, S8]. A turn is one exchange between the user and the agent [S4].\nScoring uses an LLM judge by default, or an HTTP endpoint you host [S1].\n\nHow they connect (my reading of the docs): Signals score spans from the Agents view, so you need agent tracing set up first [S1, S7, S8]. Use evaluations for controlled tests before release. Use Signals to keep watching quality on real traffic, where ratings help you measure improvement over time [S8].",
+      "first_useful_answer_text_seconds": "unmeasured",
+      "first_useful_timing_reason": "Semantic usefulness is judged after delivery. The v2 observer captures terminal prose and stable populated DOM, not a separately validated first-useful-text onset.",
+      "final_visible_text": null,
+      "final_screenshot": "results/essence-v2/ui-after-funding/preset-overview-t1/final-ui.png",
+      "code_executed_by_reviewer": false,
+      "first_capture_classification": "terminal_answer_prose",
+      "first_capture_useful": true,
+      "final_answer_useful": true,
+      "final_text_and_screenshot_consistent": true,
+      "screenshot_review": "Desktop and 390px mobile captures show organized numbered sections and accessible source/analysis controls, without horizontal overflow. Exact prose matched exported answer.",
+      "full_render_time_validated": true,
+      "full_render_completion_seconds": 29.575,
+      "benchmark_aggregate_inclusion": false,
+      "timing_record_sha256": "bb1794eb841b16f7d30a3ad9fc6fa9b2ae31a41fde17cca0eb3385f9c69d30de"
+    }
+  ],
+  "limits": [
+    "One attempt per reused development task; no held-out reliability estimate or causal model/performance comparison.",
+    "Same AI reviewer inspected answers and frozen criteria; this is not independent human calibration.",
+    "Observers 2 and 3 are mixed. Paraphrase full-render time is unvalidated despite code visible in the later screenshot; first-useful onset is unmeasured.",
+    "DOM readiness is not direct browser-paint measurement. Screenshots show particular viewports, not every scroll position.",
+    "Source matching establishes provenance; material meaning and completeness require judgment.",
+    "Generated SDK/provider examples were reviewed statically and not executed.",
+    "This review inspected exported trace IDs and local records, not independent backend delivery."
+  ],
+  "reviewed_at": "2026-10-29T07:09:50.899111+00:00",
+  "criteria_counts": {
+    "pass": 17,
+    "fail": 1,
+    "unassessed": 0
+  },
+  "status": "content_review_complete",
+  "summary": {
+    "planned_benchmark_tasks": 6,
+    "reviewed_benchmark_tasks": 6,
+    "planned_benchmark_turns": 7,
+    "reviewed_benchmark_turns": 7,
+    "missing_benchmark_turns": [],
+    "frozen_criteria_passed": 17,
+    "frozen_criteria_failed": 1,
+    "frozen_criteria_unassessed": 0,
+    "frozen_full_tasks_passed": 5,
+    "literal_tasks_fulfilled": 6,
+    "failed_criterion": {
+      "id": "01-overview-a2",
+      "reason": "Completed-turn scoring timing omitted. This additional frozen demand exceeds the broad literal overview question; literal usefulness is scored separately."
+    },
+    "material_unsupported_claims_found": 0,
+    "minor_ambiguities": [
+      "Overview uses conversation-scoring shorthand around an explicit correct statement that Signals score agent turns. Initial stricter assessment and refinement retained."
+    ],
+    "all_questions_and_source_identities_match": true,
+    "documentation_citation_occurrences_checked": 34,
+    "all_cited_sources_match_frozen_corpus": true,
+    "structural_citation_and_python_syntax_issues": 0,
+    "sdk_examples_executed": false,
+    "benchmark_timing": {
+      "engine_median_seconds": 21.72,
+      "engine_range_seconds": [
+        16.88,
+        65.34
+      ],
+      "terminal_prose_median_seconds": 23.383,
+      "terminal_prose_range_seconds": [
+        18.242,
+        66.504
+      ],
+      "terminal_prose_denominator": 7,
+      "full_render_validated_turns": 6,
+      "full_render_planned_turns": 7,
+      "full_render_median_seconds": null,
+      "full_render_median_reason": "Paraphrase observer v2 captured no code while export had one block. Later screenshot shows code, but its exact completion time is unmeasured; no seven-turn fully rendered median is established.",
+      "longest_validated_full_render_seconds": 66.775,
+      "first_useful_answer_text_seconds": "unmeasured",
+      "observer_versions": [
+        2,
+        3
+      ],
+      "comparison_limit": "One attempt per reused task; mixed corrected observers and historical sources do not establish a causal speed improvement."
+    },
+    "benchmark_estimated_usd": 1.8429426,
+    "separate_preset": {
+      "actual_submissions": 1,
+      "literal_task_fulfilled": true,
+      "included_in_benchmark_aggregate": false,
+      "terminal_prose_seconds": 29.274,
+      "full_render_seconds": 29.575,
+      "engine_elapsed_seconds": 28.56,
+      "estimated_usd": 0.257924,
+      "note": "Archived unsubmitted-preset-overview-t1 never called the model; it is not a duplicate test."
+    },
+    "all_eight_turn_estimated_usd": 2.1008666,
+    "cost_scope": "Returned usage estimates only; excludes Signals, hosting and unreturned charges."
+  },
+  "conclusion": "All six literal benchmark tasks produced useful, source-supported answers on this single reused-task replay; five satisfy all stricter frozen criteria, totaling 17/18. The remaining criterion is completed-turn timing in the overview. The actual preset also produced a useful structured answer. The median terminal-prose wait was 23.383 seconds across all seven benchmark turns; the tracing turn took 66.775 seconds to reach validated render readiness. One early observer omitted a code block, so a full seven-turn rendering median remains unmeasured. Code was reviewed statically, not run against provider/Weave SDKs; this is not general reliability or verifier-benefit evidence.",
+  "finalized_at": "2026-10-29T07:09:50.899111+00:00"
+}

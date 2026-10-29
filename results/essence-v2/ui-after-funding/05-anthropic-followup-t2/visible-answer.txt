@@ -1,0 +1,22 @@
+To get costs in the trace, call llm.record(...) on each LLM span with a complete weave.Usage. Weave needs two things: the full input token count (cached tokens included) and an exact model ID it has a price for [S8]. Why it matters Weave shows token counts from the usage you record. It works out cost from that usage plus the model ID. If either is missing or wrong, the trace shows 0 in / 0 out or Cost -, even when everything else looks right [S8]. weave.Usage has these fields: input_tokens, output_tokens, reasoning_tokens, cache_creation_input_tokens and cache_read_input_tokens [S9]. Anthropic-specific rules input_tokens must be the total. Anthropic reports cached tokens separately from input_tokens, so add cache reads and cache writes back in. Weave prices cache reads and writes at their own rates and subtracts them from that total, so also pass both cache fields. If you leave cached tokens out, usage and cost can show as roughly zero, because cached tokens often make up most of the input with Anthropic [S8]. Use a model ID Weave can price. Weave looks up cost using response_model first, then falls back to the model you gave start_llm. Short names like sonnet can't be priced, so pass resp.model as response_model [S8]. record(...) only applies the fields you pass to it [S8]. Inside your existing loop, replace the LLM span with this: This follows the docs' Anthropic example, adjusted for the tool loop from my earlier answer [S8]. I haven't run it.
+
+```
+with weave.start_llm(model=MODEL, provider_name="anthropic") as llm:
+    resp = client.messages.create(model=MODEL, max_tokens=1024,
+                                  messages=history, tools=TOOLS)
+    u = resp.usage
+    text = "".join(b.text for b in resp.content if b.type == "text")
+    llm.output(text)
+    llm.record(
+        usage=weave.Usage(
+            input_tokens=u.input_tokens
+            + u.cache_read_input_tokens
+            + u.cache_creation_input_tokens,
+            output_tokens=u.output_tokens,
+            cache_read_input_tokens=u.cache_read_input_tokens,
+            cache_creation_input_tokens=u.cache_creation_input_tokens,
+        ),
+        response_id=resp.id,
+        response_model=resp.model,
+    )
+```

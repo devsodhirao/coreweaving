@@ -2,7 +2,7 @@
 
 Every result belongs to its code, corpus, configuration and grading instrument. Those identities explain what ran; they do not promise identical model output or correctness.
 
-**Current validation:** runtime `522c320`, verification contract 6. The unchanged regression records 11 passes, an initialization omission and a case blocked by exhausted API credit; 44/48 planned assertions passed, one failed and three were ungraded. The final browser replay awaits funding. The [current packet](../results/essence-v2/README.md) separates this from the first simplified pass and earlier successful runs. Current source is `bd74bb83b9fd34273acb50edcec66ea4ba0a5cf865ae867b2fc04cd84229a839`; the prior 13/13 on `dfdb6bd` remains historical.
+**Current validation:** runtime `522c320`, verification contract 6. The unchanged regression records 11 passes, an initialization omission and a case blocked by exhausted API credit; 44/48 planned assertions passed, one failed and three were ungraded. After funding resumed, the browser replay passed 17/18 frozen checks; all six literal requests were fulfilled in review. The [current packet](../results/essence-v2/README.md) separates this from the first simplified pass and earlier successful runs. Current source is `bd74bb83b9fd34273acb50edcec66ea4ba0a5cf865ae867b2fc04cd84229a839`; the prior 13/13 on `dfdb6bd` remains historical.
 
 ## Recorded identities
 

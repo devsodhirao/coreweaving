@@ -2,7 +2,7 @@
 
 Start with [`Agent.run`](../src/coreweaving/agent.py). It owns one conversational turn: choose tools, gather evidence, submit a draft, check it and repair if needed. The [README](../README.md) covers setup; the [behavior contract](BEHAVIOR_CONTRACT.md) describes the enforced boundaries.
 
-**Current validation:** runtime `522c320`, verification contract 6. The unchanged regression records 11 passes, an initialization omission and a case blocked by exhausted API credit; 44/48 planned assertions passed, one failed and three were ungraded. The final browser replay awaits funding. The [current packet](../results/essence-v2/README.md) separates this from the first simplified pass and earlier successful runs.
+**Current validation:** runtime `522c320`, verification contract 6. The unchanged regression records 11 passes, an initialization omission and a case blocked by exhausted API credit; 44/48 planned assertions passed, one failed and three were ungraded. After funding resumed, the browser replay passed 17/18 frozen checks; all six literal requests were fulfilled in review. The [current packet](../results/essence-v2/README.md) separates this from the first simplified pass and earlier successful runs.
 
 ## Follow one answer
 
