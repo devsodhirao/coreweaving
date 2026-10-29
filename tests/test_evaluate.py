@@ -510,7 +510,7 @@ def evaluation_environment(monkeypatch, tmp_path):
     monkeypatch.setattr(
         evaluate,
         "settings",
-        lambda: SimpleNamespace(
+        lambda: evaluate.Settings(
             project="test/test",
             agent_model="claude-sonnet-5-5",
             judge_model="claude-opus-5-5",
@@ -647,7 +647,9 @@ def test_cli_status_distinguishes_quality_failures_from_incomplete_evaluation(
 def test_cli_preserves_all_turn_errors_and_configured_judge_from_prediction(
     evaluation_environment, monkeypatch, tmp_path, first_error, judge_model
 ):
-    config = evaluate.Settings(project="test/test", judge_model=judge_model)
+    config = evaluate.Settings(
+        project="test/test", judge_model=judge_model, verifier_model="auditor-fixture"
+    )
     prompts = ["First question", "Follow-up"]
     agent_configs, serialized_models, judge_requests = [], [], []
 
@@ -723,6 +725,9 @@ def test_cli_preserves_all_turn_errors_and_configured_judge_from_prediction(
     assert [item["judge_model"] for item in serialized_models] == [judge_model]
     assert judge_requests == [judge_model]
     assert manifest["judge_model"] == saved["judge_model"] == judge_model
+    assert [item.verifier_model for item in agent_configs] == ["auditor-fixture"]
+    assert [item["verifier_model"] for item in serialized_models] == ["auditor-fixture"]
+    assert manifest["verifier_model"] == saved["verifier_model"] == "auditor-fixture"
 
 
 def test_citation_integrity_checks_earlier_delivered_turns_and_labels_legacy():

@@ -330,6 +330,7 @@ class Settings:
     max_revisions: int = 2
     verify_mode: VerifyMode = "support"
     cache_enabled: bool = True
+    verifier_model: str = "claude-opus-5-5"
 
     def __post_init__(self):
         if self.verify_mode not in ("off", "support", "support+coverage"):
@@ -353,6 +354,7 @@ def settings() -> Settings:
         project=os.environ["WEAVE_PROJECT"],
         agent_model=os.getenv("AGENT_MODEL", "claude-sonnet-5-5"),
         judge_model=os.getenv("JUDGE_MODEL", "claude-opus-5-5"),
+        verifier_model=os.getenv("VERIFIER_MODEL", "claude-opus-5-5"),
         verify_mode=os.getenv("VERIFY_MODE", "support"),
         cache_enabled=cache_value == "true",
     )

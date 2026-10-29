@@ -678,6 +678,7 @@ def test_partial_recovery_requires_its_own_full_check(corpus, recheck_passes, mo
         max_steps=3,
         max_revisions=0,
         agent_model="planner-fixture",
+        verifier_model="auditor-fixture",
         judge_model="recovery-fixture",
     )
     result = Agent(corpus, config, fake).run("Explain setup.")
@@ -691,10 +692,10 @@ def test_partial_recovery_requires_its_own_full_check(corpus, recheck_passes, mo
     assert [r["purpose"] for r in fake.requests] == ["planner", "verification", "verification"]
     assert [r["model"] for r in fake.requests] == [
         config.agent_model,
-        config.agent_model,
+        config.verifier_model,
         config.judge_model,
     ]
-    assert subagent_models == [config.agent_model, config.judge_model]
+    assert subagent_models == [config.verifier_model, config.judge_model]
     payload = json.loads(fake.requests[-1]["messages"][0]["content"])
     assert "guarantees perfect answers" not in payload["candidate"]["answer"]
     assert payload["candidate"]["source_ids"] == ["S1"]
@@ -3032,6 +3033,7 @@ def test_record_only_failure_reuses_one_strict_full_answer_judge_call(
         max_steps=3,
         max_revisions=0,
         agent_model="author-fixture",
+        verifier_model="auditor-fixture",
         judge_model="judge-fixture",
     )
     result = Agent(corpus, config, fake).run("Question")
@@ -3049,7 +3051,7 @@ def test_record_only_failure_reuses_one_strict_full_answer_judge_call(
     ]
     assert [call["model"] for call in fake.requests] == [
         "author-fixture",
-        "author-fixture",
+        "auditor-fixture",
         "judge-fixture",
     ]
     payload = json.loads(fake.requests[-1]["messages"][0]["content"])

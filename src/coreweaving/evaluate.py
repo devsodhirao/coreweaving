@@ -417,6 +417,7 @@ class DocumentationModel(weave.Model):
     snapshot_id: str
     source_sha256: str
     judge_model: str = "claude-opus-5-5"
+    verifier_model: str = "claude-opus-5-5"
     verify_mode: Literal["off", "support", "support+coverage"] = "support"
     cache_enabled: bool = True
     suite: str = "regression"
@@ -446,6 +447,7 @@ class DocumentationModel(weave.Model):
                     project=settings().project,
                     agent_model=self.agent_model,
                     judge_model=self.judge_model,
+                    verifier_model=self.verifier_model,
                     verify_mode=self.verify_mode,
                     cache_enabled=self.cache_enabled,
                 )
@@ -838,6 +840,7 @@ async def run_evaluation(args):
         "rubric_version": RUBRIC_VERSION,
         "agent_model": config.agent_model,
         "judge_model": config.judge_model,
+        "verifier_model": config.verifier_model,
         "cache_enabled": config.cache_enabled,
         "created_at": datetime.now(UTC).isoformat(),
         "trial_policy": "Materialized case×trial rows with stable example_id; Evaluation.trials=1. Runtime prediction UUIDs keep every attempt distinct.",
@@ -870,6 +873,7 @@ async def run_evaluation(args):
                 name=f"coreweaving-agent-{mode}",
                 agent_model=config.agent_model,
                 judge_model=config.judge_model,
+                verifier_model=config.verifier_model,
                 snapshot_id=corpus.snapshot_id,
                 source_sha256=source_sha256,
                 verify_mode=mode,

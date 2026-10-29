@@ -1029,7 +1029,7 @@ class Agent:
         if recovery:
             system += RECOVERY_SYSTEM
         verifier_model = (
-            self.config.judge_model if recovery or full_recheck else self.config.agent_model
+            self.config.judge_model if recovery or full_recheck else self.config.verifier_model
         )
         # The provider's cap includes thinking. Anchored workflow facets need
         # additional delivery headroom; ordinary audits retain their prior cap.
@@ -1365,6 +1365,7 @@ class Agent:
             "coreweaving.prompt_sha256": prompt_sha256,
             "coreweaving.config_sha256": config_sha256,
             "coreweaving.verify_mode": self.config.verify_mode,
+            "coreweaving.verifier_model": self.config.verifier_model,
             "coreweaving.cache_enabled": self.config.cache_enabled,
             "coreweaving.verification_contract_version": 4,
         }
