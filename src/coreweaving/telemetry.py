@@ -13,6 +13,9 @@ metadata is serialized after this boundary and retains its normal behavior.
 import json
 from typing import Any
 
+from weave.trace.refs import Ref
+from weave.trace.vals import WeaveDict, WeaveList
+
 LITERAL_PREFIX = "[coreweaving literal] "
 REF_PREFIXES = ("weave://", "weave-trace-internal://")
 
@@ -39,24 +42,30 @@ def trace_text(text: str) -> str:
     return text
 
 
-def trace_value(value: Any) -> Any:
+def trace_value(value: Any, *, preserve_refs: bool = True) -> Any:
     """Copy JSON containers and escape literal leaves, preserving typed objects.
 
     Suitable for weave.init's client-wide postprocess_inputs/postprocess_output.
     This does not redact secrets; retain the application's existing redaction.
+    Reference-bearing SDK containers already identify published data. Preserve
+    them for SDK map_to_refs, including dataset-row identity used by evaluations.
+    This neither reads nor retroactively redacts the referenced object's contents.
     """
+    if preserve_refs and isinstance(value, (WeaveDict, WeaveList)) and isinstance(value.ref, Ref):
+        return value
     if isinstance(value, str):
         return trace_text(value)
     if isinstance(value, dict):
-        return {key: trace_value(item) for key, item in value.items()}
+        return {key: trace_value(item, preserve_refs=preserve_refs) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
-        return [trace_value(item) for item in value]
+        return [trace_value(item, preserve_refs=preserve_refs) for item in value]
     return value
 
 
 def trace_json(value: Any) -> str:
     """Serialize a JSON-compatible telemetry copy for tool arguments/results."""
-    return json.dumps(trace_value(value))
+    # Agent tool fields contain inline JSON, rather than legacy SDK object refs.
+    return json.dumps(trace_value(value, preserve_refs=False))
 
 
 def restore_trace_value(value: Any) -> Any:

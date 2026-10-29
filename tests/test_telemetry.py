@@ -19,7 +19,8 @@ from weave.trace.trace_server_converter import (
     universal_ext_to_int_ref_converter,
     universal_int_to_ext_ref_converter,
 )
-from weave.trace.vals import WeaveList
+from weave.trace.vals import WeaveDict, WeaveList
+from weave.trace.weave_client import map_to_refs
 
 from coreweaving.telemetry import (
     LITERAL_PREFIX,
@@ -120,6 +121,52 @@ def test_weave_container_and_tuple_are_normalized_without_reconstruction():
     }
     assert wrapped[0] == QUERY
     assert restore_trace_value(trace_value((QUERY, 1, None))) == [QUERY, 1, None]
+
+
+@pytest.mark.parametrize("wrapper", [WeaveDict, WeaveList])
+def test_published_sdk_containers_keep_reference_identity_for_legacy_calls(wrapper):
+    reference = Ref.parse_uri(CANONICAL + "/attr/rows/id/row-digest")
+    # Already-published data must stay a reference, not be re-exported inline.
+    content = {"question": QUERY, "private": "synthetic-private-value"}
+    original = content if wrapper is WeaveDict else [content]
+    wrapped = wrapper(original, server=None, ref=reference)
+    logged = trace_value({"example": wrapped})
+    assert logged["example"] is wrapped and wrapped.ref is reference
+    mapped = map_to_refs(logged)
+    assert mapped["example"] is reference
+    assert to_json(mapped, "entity/project", None) == {"example": reference.uri()}
+    assert sdk_roundtrip(mapped)["example"] == reference
+
+
+@pytest.mark.parametrize("wrapper", [WeaveDict, WeaveList])
+def test_agent_tool_json_keeps_sdk_container_contents_inline_and_escaped(wrapper):
+    reference = Ref.parse_uri(CANONICAL + "/attr/rows/id/row-digest")
+    content = {"query": QUERY, "original_marker": LITERAL_PREFIX + "authored"}
+    original = content if wrapper is WeaveDict else [content]
+    wrapped = wrapper(original, server=None, ref=reference)
+    stored = sdk_roundtrip(trace_json({"result": wrapped}))
+    assert restore_trace_value(json.loads(stored)) == {"result": original}
+    assert wrapped.ref is reference
+
+
+def test_mutated_sdk_row_no_longer_preserves_stale_published_reference():
+    reference = Ref.parse_uri(CANONICAL + "/attr/rows/id/row-digest")
+    wrapped = WeaveDict({"query": "old value"}, server=None, ref=reference)
+    wrapped["query"] = QUERY  # The SDK clears its ref when the row changes.
+    assert wrapped.ref is None
+    logged = trace_value({"example": wrapped})
+    assert type(logged["example"]) is dict
+    assert restore_trace_value(sdk_roundtrip(map_to_refs(logged))) == {"example": {"query": QUERY}}
+    assert wrapped["query"] == QUERY
+
+
+def test_reference_shaped_application_fields_do_not_become_sdk_references():
+    original = {"example": {"ref": CANONICAL, "query": QUERY}}
+    logged = trace_value(original)
+    assert logged["example"] is not original["example"]
+    decoded = restore_trace_value(sdk_roundtrip(map_to_refs(logged)))
+    assert decoded == original
+    assert type(decoded["example"]["ref"]) is str
 
 
 def test_tool_attributes_preserve_exact_arguments_result_and_real_call_identity():
