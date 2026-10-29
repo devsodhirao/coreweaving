@@ -49,7 +49,7 @@ Evaluation references go to the judge, not the agent. Case pass combines asserti
 ## Decisions and limits
 
 - **Direct loop:** one control flow is easier to inspect than a routing framework or specialist-agent team. No framework comparison was run.
-- **BM25:** matches API identifiers and runs locally. An [18-query comparison](../results/retrieval-comparison-v1/README.md) improved selected-evidence recall from 57.0% to 64.4% with hybrid, below the adoption threshold; six live tasks tied on assertions. This supports retaining the baseline, not dismissing semantic retrieval.
+- **BM25:** matches API identifiers and runs locally. An [18-query comparison](../results/retrieval-comparison-v1/README.md) improved selected-evidence recall from 57.0% to 64.4% with hybrid. The live comparison omitted those gain queries. A [targeted offline follow-up](../results/retrieval-followup-v2/README.md) favors hybrid on two fresh wordings; its final-answer benefit is still unmeasured. The baseline remains provisional.
 - **Separate auditor:** checks support and the actual request without importing every optional page detail. It can miss a claim or omission; its benefit beyond citation checks remains unisolated.
 - **Stored corpus:** reproducible evidence from 351 pages, with context and internal links. It is one October 24 snapshot, not a release-aware or current-site search service. [Version limits](VERSIONING.md)
 - **Bounded Python:** demonstrates execution without granting host access. Syntax checks and a standard-library container do not validate generated Weave SDK examples.

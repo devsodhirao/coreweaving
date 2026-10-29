@@ -42,6 +42,11 @@ records fairness corrections made before any search results were observed.
 
 **[Recorded result and decision](../../results/retrieval-comparison-v1/README.md): keep BM25 as the app default.** The hybrid candidate missed the predeclared offline improvement threshold. The experiment remains available for inspection and a separately specified future comparison.
 
+The [current-runtime offline follow-up](../../results/retrieval-followup-v2/README.md)
+finds hybrid gains on two fresh wordings and explains why the earlier live subset
+did not test the main benefit. Its small replay script reuses these helpers and
+validated local vectors. It does not change the app or run a paid evaluation.
+
 ## Model setup
 
 Use the base repository's locked setup first. FastEmbed is an isolated experiment
