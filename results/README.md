@@ -1,8 +1,19 @@
 # Evidence index
 
-Start with the [final runtime review](product-final-v1/README.md) for current validation status and this index for the underlying receipts. Recorded answers, failed attempts and labeled fixtures remain unchanged.
+Start with the [simplified runtime review](essence-v2/README.md) for current validation and this index for the underlying receipts. Recorded answers, failed attempts and labeled fixtures remain unchanged.
 
-## Current runtime: `dfdb6bd`
+## Current simplified runtime: `522c320`
+
+Start with the [current packet](essence-v2/README.md). Source `bd74bb83b9fd34273acb50edcec66ea4ba0a5cf865ae867b2fc04cd84229a839`, verification contract 6 and unchanged rubric 2.3. One bounded research/check loop replaces separate planning, workflow facets, terminal recovery and the SQLite library.
+
+- [Regression](essence-regression-v2/summary.json): **11/13 planned cases passed**; initialization omits authentication/agent export, and the last task was blocked by exhausted Anthropic credit. **44/48 assertions passed**, one failed and three ungraded. $4.32 returned-usage estimate plus one rejected request with no usage returned. [Answer review](essence-v2/regression-review.json) · [Provider-failure evidence](essence-v2/provider-failure-readback.json)
+- [Four captured-answer controls](essence-v2/auditor-check/semantic-review.json): both positives accepted; neither targeted negative defect identified in the reasons. Label agreement was 3/4, not demonstrated semantic repair.
+- Current browser replay is unrun awaiting funding. The prior simplified source's [17/18 browser criteria and scope defect](essence-v1/ui/answer-review.json) remain historical; its 23.282-second timer measured terminal prose and missed a late code block. [New unpaid observer checks](essence-v2/render-measurement-proof.json)
+- [428 tests/Ruff](essence-v2/local-checks.json), [clean-clone offline setup](essence-v2/fresh-setup.json) and [current Signal configuration](essence-v2/signal-readback.json) verified. The current failed turn received an [attributed needs-review tag](essence-v2/signal-error-readback.json); earlier scoring history remains preserved.
+
+The [first simplification](essence-v1/README.md), source `216497c3aa9e…`, retains 12/13 assessed cases after a separate stored-answer grade, its original incomplete Evaluation, and every browser failure. The twelve-attempt [writer diagnostic](essence-v1/writer-diagnostic/review.json) used the preceding contract-5 source: Sonnet fulfilled 2/6 planned tasks, Opus 5/6, with one Sonnet attempt budget-interrupted. It failed to establish the complete selection rule; it is not a ranking for the changed auditor.
+
+## Historical baseline before simplification: `dfdb6bd`
 
 Runtime `dfdb6bdfff88710d1b075c9839d38917c3a38fd1`, source `2b4c8d1b6bbf70396fb63a68dcf55361e40bb6fd735fa292c8f803ae8d46c079`; measurement checkout `6b05cf9cf67851e096b94ec6e9e844aeb2c45141`. Opus 5.5 plans, writes and verifies at medium effort; the offline Opus judge retains provider-default effort. Verification contract 4 and regression rubric 2.3 are unchanged.
 

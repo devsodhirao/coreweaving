@@ -2,7 +2,7 @@
 
 Every result belongs to its code, corpus, configuration and grading instrument. Those identities explain what ran; they do not promise identical model output or correctness.
 
-**Current work:** verification contract 6 retains one research/check loop and reports audit exceptions instead of a positive-claim inventory. The preceding writer diagnostic is inconclusive; it used the earlier report schema. New validation is pending under the [essence protocol](../results/essence-v1/protocol.md). The earlier runtime `dfdb6bd`, source `2b4c8d1b6bbf…`, scored 13/13 regression cases and 17/18 UI outcomes in the [historical final packet](../results/product-final-v1/README.md). Those scores do not describe this source.
+**Current validation:** runtime `522c320`, verification contract 6. The unchanged regression records 11 passes, an initialization omission and a case blocked by exhausted API credit; 44/48 planned assertions passed, one failed and three were ungraded. The final browser replay awaits funding. The [current packet](../results/essence-v2/README.md) separates this from the first simplified pass and earlier successful runs. Current source is `bd74bb83b9fd34273acb50edcec66ea4ba0a5cf865ae867b2fc04cd84229a839`; the prior 13/13 on `dfdb6bd` remains historical.
 
 ## Recorded identities
 

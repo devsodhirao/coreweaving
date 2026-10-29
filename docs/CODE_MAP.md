@@ -2,14 +2,14 @@
 
 Start with [`Agent.run`](../src/coreweaving/agent.py). It owns one conversational turn: choose tools, gather evidence, submit a draft, check it and repair if needed. The [README](../README.md) covers setup; the [behavior contract](BEHAVIOR_CONTRACT.md) describes the enforced boundaries.
 
-**Validation status:** the simplified implementation uses verification contract 6. The [writer diagnostic](../results/essence-v1/writer-diagnostic/) predates the compact audit report and is inconclusive. Validation of the changed auditor, regression and browser replay follows the [essence protocol](../results/essence-v1/protocol.md); final measurements are pending. The earlier [13/13 regression and 17/18 UI result](../results/product-final-v1/README.md) belong to runtime `dfdb6bd`, not this source.
+**Current validation:** runtime `522c320`, verification contract 6. The unchanged regression records 11 passes, an initialization omission and a case blocked by exhausted API credit; 44/48 planned assertions passed, one failed and three were ungraded. The final browser replay awaits funding. The [current packet](../results/essence-v2/README.md) separates this from the first simplified pass and earlier successful runs.
 
 ## Follow one answer
 
-1. [`app.run_question`](../app.py) starts one background job. Streamlit reruns poll real progress and consume its result once. The answer and Sources & analysis live in the current browser session; there is no SQLite answer library.
+1. The submission handler starts one background job, which executes [`app.run_question`](../app.py). Streamlit reruns poll real progress and consume its result once. The answer and Sources & analysis live in the current browser session; there is no SQLite answer library.
 2. [`Agent.run`](../src/coreweaving/agent.py) sends the question and recent dialogue to the configured writer. The model repeatedly chooses `search_docs`, `read_page`, `run_python` or `submit_answer`. There is no separate task-planning call.
 3. `execute` validates tool names and arguments. `Session.add_passage` assigns source IDs only after a read. Search matches, outlines and internal links locate evidence; they do not establish unread content.
-4. `verify` applies the Markdown citation contract and Python syntax check. Its auditor receives the original question, retained dialogue, candidate, relevant read passages and research actions. It checks material claims and requested coverage, then returns only `passed`, blocking `issues` and `missing_parts`. A clean audit has no issues; supported claims are not copied into a separate inventory.
+4. `verify` applies the Markdown citation contract and Python syntax check. Its auditor receives the original question, retained dialogue, candidate, relevant read passages and research actions. It checks material claims and requested coverage, then returns only `passed`, blocking `issues` and `missing_parts`. Full acceptance requires `passed=true`, no issues and no missing parts; supported claims are not copied into a separate inventory.
 5. Rejection goes back to the same writer. The writer can research or revise within the remaining limits. An honest partial answer uses the same checks; there is no terminal judge or extracted-fact recovery path.
 6. The result retains the answer, sources, checks, usage and trace identity. Only delivered dialogue enters conversation history. The UI displays the answer and keeps developer detail in Sources & analysis.
 

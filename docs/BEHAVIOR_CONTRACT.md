@@ -28,7 +28,7 @@ Modes are **support** and **off**. The app refuses off; it exists for evaluation
 | Streamlit reruns during a turn | The worker continues; completion is consumed once. | Process restart can lose the turn/session. |
 | A turn ends | Record outcome, calls, usage and review reason. | Export success, verification and usefulness are separate observations. |
 
-Fixtures in [test_agent.py](../tests/test_agent.py), [test_app.py](../tests/test_app.py) and [test_evaluate.py](../tests/test_evaluate.py) test mechanics with controlled outputs. The [frozen auditor controls](../results/essence-v1/auditor-controls.json) also require accepting a supported recorded draft and scoped synthesis, while rejecting an invented API, a missing requested part and a false claim in a partial answer. Malformed model output is a delivery failure, not evidence of semantic rejection. These selected controls are not a general accuracy estimate; final live validation remains pending.
+Fixtures in [test_agent.py](../tests/test_agent.py), [test_app.py](../tests/test_app.py) and [test_evaluate.py](../tests/test_evaluate.py) test mechanics with controlled outputs. The [frozen auditor controls](../results/essence-v1/auditor-controls.json) also require accepting a supported recorded draft and scoped synthesis, while rejecting an invented API, a missing requested part and a false claim in a partial answer. Malformed model output is a delivery failure, not evidence of semantic rejection. These selected controls are not a general accuracy estimate. Later captured-answer controls missed the targeted semantic defects; the [current validation](../results/essence-v2/README.md) preserves those limits and the browser check blocked by account funding.
 
 ## Data and execution boundaries
 
