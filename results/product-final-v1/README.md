@@ -71,3 +71,5 @@ The [regression readback](evaluation-backend-readback.json) verifies the complet
 ## Limits
 
 These are reused development questions, reviewed with Codex assistance and a same-family LLM judge. The overview timing criterion remains despite exceeding the literal broad question. No new Claude run, retrieval arm or paid repeat for a perfect score is included. Cost estimates exclude Signal inference, hosting, taxes and unreturned charges. Earlier raw answers, grades and delivery gaps remain preserved.
+
+[Anonymous publication check](publication.json): the public repository at `05f1759`, the Agents view and this evaluation were visible without sign-in. The evaluation rendered all 13 examples. Later receipt/link-only commits leave the measured runtime unchanged.

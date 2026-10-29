@@ -16,7 +16,7 @@ A conversational assistant for **complex Weave documentation questions**. It cho
 | New Weave agent tracing | Each turn starts a trace containing model, tool and verifier-subagent spans; conversations group turns. | [Final agent-trace reconciliation](results/product-final-v1/evaluation-backend-readback.json) |
 | Online Signals | [`signals.setup`](src/coreweaving/signals.py) monitors completed turns from this agent. | [Current monitor and filter](results/product-final-v1/signal-readback.json), [preserved actual feedback](results/product-final-v1/signal-history.json) |
 | Evaluation and LLM judge | [`DocumentationModel` / `QualityJudge`](src/coreweaving/evaluate.py), regression and capability datasets. | [Results below](#evaluation-and-verification) · [Why each test belongs](docs/EVALUATION_DESIGN.md) |
-| Public, runnable submission | Local web UI or terminal; bundled documentation restores offline. | [Fresh-clone check](results/product-final-v1/fresh-setup.json) · [Anonymous access check](results/task-completion-repair-v1/publication.json) |
+| Public, runnable submission | Local web UI or terminal; bundled documentation restores offline. | [Fresh-clone check](results/product-final-v1/fresh-setup.json) · [Anonymous access check](results/product-final-v1/publication.json) |
 
 Each receipt identifies its measured runtime; historical comparisons are kept separate.
 
