@@ -1,70 +1,50 @@
 # Permissions, memory and answer release
 
-The assistant answers Weave documentation questions. It can gather evidence and propose examples; it has no account-administration or deployment tool. This contract separates enforced boundaries from fallible model judgments.
+The assistant answers Weave documentation questions through four named tools. It has no account-administration, deployment, arbitrary browsing or host-file tool. Prompts describe its purpose; runtime dispatch and container controls enforce its capabilities.
 
-## Answer release
+## One release path
 
-1. `Agent.plan_task` derives requested outcomes from the question and retained dialogue before retrieval. Its instructions use up to six ordinary outcomes for focused tasks and broad role/relationship overviews. Explicit requests for each workflow's inputs, execution triggers and outputs select up to six subjects; Python expands each into those three facets. A focused timing question remains an ordinary outcome. Each quotes a user request; Python assigns fixed IDs. This call consumes one of the ten planning calls. Outcome selection is a model judgment, not a proof that every user intent was captured.
-2. The planner searches and reads evidence, then proposes a draft. Citation contract version 3 parses CommonMark using the UI's dedent/strip normalization. Every visible ID must be read and declared; links, definitions and encoded markers cannot impersonate citations. This checks identity, not truth.
-3. Verification contract version 4 checks claim support **and each fixed question outcome** in both enabled modes. Before model auditing, `python_syntax_issues` rejects invalid `python`, `py` and `python3` fences using `ast.parse`; this neither executes examples nor proves SDK correctness. Python requires the exact outcome-ID set and exact candidate quotes; deleting a requested part or changing answer kind cannot clear it. Answered workflow facets additionally require literal quotations from read, cited evidence. Enabling a workflow does not establish the event that triggers each execution. Product claims also require an applicability judgment. Integration documentation can support a shared API it actually describes; unrelated integration behavior cannot automatically become a general API claim.
-4. Missing evidence can produce at most two typed research requests per verdict. The runtime executes eligible searches or reads through the existing dispatch and eighteen-research-dispatch budget, then returns the observations to the planner. Reads must name navigation supplied to the verifier. Linked pages and search hits are navigation, never citation authority. Optional unsupported extras can be removed or narrowed.
-5. Experimental **support+coverage** additionally checks source-derived caveats. Default **support** checks the requested task without importing every caveat from retrieved pages. Two repair rounds remain the default. Research exhaustion does not block submissions using existing evidence; the last planning call offers submission only. On exhaustion, support mode has one terminal `JUDGE_MODEL` check. It can strictly recheck a complete draft when a positive auditor judgment failed record/provenance checks, or check up to four supported facts as a partial answer. Eligibility is application-owned; the full path checks every outcome and has no second fallback. Unresolved task outcomes stay structured and visible beside a partial answer; they are never appended to audited prose after validation.
-6. A truncated planner response never enters conversation history or executes tools. One fresh retry can consume the next existing planning slot with a 4,800-token allowance; normal calls use 2,400. A second truncation or final-slot truncation stops explicitly. A completed retry must still pass the ordinary citation, support and task checks.
-7. The app attempts to save completed answers before rendering and reports save failures. Sources & analysis exposes the task plan, sources, checks, usage, versions and trace without another model call. The web app rejects verification-off configuration.
+Verification contract **6** uses one writer loop and one auditor. The auditor sees the original question, retained dialogue, draft, relevant read passages and research actions. It checks every material claim and requested part, returning only `passed`, blocking `issues` and `missing_parts`. It reports exceptions instead of repeating supported claims or code quotations. This reduces reporting work; it does not reduce the intended factual checks.
 
-Semantic support, applicability and fulfillment remain fallible model judgments. The runtime enforces the contract around those judgments; it does not independently prove them. Historical source-only support results belong to verification contract version 1 and cannot establish the new task-completion policy's benefit.
+Before that call, citation contract **3** checks rendered Markdown markers against declared, read evidence; recognized Python fences must parse. The runtime rejects malformed/truncated verdicts, false verdicts, blocking issues and full answers with reported missing parts. The auditor is responsible for identifying unsupported or partly supported claims and code defects. There is no positive-claim inventory or exact-quotation gate. Structural checks surround a fallible semantic judgment; they cannot detect an error the auditor overlooks.
 
-`AGENT_MODEL` controls planning/writing, `VERIFIER_MODEL` ordinary verification, and `JUDGE_MODEL` bounded terminal rechecks and offline grading. All default to Opus 5.5. Agent planning and all verification use medium effort; offline grading retains provider-default effort and its rubric. The model choices follow selected [verifier](../results/product-verifier-probe-v1/summary.json) and [writer](../results/product-writer-probe-v1/review.json) diagnostics, not a change to contract 4 or proof of general reliability. The [final packet](../results/product-final-v1/README.md) records the completed regression, seven-turn UI review (17/18 outcomes, 5/6 tasks), separate literal preset pass and verified backend records. The useful overview's omitted timing criterion remains failed; runtime completion does not override external grading.
+The writer receives feedback and can research or revise within ten writer calls, eighteen research dispatches and two repairs. The last writer call permits submission only. A supported partial answer is authored as `kind=insufficient`, states its limitations and retains nonempty `missing_parts`; it goes through the same auditor. It is not a completed task. A necessary clarification may pass without product claims or citations. No terminal judge, extracted answer or unchecked post-audit prose is added.
 
-## Permission boundary
+Modes are **support** and **off**. The app refuses off; it exists for evaluation experiments and records an unchecked result. The configured offline judge never participates in answer release. The pre-change writer diagnostic is inconclusive. Validation of this compact audit follows the [essence protocol](../results/essence-v1/protocol.md); historical results retain their earlier policies.
 
-| Operation | Enforced scope | Limit |
+## Given / when / then
+
+| Given and when | Required behavior | Boundary |
 | --- | --- | --- |
-| Search/read | Named tools resolve IDs through the locked local corpus. | No arbitrary URL or host-file access. |
-| Python | Non-root Docker; no network, host mounts or credentials; read-only root and fixed resource/time/output limits. | Standard library only; no Weave SDK integration validation or general security guarantee. |
-| Dispatch | Exact tool names and arguments are validated in `Agent.execute`. | Prompts and retrieved text cannot add capabilities; topic adherence remains model guidance. |
-| Provider/telemetry | Application-configured Anthropic and Weave connections. | These services receive the permitted payload; they are not general network tools for the agent. |
-| Credential masking | Configured secrets and token forms are masked globally. Valid Python fences preserve annotations and references while masking direct credential literals. JSON containers/strings are decoded and walked; changed content or duplicate keys require safe reserialization. Other text keeps conservative assignment/Basic/Bearer masking, including incomplete quotes through line end. | No general PII or data-flow protection. Unknown credentials disguised as Python variable names, constructed or encoded secrets can escape. Malformed/non-Python code may lose syntax. The demo project is public. |
-| Literal trace text | Logging copies protect reference-shaped strings with a reversible prefix. Global legacy hooks preserve actual SDK references and reference-bearing dataset containers; inline Agent JSON is prepared separately. | This is transport encoding, not redaction or evidence authority. Published reference contents are not read or retroactively masked. Provider requests, tool queries, stored source text and returned answers stay unchanged. |
-| Chat rendering | Parsed Markdown images become escaped alt text; raw HTML and JavaScript are disabled in that rendering path. Code and ordinary links remain usable. | This prevents automatic chat-image loading, not intentional navigation through a link or all browser networking. |
+| A model asks for an unknown tool or extra arguments | Dispatch rejects it. | Retrieved text cannot grant capabilities; topic adherence still depends on the model. |
+| Search finds a promising section | Read it before citing it. | Search hits, outlines and outgoing links are navigation only. |
+| A draft uses unknown, undeclared or disguised citations | Demand repair before model auditing. | Correct IDs do not prove the attached claim. |
+| A Python fence is invalid | Parsing rejects the draft. | Valid syntax is not API compatibility or execution. |
+| A claim lacks support or a full answer drops a requested part | The auditor should identify the defect; a reported issue or missing part blocks the full answer. | This is a semantic expectation, not a deterministic guarantee. |
+| A scoped answer synthesizes supported premises | Accept it without demanding an exact combined quotation or unrelated optional details. | A labeled inference still needs support and cannot invent an automatic integration. |
+| Evidence supports only part of the answer | Submit an explicitly limited partial answer for ordinary verification. | Supported fragments are not whole-task completion. |
+| A verdict is malformed or a response truncated | Release no unchecked draft and execute no truncated call. | One fresh planner retry uses the next existing slot, not an expanded budget. |
+| The user asks a follow-up | Send retained dialogue and preserve original citation evidence. | Trace grouping is not model memory. |
+| Streamlit reruns during a turn | The worker continues; completion is consumed once. | Process restart can lose the turn/session. |
+| A turn ends | Record outcome, calls, usage and review reason. | Export success, verification and usefulness are separate observations. |
 
-Implementation: [agent.py](../src/coreweaving/agent.py), [sandbox.py](../src/coreweaving/sandbox.py), [config.py](../src/coreweaving/config.py).
+Fixtures in [test_agent.py](../tests/test_agent.py), [test_app.py](../tests/test_app.py) and [test_evaluate.py](../tests/test_evaluate.py) test mechanics with controlled outputs. The [frozen auditor controls](../results/essence-v1/auditor-controls.json) also require accepting a supported recorded draft and scoped synthesis, while rejecting an invented API, a missing requested part and a false claim in a partial answer. Malformed model output is a delivery failure, not evidence of semantic rejection. These selected controls are not a general accuracy estimate; final live validation remains pending.
+
+## Data and execution boundaries
+
+| Surface | Enforced behavior | Limit |
+| --- | --- | --- |
+| Documentation | Resolve page IDs through the locked local corpus. | One snapshot; no arbitrary URL or host-file reads. |
+| Python | Non-root Docker, no network/host mounts/injected credentials, read-only root and resource/time/output limits. | Standard library only; neither SDK validation nor a general security guarantee. |
+| Credentials | Mask configured secrets and recognized tokens; handle Python literals and serialized JSON structurally. | Unknown/constructed/encoded secrets and general PII can escape. Use public inputs in the public demo project. |
+| Telemetry | Encode reference-like literals on logging copies; preserve real SDK references and dataset-row identity. | This is not redaction or rewriting of published data/provider inputs. |
+| Chat Markdown | Render images as escaped alt text; disable raw HTML/JavaScript. | Ordinary user-followed links still navigate. |
+| Provider connections | Use configured Anthropic and Weave endpoints. | Permitted payloads leave the computer; these are not agent browsing tools. |
+
+Implementations: [config.py](../src/coreweaving/config.py), [telemetry.py](../src/coreweaving/telemetry.py), [sandbox.py](../src/coreweaving/sandbox.py).
 
 ## Memory ownership
 
-| Store | Purpose | Lifetime and trust |
-| --- | --- | --- |
-| `Session.history` | Retain six complete exchanges for follow-ups. | In process; prior answers are not fresh evidence. |
-| `Session.evidence` | Preserve original passages and execution receipts behind citations. | Conversation-local and not size-capped; restart loses it. |
-| SQLite library | Preserve completed answers and separate dated reviews; serialize concurrent review appends in a transaction. | Persistent locally; reviews do not rewrite answers or become documentation authority. |
-| Weave | Inspect execution and evaluation records. | Remote records; a conversation ID does not populate model context. |
+`Session.history` retains six complete exchanges. `Session.evidence` preserves original passages and execution records; it is not size-capped. Earlier answers supply context, not new documentation authority. New conversation clears working dialogue/evidence; restart loses them. There is no persistent user profile, SQLite answer library or automatic learning from reviews.
 
-New conversation resets working dialogue and evidence, not SQLite or remote traces. A UI rerun preserves the background job; process restart can lose it. Promotion from a reviewed failure to a dataset requires manually selecting the question, expected behavior, evidence and visibility. There is no automatic learning or promotion path.
-
-## Behavior contracts and evidence
-
-Given/When/Then checks make the boundaries reproducible. Test names below are in the linked files; scripted-model tests establish control flow, not model reliability.
-
-| Given / when / then | Test or recorded evidence | Scope |
-| --- | --- | --- |
-| A model requests an unknown tool or extra execution permission → dispatch rejects it. | [test_agent.py](../tests/test_agent.py): `test_unknown_tool_requests_cannot_extend_runtime_permissions`, `test_model_cannot_override_execution_limits` | Capability boundary. |
-| A passage includes malicious instructions → it remains tool-result data and cannot grant a tool. | `test_injected_document_instructions_remain_tool_data_and_cannot_grant_a_tool` | No general prompt-injection immunity. |
-| A draft contains malformed or unknown citations → checks demand repair before model auditing. | `test_malformed_citation_requires_repair_before_auditor_runs`; [test_evaluate.py](../tests/test_evaluate.py) checks earlier delivered turns too. | Citation identity, not semantic support. |
-| A grouped citation contains an unread or undeclared ID → the group cannot bypass the same checks. | `test_plain_citation_groups_require_every_id_to_be_known_and_declared`, `test_overview_grouped_citation_reaches_the_same_semantic_verifier` | CommonMark citation contract version 3. |
-| A support-mode attempt exhausts its work → any partial recovery must pass a fresh full check. | `test_partial_recovery_requires_its_own_full_check`; [one real recovery replay](../results/recovery-check-v1/receipt.json) | Narrow recovery, not whole-task success. |
-| A later citation failure follows supported claims → retain a proposal, then accept or reject its fresh recheck. | `test_later_citation_failure_preserves_supported_facts_for_fresh_recovery` | Retention is not automatic release. |
-| A new conversation starts → old dialogue and citation authority are absent. | `test_fresh_session_inherits_neither_dialogue_nor_citation_authority` | Working context, not deletion of saved records. |
-| More than six exchanges finish → retained dialogue stays bounded and original evidence identifiable. | `test_incremental_memory_keeps_six_exchanges_and_original_read_evidence` | No byte cap on the source ledger. |
-| A saved answer is reviewed → original evidence remains unchanged. | [test_library.py](../tests/test_library.py): `test_explicit_reviews_keep_history_and_do_not_rewrite_source_check` | Preservation, not truth of the review. |
-| Two tabs review one answer → both dated entries survive. | `test_simultaneous_reviews_preserve_both_history_entries` | Atomic SQLite read/append/write. |
-| The UI navigates while work runs → one job continues and attempts to save before display. | [test_app.py](../tests/test_app.py): `test_pending_work_survives_navigation_and_saves_before_display`; [live navigation check](../results/ui-recovery-v1/browser.json) | Save failures are reported; no process-crash recovery. |
-| Typed chat and a preset arrive together → typed text wins and the preset cannot submit later. | `test_each_submission_runs_once_across_layout_changes_and_reset` | One session's input-consumption boundary. |
-| Questions or answers contain Markdown images → conversation and library views show text while preserving code and links. | `test_chat_and_library_images_become_text_without_losing_code_or_links` | Inline/reference images, escaped examples, raw HTML and indentation. |
-| A recognized secret enters a request → masking precedes the outgoing and persistence paths. | [test_redaction.py](../tests/test_redaction.py); [live backend canary check](../results/ui-recovery-v1/backend.json) | Recognized formats and inspected sinks only. |
-| A valid Python example passes through raw or nested JSON text → annotations and variable references survive, while recognized literal credentials are masked. | `test_real_documented_postprocess_example_keeps_its_code`, `test_json_encoded_python_preserves_source_and_serialization`, `test_json_encoded_credential_literals_keep_json_and_python_valid` | Syntax preservation for recognized valid Python fences; not arbitrary secret detection. |
-| A delivered Python fence is malformed → deterministic checks reject it before the model audit. | [test_agent.py](../tests/test_agent.py): `test_malformed_delivered_python_is_rejected_before_model_audit`, `test_syntax_gate_respects_language_and_does_not_claim_execution` | Parse validity only; other languages and runtime/API correctness are not checked. |
-| Literal `weave:///` text and a real SDK reference enter telemetry together → readback preserves their distinct types and original values. | [test_telemetry.py](../tests/test_telemetry.py): `test_literal_and_actual_reference_remain_distinct`; [test_llm.py](../tests/test_llm.py): `test_literal_reference_text_is_changed_only_on_the_telemetry_copy` | Offline installed-SDK conversion and provider-request checks; remote delivery requires separate readback. |
-| A published dataset row enters legacy tracing → its SDK reference identity survives serialization. | `test_published_sdk_containers_keep_reference_identity_for_legacy_calls`; [live deterministic fixture](../results/product-index-repair-v2/interpretation.json) | One indexed row and completed parent verified without model calls. Scorer-ID index metadata is absent; the direct scorer call is verified separately. |
-| An evaluation's earlier turn fails but its last turn succeeds → the run still reports an operational error. | [test_evaluate.py](../tests/test_evaluate.py): `test_cli_preserves_all_turn_errors_and_configured_judge_from_prediction` | Also checks configured recovery-model propagation; quality failures remain distinct. |
-
-Changes to capabilities, memory or release policy require updated boundary tests and attributable behavioral evidence. The [evidence index](../results/README.md) separates completed v1/v2 measurements from final-runtime validation. [Versioning](VERSIONING.md) explains what each identity covers; version labels themselves grant no permissions.
+Current-session results and Weave's remote records serve inspection. A conversation ID groups traces but does not reload a person's earlier chats. Turning a failure into a dataset requires deliberate selection, references and expected behavior. [Learning loop](LEARNING_LOOP.md)

@@ -19,7 +19,6 @@ from coreweaving.agent import (
     cited_ids,
     malformed_citations,
     python_syntax_issues,
-    quote_anchor,
     review_reason,
 )
 from coreweaving.config import Settings
@@ -62,22 +61,12 @@ ANSWER = (
 )
 
 
-def audit(*, claims=None, passed=True, issues=None, missing_parts=None):
+def audit(*, passed=True, issues=None, missing_parts=None):
     return response(
         (
             "record_verdict",
             {
                 "passed": passed,
-                "claims": claims
-                if claims is not None
-                else [
-                    {
-                        "text": ANSWER[1]["answer"],
-                        "source_ids": ["S1"],
-                        "status": "supported",
-                        "kind": "product",
-                    }
-                ],
                 "issues": issues or [],
                 "missing_parts": missing_parts or [],
             },
@@ -86,18 +75,7 @@ def audit(*, claims=None, passed=True, issues=None, missing_parts=None):
 
 
 def verdict(passed=True):
-    return audit(
-        passed=passed,
-        claims=[
-            {
-                "text": ANSWER[1]["answer"],
-                "source_ids": ["S1"],
-                "status": "supported" if passed else "unsupported",
-                "kind": "product",
-            }
-        ],
-        issues=[] if passed else ["Remove the unsupported claim."],
-    )
+    return audit(passed=passed, issues=[] if passed else ["Remove the unsupported claim."])
 
 
 class FakeModel:
@@ -317,7 +295,7 @@ def test_overview_grouped_citation_reaches_the_same_semantic_verifier(corpus, no
         [
             reads,
             draft,
-            audit(claims=[{"text": answer, "source_ids": ["S1", "S2"], "status": "supported"}]),
+            audit(),
         ]
     )
     result = Agent(corpus, Settings(project="test/test"), fake).run("Compare the features.")
@@ -333,7 +311,7 @@ def test_semantically_unsupported_draft_cannot_bypass_verifier(corpus):
     fake = FakeModel([response(READ, ANSWER), verdict(False), response(ANSWER), verdict()])
     result = Agent(corpus, Settings(project="test/test"), fake).run("How do I initialize it?")
     assert len(result["verification_attempts"]) == 2
-    assert result["verification_attempts"][0]["claims"][0]["supported"] is False
+    assert "unsupported claim" in result["verification_attempts"][0]["issues"][0]
     assert result["verification"]["passed"] is True
 
 
@@ -383,7 +361,7 @@ def test_clarification_is_checked_even_without_sources(corpus):
                     {"answer": "What do you want to monitor?", "kind": "clarification"},
                 )
             ),
-            audit(claims=[]),
+            audit(),
         ]
     )
     result = Agent(corpus, Settings(project="test/test"), fake).run("How do I monitor it?")
@@ -543,7 +521,7 @@ def test_fresh_session_inherits_neither_dialogue_nor_citation_authority(corpus):
             audit(),
             response(ANSWER),
             response(("submit_answer", clarification)),
-            audit(claims=[]),
+            audit(),
         ]
     )
     agent = Agent(corpus, Settings(project="test/test"), fake)
@@ -610,7 +588,7 @@ def test_injected_document_instructions_remain_tool_data_and_cannot_grant_a_tool
                     },
                 )
             ),
-            audit(claims=[]),
+            audit(),
         ]
     )
     result = Agent(corpus, Settings(project="test/test"), fake).run("Find Weave setup guidance.")
@@ -688,7 +666,7 @@ def test_secret_masking_precedes_agent_messages_history_and_result(corpus, monke
                     {"answer": "We removed " + secret, "kind": "clarification", "source_ids": []},
                 )
             ),
-            audit(claims=[]),
+            audit(),
         ]
     )
     result = Agent(corpus, Settings(project="test/test"), fake).run("Question " + secret, session)
@@ -787,40 +765,6 @@ def test_outgoing_link_credentials_are_masked_before_every_evidence_sink(corpus,
     assert links[0]["title"] == "API_KEY=" + secret  # Caller-owned metadata stays unchanged.
 
 
-@pytest.mark.parametrize(
-    "quote,answer,expected",
-    [
-        (
-            "Tags and ratings appear on the Signals tab.",
-            "Tags and ratings appear on the Signals tab [S8][S1].",
-            True,
-        ),
-        ("A documented fact.", "A documented fact [S1, S8].", True),
-        ("A documented fact.", "A documented  fact [S1, S8].", False),
-        ("A documented\nfact.", "A documented fact. [S1]", False),
-        ("It guarantees every call.", "It records eligible calls [S1].", False),
-        ("It does save calls.", "It does not save calls [S1].", False),
-        (
-            "For all integrations, it saves calls.",
-            "For this integration, it saves calls [S1].",
-            False,
-        ),
-        ("Use your team name.", "Use your team [S1].", False),
-        ("Use 100 percent.", "Use 10 percent [S1].", False),
-        ("Use the literal value ``.", "Use the literal value `[S1]`. [S8]", False),
-        ("Use `a b`.", "Use `a  b` [S1].", False),
-        ("Use ``a ` b``.", "Use ``a `  b``. [S1]", False),
-        ('~~~python\nprint("a b")\n~~~', '~~~python\nprint("a  b")\n~~~\nFact. [S1]', False),
-        ("Use notable values.", "Use not[S1]able values. [S8]", False),
-        ("A fact [S999].", "A fact [S1].", False),
-        ("A fact.", "A fact [S1](https://example.test).", False),
-        ("A fact.", "A fact &#91;S1&#93;.", False),
-    ],
-)
-def test_quote_anchors_allow_only_citation_omission_and_adjacent_spacing(quote, answer, expected):
-    assert quote_anchor(quote, answer, ["S1", "S8"]) is expected
-
-
 def test_larger_planner_cap_applies_only_to_the_one_retry(corpus):
     truncated = prose_response("unfinished", stop_reason="max_tokens")
     fake = FakeModel([truncated, response(READ), response(ANSWER), verdict()])
@@ -872,11 +816,15 @@ def test_omitted_requested_part_cannot_pass_a_full_answer(corpus):
 @pytest.mark.parametrize("status", ["supported", "partial", "unsupported"])
 def test_partial_answer_releases_only_supported_claims_and_keeps_missing_parts(corpus, status):
     text = ANSWER[1]["answer"] + "\n\nI cannot establish when Signals run from these passages."
-    claim = {"text": ANSWER[1]["answer"], "source_ids": ["S1"], "status": status, "kind": "product"}
     fake = FakeModel(
         [
             response(READ, ("submit_answer", {"answer": text, "kind": "insufficient"})),
-            audit(claims=[claim], missing_parts=["When Signals run."]),
+            audit(
+                issues=[]
+                if status == "supported"
+                else [f"The answer has a {status} material claim."],
+                missing_parts=["When Signals run."],
+            ),
         ]
     )
     result = Agent(corpus, Settings(project="test/test", max_revisions=0), fake).run(
@@ -908,7 +856,7 @@ def test_partial_label_requires_explicit_unresolved_parts(corpus):
     assert len(fake.requests) == 2
 
 
-@pytest.mark.parametrize("field", ["passed", "claims", "issues", "missing_parts"])
+@pytest.mark.parametrize("field", ["passed", "issues", "missing_parts"])
 def test_live_verdict_requires_every_audit_field(corpus, field):
     invalid = audit()
     del invalid["content"][0]["input"][field]
@@ -919,14 +867,13 @@ def test_live_verdict_requires_every_audit_field(corpus, field):
     assert len(fake.requests) == 2
     assert set(VERDICT_TOOL["input_schema"]["required"]) == {
         "passed",
-        "claims",
         "issues",
         "missing_parts",
     }
 
 
 @pytest.mark.parametrize(
-    "mutation", ["extra_mode", "string_passed", "invalid_claim_status", "nonobject"]
+    "mutation", ["extra_mode", "string_passed", "invalid_issue_type", "nonobject"]
 )
 def test_malformed_verdict_cannot_release_a_draft(corpus, mutation):
     invalid = audit()
@@ -935,30 +882,14 @@ def test_malformed_verdict_cannot_release_a_draft(corpus, mutation):
         value["mode"] = "off"
     elif mutation == "string_passed":
         value["passed"] = "true"
-    elif mutation == "invalid_claim_status":
-        value["claims"][0]["status"] = "maybe"
+    elif mutation == "invalid_issue_type":
+        value["issues"] = [123]
     else:
         invalid["content"][0]["input"] = ["not an object"]
     fake = FakeModel([response(READ, ANSWER), invalid])
     result = Agent(corpus, Settings(project="test/test", max_revisions=0), fake).run("Initialize.")
     assert not result["verification"]["passed"]
     assert result["source_ids"] == [] and result["error_type"] is None
-    assert len(fake.requests) == 2
-
-
-@pytest.mark.parametrize(
-    "claim",
-    [
-        {"text": "A different claim.", "source_ids": ["S1"], "status": "supported"},
-        {"text": ANSWER[1]["answer"], "source_ids": ["S999"], "status": "supported"},
-        {"text": ANSWER[1]["answer"], "source_ids": [], "status": "supported"},
-    ],
-)
-def test_verifier_cannot_invent_claim_quotes_or_their_source_authority(corpus, claim):
-    fake = FakeModel([response(READ, ANSWER), audit(claims=[claim])])
-    result = Agent(corpus, Settings(project="test/test", max_revisions=0), fake).run("Initialize.")
-    assert not result["verification"]["passed"]
-    assert result["source_ids"] == []
     assert len(fake.requests) == 2
 
 
@@ -1189,16 +1120,7 @@ def test_conversational_code_repair_preserves_both_sides_of_history(corpus):
         return ("submit_answer", {"answer": f"{claim} [S1]\n```python\n{code}```"})
 
     def code_audit(status):
-        return audit(
-            claims=[
-                {
-                    "text": claim,
-                    "source_ids": ["S1"],
-                    "status": status,
-                    "kind": "product",
-                }
-            ]
-        )
+        return audit(issues=[] if status == "supported" else ["The loop drops assistant replies."])
 
     fake = FakeModel(
         [
@@ -1228,23 +1150,36 @@ def test_conversational_code_repair_preserves_both_sides_of_history(corpus):
     assert requests[1][1]["content"] == "Reply 1"
 
 
+def test_clean_audit_accepts_valid_answer_without_positive_claim_inventory(corpus):
+    fake = FakeModel([response(READ, ANSWER), audit()])
+    result = Agent(corpus, Settings(project="test/test"), fake).run("Initialize Weave.")
+    assert result["answer"] == ANSWER[1]["answer"]
+    assert result["verification"]["passed"] and result["task_complete"]
+    assert result["verification"]["issues"] == result["verification"]["missing_parts"] == []
+    assert "claims" not in result["verification"]
+    assert len(fake.requests) == 2
+
+
 @pytest.mark.parametrize(
-    "claims",
+    "issue",
     [
-        [],
-        [
-            {
-                "text": ANSWER[1]["answer"],
-                "source_ids": [],
-                "status": "supported",
-                "kind": "research_process",
-            }
-        ],
+        "The answer invents a supported API.",
+        "The loop omits previous assistant messages.",
+        "The stated Signal execution timing contradicts the read page.",
     ],
 )
-def test_a_full_answer_needs_audited_product_claims(corpus, claims):
-    fake = FakeModel([response(READ, ANSWER), audit(claims=claims)])
+def test_blocking_findings_override_a_model_pass(corpus, issue):
+    fake = FakeModel([response(READ, ANSWER), audit(passed=True, issues=[issue])])
     result = Agent(corpus, Settings(project="test/test", max_revisions=0), fake).run("Initialize.")
     assert not result["verification"]["passed"]
-    assert any("material product claims" in issue for issue in result["verification"]["issues"])
-    assert result["source_ids"] == []
+    assert result["verification"]["issues"] == [issue]
+    assert result["source_ids"] == [] and not result["task_complete"]
+    assert len(fake.requests) == 2
+
+
+def test_negative_verdict_without_details_still_cannot_release_a_draft(corpus):
+    fake = FakeModel([response(READ, ANSWER), audit(passed=False)])
+    result = Agent(corpus, Settings(project="test/test", max_revisions=0), fake).run("Initialize.")
+    assert not result["verification"]["passed"]
+    assert result["source_ids"] == [] and not result["task_complete"]
+    assert len(fake.requests) == 2

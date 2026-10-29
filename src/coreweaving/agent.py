@@ -13,7 +13,6 @@ import re
 import time
 import unicodedata
 import uuid
-from collections import Counter
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from textwrap import dedent
@@ -98,18 +97,24 @@ from search is not proof an API does not exist. Execution claims need recorded r
 syntax validity does not establish SDK compatibility. Conversation examples must
 preserve both roles; tool loops must send matching results back before returning.
 
-Return record_verdict with passed, claims, issues and missing_parts. Keep it concise.
-For each material claim, text is an exact clause from the candidate (inline citation
-omission is allowed), source_ids are the read citations supporting it, and status is
-supported, partial or unsupported. Use kind=research_process only for honest claims
-about supplied research actions; these may lack citations. All product claims need
-cited source IDs. Basic Python syntax and connective language need no claims.
+Return record_verdict with passed, issues and missing_parts. Report exceptions only:
+check all material claims, but do NOT repeat a list of supported claims or reproduce
+code excerpts. issues briefly identifies each actual unsupported/partly-supported
+claim or incorrect code behavior and the needed correction. A clean audit returns
+issues=[]. All product claims need cited source support; honest descriptions of
+recorded research and basic Python syntax do not need documentation citations.
 
 Check every requested part, prerequisite and necessary caveat. missing_parts lists
 only unmet parts of the user's actual task, never unrelated optional page details.
 A broad role comparison asks for roles and relationships; it does not implicitly
-request every configuration option. Distinguish a useful supported synthesis from
-an unsupported assertion. Request further evidence in issues when it is necessary.
+request every configuration option or every legacy/product variant. Accept a correct
+explanation scoped to the user's agent workflow. Do not demand unrelated legacy
+Monitors or Ops details merely because search found them. A recommendation to use
+production findings as evaluation cases is a supported composition when those roles
+are documented; it must not claim an automatic integration or guaranteed outcome.
+Request an unread page only to support an actual claim or a requested missing part.
+Distinguish a useful supported synthesis from an unsupported assertion. Request
+further evidence in issues when it is necessary.
 
 For kind=answer, any missing requested part fails. A focused clarification can pass
 when essential user input is genuinely ambiguous; unfamiliar APIs are not ambiguity.
@@ -126,23 +131,9 @@ partial answer, put the honest unresolved parts in missing_parts, not issues.
 """
 
 
-class Claim(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    text: str = Field(min_length=1)
-    source_ids: list[str]
-    status: Literal["supported", "partial", "unsupported"]
-    kind: Literal["product", "research_process"] = "product"
-
-    @computed_field
-    @property
-    def supported(self) -> bool:
-        return self.status == "supported"
-
-
 class Verification(BaseModel):
     model_config = ConfigDict(extra="forbid")
     passed: StrictBool
-    claims: list[Claim] = Field(default_factory=list)
     issues: list[str] = Field(default_factory=list)
     missing_parts: list[str] = Field(default_factory=list)
     mode: VerifyMode = "support"
@@ -377,36 +368,6 @@ def cited_ids(answer: str) -> list[str]:
     )
 
 
-def quote_anchor(quote: str, answer: str, source_ids: list[str]) -> bool:
-    """Anchor literal wording, allowing only plain citation omission.
-
-    Markdown parsing decides which markers are citations: deleting an occurrence
-    must remove exactly those visible markers. Code, links and encoded markers
-    cannot disappear through this normalization. This is not an entailment check.
-    """
-    if not quote:
-        return False
-    if quote in answer:
-        return True
-
-    def normalized(text):
-        if malformed_citations(text) or not set(cited_ids(text)).issubset(source_ids):
-            return None
-        for match in reversed(list(re.finditer(_CITATION_GROUP, text))):
-            without = text[: match.start()] + text[match.end() :]
-            removed = Counter(f"[{sid}]" for sid in re.findall(r"[SC][1-9][0-9]*", match.group()))
-            if Counter(citation_markers(without)) + removed == Counter(citation_markers(text)):
-                before, after = text[: match.start()], text[match.end() :]
-                if re.match(r"[ \t]*[.,;:!?]", after):
-                    before, after = before.rstrip(" \t"), after.lstrip(" \t")
-                separator = " " if re.search(r"\w$", before) and re.match(r"\w", after) else ""
-                text = before + separator + after
-        return text
-
-    anchored, body = normalized(quote), normalized(answer)
-    return bool(anchored) and body is not None and anchored in body
-
-
 def citation_contract(answer: str, kind: str, source_ids, evidence: dict) -> list[str]:
     """Check marker syntax and exact source-ID agreement, not factual truth."""
     issues = []
@@ -535,19 +496,6 @@ class Agent:
                 if not isinstance(value, dict) or set(value) != set(_verdict_schema["required"]):
                     raise ValueError("The source check omitted or added verdict fields.")
                 verdict = Verification.model_validate(value)
-                for claim in verdict.claims:
-                    if not quote_anchor(claim.text, candidate.answer, candidate.source_ids):
-                        verdict.issues.append("The check must quote an actual candidate claim.")
-                    if claim.status != "supported":
-                        verdict.issues.append("Revise unsupported or partial claim: " + claim.text)
-                    if not set(claim.source_ids).issubset(candidate.source_ids):
-                        verdict.issues.append("The check used evidence not cited in the answer.")
-                    if claim.kind == "product" and not claim.source_ids:
-                        verdict.issues.append("A product claim needs read citations: " + claim.text)
-                if candidate.kind == "answer" and not any(
-                    claim.kind == "product" for claim in verdict.claims
-                ):
-                    verdict.issues.append("The check must assess material product claims.")
                 if candidate.kind == "answer" and verdict.missing_parts:
                     verdict.issues.append(
                         "Answer the missing requested parts or label a partial answer."
@@ -646,7 +594,7 @@ class Agent:
             "coreweaving.verify_mode": self.config.verify_mode,
             "coreweaving.verifier_model": self.config.verifier_model,
             "coreweaving.cache_enabled": self.config.cache_enabled,
-            "coreweaving.verification_contract_version": 5,
+            "coreweaving.verification_contract_version": 6,
         }
         started, call_start = time.monotonic(), len(self.llm.calls)
         actions, checks = [], []
@@ -848,13 +796,19 @@ class Agent:
                         answer = "I couldn’t finish a checked answer. The sources I found are available below; try narrowing the question to one part."
                         if not verdict.issues:
                             verdict = Verification(
-                                passed=False, issues=["Research or revision attempts exhausted."]
+                                passed=False,
+                                mode=self.config.verify_mode,
+                                issues=["Research or revision attempts exhausted."],
                             )
                 except Exception as exc:
                     turn.record_error(safe_exception(exc))
                     error_type, kind = type(exc).__name__, "error"
                     answer = f"This question couldn’t finish ({error_type}). Please try again."
-                    verdict = Verification(passed=False, issues=[f"Operation failed: {error_type}"])
+                    verdict = Verification(
+                        passed=False,
+                        mode=self.config.verify_mode,
+                        issues=[f"Operation failed: {error_type}"],
+                    )
                 complete = (
                     released
                     and verdict.passed
@@ -922,7 +876,7 @@ class Agent:
             "prompt_sha256": prompt_sha256,
             "config_sha256": config_sha256,
             "citation_contract_version": 3,
-            "verification_contract_version": 5,
+            "verification_contract_version": 6,
             "verify_mode": self.config.verify_mode,
             "cache_enabled": self.config.cache_enabled,
             "model": self.config.agent_model,

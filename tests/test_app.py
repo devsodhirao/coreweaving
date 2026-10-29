@@ -36,13 +36,7 @@ def test_each_submission_runs_once_across_inspection_and_reset(monkeypatch):
                 verification.update(
                     status="passed",
                     mode="support+coverage",
-                    claims=[
-                        {
-                            "text": "Explain the requested Signal setup.",
-                            "status": "supported",
-                            "source_ids": [],
-                        }
-                    ],
+                    issues=["Explain the requested Signal setup."],
                 )
             elif len(requests) == 3:
                 verification.update(passed=False, status="not_run", mode="off")
@@ -359,8 +353,8 @@ def test_partial_answer_keeps_unresolved_question_visible_without_new_calls(
         "missing_outcomes": missing,
         "verification": {
             "passed": True,
-            "claims": [],
-            "issues": ["The read passage does not establish timing."],
+            "issues": [],
+            "missing_parts": [description],
         },
         "sources": [],
         "actions": [],
@@ -379,7 +373,45 @@ def test_partial_answer_keeps_unresolved_question_visible_without_new_calls(
         assert any("Checked facts · answer incomplete" in item.value for item in app.caption)
         app.button(key="analysis_task-partial").click().run()
         assert not app.exception
-        assert any("does not establish timing" in item.value for item in app.markdown)
+        assert sum(description in item.value for item in app.markdown) == 2
+        assert not any("No source or completeness problems" in item.value for item in app.caption)
         assert result["missing_outcomes"] == original
+    finally:
+        st.cache_resource.clear()
+
+
+def test_analysis_distinguishes_clean_audit_from_rejection_without_details(monkeypatch):
+    def unexpected_agent(*args, **kwargs):
+        raise AssertionError("Inspecting a verdict must not call the agent.")
+
+    monkeypatch.setattr("coreweaving.agent.Agent", unexpected_agent)
+    monkeypatch.setattr(
+        "coreweaving.corpus.Corpus", lambda: SimpleNamespace(pages={}, snapshot_id="test-snapshot")
+    )
+    monkeypatch.setattr("coreweaving.config.settings", lambda: Settings(project="test/test"))
+    monkeypatch.setattr(
+        "coreweaving.config.init_weave", lambda: SimpleNamespace(flush=lambda: None)
+    )
+    st.cache_resource.clear()
+    try:
+        app = AppTest.from_file(ROOT / "app.py", default_timeout=10).run()
+        for passed in (True, False):
+            result = {
+                "answer_id": f"audit-{passed}",
+                "answer": "An answer to inspect.",
+                "verification": {"passed": passed, "issues": [], "missing_parts": []},
+                "sources": [],
+                "actions": [],
+                "elapsed_seconds": 0.1,
+                "trace_url": "https://example.test/audit",
+            }
+            app.session_state.turns = [("Question.", result)]
+            app.run()
+            app.button(key=f"analysis_audit-{passed}").click().run()
+            assert not app.exception
+            clean = "No source or completeness problems were reported."
+            rejected = "The check did not accept this answer; no detailed reason was returned."
+            assert any(item.value == clean for item in app.caption) is passed
+            assert any(item.value == rejected for item in app.caption) is not passed
     finally:
         st.cache_resource.clear()

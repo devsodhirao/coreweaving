@@ -2,17 +2,44 @@
 
 The [13 questions](../evals/cases.json) test useful documentation tasks: setup, multi-page synthesis, ambiguity, follow-ups, execution and false premises. The [48 assertions](../evals/regression-assertions.json) define required outcomes against the frozen [documentation manifest](../data/docs/manifest.json). References go to the offline judge, not the agent.
 
-**Historical result: 13/13 cases, 48/48 assertions** on runtime `3a49a50`, rubric `2.3-task-aligned-assertions`. This is a reused development suite: its failures informed repairs. A green run demonstrates those recorded outcomes, not general reliability or superiority over another assistant. [Run](../results/brief-final-regression-v1/summary.json) · [Manual answer audit](../results/brief-e2e-v1/final-answer-review.json)
+**Current validation is pending** under the [essence protocol](../results/essence-v1/protocol.md). Verification contract 6 reports audit exceptions instead of supported-claim inventories. Its [writer diagnostic](../results/essence-v1/writer-diagnostic/) used the previous report format and is inconclusive; it cannot establish performance of the current source.
+
+**Historical result: 13/13 cases, 48/48 assertions** on runtime `3a49a50`, rubric `2.3-task-aligned-assertions`. This is a reused development suite: its failures informed repairs. A green run demonstrates those recorded outcomes, not general reliability or superiority over another assistant. The later runtime `dfdb6bd` also reached 13/13 and scored 17/18 frozen browser criteria. Neither result describes contract 6. [Original run](../results/brief-final-regression-v1/summary.json) · [Manual answer audit](../results/brief-e2e-v1/final-answer-review.json) · [Later historical packet](../results/product-final-v1/README.md)
 
 ## What each layer measures
 
 | Layer | Question and boundary |
 | --- | --- |
-| Runtime source verifier | Do the passages actually read support the answer's material claims? Current support mode checks claims and every frozen question-derived outcome, including workflow facets. The historical pilot checked claims only. Deterministic citation checks precede the model audit; neither guarantees semantic completeness. |
+| Runtime source verifier | Do read passages support the material claims, and does the answer fulfill the original question in context? Contract 6 returns `passed`, `issues` and `missing_parts`; it has no frozen task plan, workflow facets or positive-claim quotation gate. Citation and Python-syntax checks precede the audit. A passed verdict remains a fallible judgment. |
 | Offline LLM judge | Did the answer satisfy the question? Checks per-case assertions and scores correctness, completeness, grounding and uncertainty. Each dimension must reach 3/4, every assertion must pass, and citation/execution integrity must pass for a case to pass. |
 | Human review and diagnostics | Inspect actual answers, sources and code, including questionable judge decisions. Reference-page/section overlap diagnoses retrieval; selected references are not exhaustive, and alternate valid evidence is acceptable. |
 
-The planner and support verifier use Sonnet; the offline judge and recovery check use Opus. Separate calls and reference access give different roles, not independent model families. Shared biases can survive both checks. A source check does not prove SDK compatibility; the sandbox executes plain Python, not generated Weave integrations. [Evaluation code](../src/coreweaving/evaluate.py)
+`AGENT_MODEL` selects the writer, `VERIFIER_MODEL` the auditor and `JUDGE_MODEL` the offline judge. The provisional configuration uses Opus; the preceding paired diagnostic did not establish a writer winner. There is no runtime recovery judge. Agent calls request medium effort; offline judging retains provider-default effort. Separate calls and reference access give different roles, not independent model families. Shared biases can survive both checks. A source check does not prove SDK compatibility; the sandbox executes plain Python, not generated Weave integrations. [Configuration](../.env.example) · [Evaluation code](../src/coreweaving/evaluate.py)
+
+## Test the checks, not just the answers
+
+A verifier that rejects everything is unusable. Its controls must exercise both acceptance and rejection before a broader regression run. The [five frozen controls](../results/essence-v1/auditor-controls.json) preserve candidate text, source passages, original-record hashes and expected labels:
+
+| Control | Expected behavior and reason |
+| --- | --- |
+| Corrected recorded Ops draft | Accept supported content; the old positive-quote gate rejected auditor formatting despite all claims being marked supported. |
+| Scoped overview synthesis | Accept a relationship composed from documented tracing, evaluation and Signal roles without requiring unrelated legacy alternatives. |
+| Invented API with a valid citation | Reject unsupported API existence and a hallucination-free guarantee; citation syntax is insufficient. |
+| Two-part question answered in part | Reject a draft labeled complete when an explicitly requested part is missing. |
+| Unsupported claim inside a partial answer | Reject the false claim; admitting another omission cannot make it supported. |
+
+These are selected development controls with AI-authored expected labels, not independent human calibration. Read each reason and its evidence. A malformed or truncated verdict is a delivery failure, not a successful semantic rejection. Fake-model unit tests establish structural handling; real controls test whether the model can use that contract. Final results remain pending.
+
+## Quality, speed and denominators
+
+- **Quality means usefulness for the actual question.** `verified`, source count and runtime completion labels are diagnostics. A supported partial answer can still fail the task. A justified clarification can fulfill its particular task.
+- **Keep the planned denominator:** 13 regression cases and 48 assertions, with ungraded, failed and unrun items visible. The existing `assertion_fraction_passed` field divides by valid judged assertions only; label that conditional percentage when grading is incomplete.
+- **Keep two browser judgments:** the frozen 18 criteria across six tasks, and literal fulfillment of the prompt with source/code review. The overview's existing timing criterion demands an extra detail not explicitly requested; preserve its score separately. Do not rewrite criteria after seeing results.
+- **Engine time** includes every writer, auditor and repair call until the turn returns, excluding the offline judge. **Visible time** runs from browser submission to the answer or error actually appearing. First text counts as useful only after inspecting it; progress text and an unhelpful refusal do not qualify.
+- Preserve all seven planned browser-turn timings, errors and 240-second timeouts. Report completion counts with median/range; disclose any exclusions and show the two-turn task separately. The separate preset is outside that median. Regression timing distinguishes 15 total turns from 13 final answers.
+- The small writer diagnostic pairs task/repeat, pins auditor and effort, and records cache state. Historical before/after times do not isolate a causal speed gain. A changed source needs fresh validation; shorter audit output alone is not product improvement.
+
+The [protocol](../results/essence-v1/protocol.md) freezes these rules and the bounded selection threshold. Existing saturated regression tasks protect development outcomes; they do not replace harder capability cases or an actual browser replay.
 
 ## Are the tasks fair?
 

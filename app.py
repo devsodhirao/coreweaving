@@ -230,8 +230,10 @@ def show_analysis(result):
     st.caption("Documents read, source checks and usage for this answer.")
     st.link_button("Open this conversation in Weave ↗", result["trace_url"])
     st.download_button(
-        "Download answer and evidence", json.dumps(result, indent=2),
-        file_name=f"coreweaving-{result['answer_id']}.json", mime="application/json",
+        "Download answer and evidence",
+        json.dumps(result, indent=2),
+        file_name=f"coreweaving-{result['answer_id']}.json",
+        mime="application/json",
         help="Export this answer, its sources, checks and recorded usage.",
     )
     visible_sources = {
@@ -258,12 +260,17 @@ def show_analysis(result):
                     st.text(source.get("output", source.get("error", "")))
     with st.expander("What the check found"):
         st.caption("The verifier checks source support and requested parts. It can miss mistakes.")
-        for claim in verification.get("claims", []):
-            show_markdown(f"**{claim['status'].capitalize()}:** {claim['text']}")
         for issue in verification["issues"]:
             show_markdown(issue)
-        if not verification.get("claims") and not verification["issues"]:
-            st.caption("No additional check details were returned.")
+        missing_parts = verification.get("missing_parts", [])
+        for part in missing_parts:
+            show_markdown(f"**Still unresolved:** {part}")
+        if not verification["issues"] and not missing_parts:
+            st.caption(
+                "No source or completeness problems were reported."
+                if verification["passed"]
+                else "The check did not accept this answer; no detailed reason was returned."
+            )
     if metrics := result.get("metrics"):
         amount = metrics["estimated_usd"]
         label = (

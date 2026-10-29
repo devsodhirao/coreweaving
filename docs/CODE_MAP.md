@@ -1,81 +1,57 @@
 # From the brief to the code
 
-Use the [README](../README.md) for setup and measured results. Start with `Agent.run`, then follow the paths below. Function names remain useful when line numbers change.
+Start with [`Agent.run`](../src/coreweaving/agent.py). It owns one conversational turn: choose tools, gather evidence, submit a draft, check it and repair if needed. The [README](../README.md) covers setup; the [behavior contract](BEHAVIOR_CONTRACT.md) describes the enforced boundaries.
 
-**Current runtime:** commit `dfdb6bdfff88710d1b075c9839d38917c3a38fd1`; source SHA256: `2b4c8d1b6bbf70396fb63a68dcf55361e40bb6fd735fa292c8f803ae8d46c079`. At measurement checkout `6b05cf9`, the unchanged regression scored **13/13 cases, 48/48 assertions**, with backend delivery verified. The seven-turn UI replay scored 17/18 outcomes and 5/6 tasks. The separate preset fulfilled its literal request; all eight UI turns and their model spans reconcile in the [final packet](../results/product-final-v1/README.md). Earlier measurements in the [evidence index](../results/README.md) retain their original source and policy.
+**Validation status:** the simplified implementation uses verification contract 6. The [writer diagnostic](../results/essence-v1/writer-diagnostic/) predates the compact audit report and is inconclusive. Validation of the changed auditor, regression and browser replay follows the [essence protocol](../results/essence-v1/protocol.md); final measurements are pending. The earlier [13/13 regression and 17/18 UI result](../results/product-final-v1/README.md) belong to runtime `dfdb6bd`, not this source.
 
-## Three paths, three different questions
+## Follow one answer
 
-| Path | Purpose | Entry point |
-| --- | --- | --- |
-| Conversation | Research, check and answer the user's question | [Agent.run](../src/coreweaving/agent.py) |
-| Offline evaluation | Measure answers against frozen tasks and references | [run_evaluation](../src/coreweaving/evaluate.py) |
-| Online monitoring | Flag completed turns for developer review | [signals.setup](../src/coreweaving/signals.py) |
+1. [`app.run_question`](../app.py) starts one background job. Streamlit reruns poll real progress and consume its result once. The answer and Sources & analysis live in the current browser session; there is no SQLite answer library.
+2. [`Agent.run`](../src/coreweaving/agent.py) sends the question and recent dialogue to the configured writer. The model repeatedly chooses `search_docs`, `read_page`, `run_python` or `submit_answer`. There is no separate task-planning call.
+3. `execute` validates tool names and arguments. `Session.add_passage` assigns source IDs only after a read. Search matches, outlines and internal links locate evidence; they do not establish unread content.
+4. `verify` applies the Markdown citation contract and Python syntax check. Its auditor receives the original question, retained dialogue, candidate, relevant read passages and research actions. It checks material claims and requested coverage, then returns only `passed`, blocking `issues` and `missing_parts`. A clean audit has no issues; supported claims are not copied into a separate inventory.
+5. Rejection goes back to the same writer. The writer can research or revise within the remaining limits. An honest partial answer uses the same checks; there is no terminal judge or extracted-fact recovery path.
+6. The result retains the answer, sources, checks, usage and trace identity. Only delivered dialogue enters conversation history. The UI displays the answer and keeps developer detail in Sources & analysis.
 
-The Signal listens for `weave.genai.turn_ended`. Its server filter selects this agent's ERROR turns or four runtime `review_reason` values: operational failure, exhaustion, incompleteness or uncited answer. Non-error turns labeled `none` are excluded before scoring. Eligibility is deterministic; the runtime classification can miss semantic defects, and LLM explanation/tag generation can fail. This monitor does not block answers.
+Defaults allow ten writer calls, eighteen research dispatches and two repairs. The last writer call permits submission only. A truncated response never executes tools; one fresh retry may use the next existing slot. These limits bound work, not answer quality.
 
-## Follow one conversation turn
+## Files and responsibilities
 
-In [agent.py](../src/coreweaving/agent.py), `Agent.run` owns the turn and shared research/repair limits:
-
-1. `plan_task` freezes requested outcomes before retrieval. Its instructions treat a broad overview as ordinary role/relationship outcomes. Only an explicit request for each workflow's **input, execution trigger and output** calls for subject selection and application-expanded facets. User-request quotes constrain provenance; task interpretation can still be wrong.
-2. `execute` dispatches tools; `Session.add_passage` assigns evidence IDs after reads. Search hits, outlines and links guide navigation but do not substitute for read evidence.
-3. `verify` applies `citation_contract` and `python_syntax_issues` before model auditing. Recognized Python fences must parse; this does not execute examples or validate SDK calls. The auditor then checks claims, applicability and every frozen outcome. Workflow facets require literal quotes from read, cited passages. Quotes and IDs prove provenance and structure; semantic support and completeness remain model judgments.
-4. Failed verdicts can request typed research against a missing outcome or unsupported claim, within existing navigation and work limits. Cited prose uses this same release path without a rewrite. Application-owned actions never invent provider tool-call IDs.
-5. Research dispatches have their own limit; submissions and revisions use the remaining planning/revision allowance. The last planner call offers submission only. In support mode, one terminal judge call can strictly recheck a full draft after an auditor-record failure, or recheck a `partial_candidate`. The full path cannot waive outcomes or fall through to another audit. `completion_state` retains unmet outcomes.
-
-`LanguageModel.call` in [llm.py](../src/coreweaving/llm.py) traces calls, usage and requested effort. `AGENT_MODEL` controls planning/research/writing, `VERIFIER_MODEL` ordinary auditing, and `JUDGE_MODEL` terminal rechecks and offline grading. All three now default to Opus 5.5. Agent calls use medium effort; the separate offline judge retains provider-default effort and unchanged grading rules. Independent calls are not independent model families.
-
-The [four-candidate probe](../results/product-verifier-probe-v1/summary.json) motivated Opus auditing: it accepted both scoped positives, Sonnet neither, and both rejected both false controls. V2 still passed only 4/6 UI tasks. Two subsequent [full-turn writer probes](../results/product-writer-probe-v1/review.json) fulfilled their literal questions with Opus planning/writing, taking 68.94/35.39 seconds and $0.6679 combined. Choosing that writer avoided another fallback path; these selected successes establish neither general accuracy nor a speed improvement. The overview still missed the separate benchmark timing criterion.
-
-`live_verdict_schema` and `parse_live_verdict` require and validate known audit fields while historical readers retain defaults. Unknown root, claim and outcome annotations are discarded; they cannot set application-owned mode/text or authorize actions. Typed research requests remain strict. Workflow output allowance scales with facet count; missing, invalid or truncated required data fails closed.
-
-A truncated planner response is discarded before history insertion or tool execution. Once per turn, the next existing planning slot may retry with a 4,800-token cap instead of 2,400; later calls return to 2,400. A second truncation or truncation in the final slot stops explicitly. A completed retry still passes through ordinary verification.
-
-## Application and source boundaries
-
-| Start here | Responsibility and limit |
+| File | Role and reason |
 | --- | --- |
-| [app.py](../app.py): `run_question`, `show_pending_turn`, `show_result` | Once-only background work, progress and evidence display; persistence failures remain visible. `show_markdown` suppresses chat images, preserving text, code and user-followed links. |
-| [corpus.py](../src/coreweaving/corpus.py): `Corpus`, `search`, `read` | Hash-checked local snapshot, lexical search and exact passages. [fetch_docs.py](../scripts/fetch_docs.py): `restore_locked_weave` restores the bundled 351-page snapshot offline; runtime retrieval does not browse the live site. |
-| [library.py](../src/coreweaving/library.py): `save_answer`, `review_answer` | Local SQLite records; separate review history uses an atomic transaction. Reviews do not automatically become agent memory or training data. |
-| [config.py](../src/coreweaving/config.py): `redact_sensitive`, `_python_redactions`, `source_fingerprint` | Recognized credential masking and runtime identity. Valid fenced Python preserves annotations/references while direct credential literals are masked. Encoded JSON is walked before masking; unchanged JSON with unique keys keeps its exact bytes. This is not data-flow analysis or a blanket PII guarantee. |
-| [telemetry.py](../src/coreweaving/telemetry.py): `trace_text`, `trace_json`, `trace_value`, `restore_trace_value` | Reversible protection for literal reference-like text on logging copies. Global legacy hooks preserve reference-bearing SDK containers, including dataset rows; `trace_json` deliberately prepares inline Agent data. The helper neither redacts credentials nor reads already-published references. Provider inputs, evidence and answers do not use this encoding. |
-| [sandbox.py](../src/coreweaving/sandbox.py): `run_python` | Optional Docker execution with no network, host mounts or injected credentials, plus resource limits. Its standard-library environment cannot validate Weave SDK/API examples. |
-
-## Follow the evaluation
-
-In [evaluate.py](../src/coreweaving/evaluate.py): `dataset_rows` resolves questions, assertions and judge-only references → `trial_rows` expands repeats → `DocumentationModel.predict` runs each case and follow-ups → `QualityJudge.score` grades answers. `integrity` checks citation/execution structure. References are withheld from the agent.
-
-`persist_record`, `aggregate_records` and `reconcile_budget_usage` preserve partial work and usage. `sync_completed_evaluation` redelivers a completion without rerunning answers. Any operational turn error makes the run exit nonzero; a graded quality failure remains valid evidence. Predictions propagate `VERIFIER_MODEL` and `JUDGE_MODEL` to their separate roles. [Final readback](../results/product-final-v1/evaluation-backend-readback.json) verifies all 13 indexed rows, exact scores, 15 Agent roots and 88 model spans without replay. Optional scorer-ID index metadata is absent; direct scorer records are verified separately. See [evaluation design](EVALUATION_DESIGN.md) for suite reuse and judge limitations.
-
-## Supporting files and why they exist
-
-| File | Responsibility |
-| --- | --- |
+| [app.py](../app.py) | Streamlit chat, background work and source/analysis display; separates rendering from a running turn. |
+| [agent.py](../src/coreweaving/agent.py) | Prompts, typed drafts/verdicts, session evidence, dispatch and the single research/check loop. |
+| [corpus.py](../src/coreweaving/corpus.py) | Hash-checked local documents, identifier-aware BM25 and exact passages; no retrieval service or live browsing. |
+| [llm.py](../src/coreweaving/llm.py) | Anthropic requests, explicit model spans, caching and returned usage. |
+| [config.py](../src/coreweaving/config.py) | Settings, Weave initialization, credential masking and source identity. |
+| [telemetry.py](../src/coreweaving/telemetry.py) | Protects reference-shaped literal text on logging copies while preserving real SDK references and dataset-row identity. |
+| [sandbox.py](../src/coreweaving/sandbox.py) | Optional bounded Docker execution for offline standard-library Python. |
+| [metrics.py](../src/coreweaving/metrics.py) | Counts returned calls and estimates cost, including cached input and rejected attempts. |
+| [evaluate.py](../src/coreweaving/evaluate.py) | Frozen datasets, predictions, offline judging, integrity checks and saved run evidence. |
+| [budget.py](../src/coreweaving/budget.py) | Evaluation spend reservations/accounting; not an account billing cap. |
+| [signals.py](../src/coreweaving/signals.py) | Online monitoring of completed turns and labeled control fixtures. |
 | [__main__.py](../src/coreweaving/__main__.py) | Terminal entry point using the same agent. |
-| [metrics.py](../src/coreweaving/metrics.py) / [budget.py](../src/coreweaving/budget.py) | Returned usage, cache pricing and experiment reservations; estimated spend is not an account billing cap. |
-| [compare.py](../src/coreweaving/compare.py) / [check_experiment.py](../src/coreweaving/check_experiment.py) | Pilot comparisons and explicit paid cache/judge probes; neither is an ordinary app path. |
-| [pyproject.toml](../pyproject.toml) / [uv.lock](../uv.lock) / [.env.example](../.env.example) | Dependencies and configuration names; real credentials stay outside Git. |
+| [fetch_docs.py](../scripts/fetch_docs.py) | Offline snapshot restoration or an explicit maintainer refresh. |
+| [scripts/experiments](../scripts/experiments/README.md) | Optional historical comparisons and probes, separate from the app path. |
 
-## Retrieval alternatives considered
+`AGENT_MODEL` selects the writer/researcher; `VERIFIER_MODEL` selects the auditor. Both request medium effort. `JUDGE_MODEL` is used by offline evaluation only, at provider-default effort. The writer remains provisionally configured; the earlier matched diagnostic is inconclusive and does not establish the best model for this changed auditor. See [configuration](../.env.example) for defaults and overrides.
 
-BM25 searches section text with identifier-aware tokens. It is local, inexpensive and inspectable; a query can miss synonyms or select several sections from one page. The [frozen retrieval comparison](../results/retrieval-comparison-v1/README.md) tested 18 queries in nine paired families. Source-derived context tied BM25's 57.0% selected-nugget recall at six results; hybrid reached 64.4%, below the predeclared 10-point adoption threshold. This keeps the current default; it does not establish that BM25 is generally better.
+## Three uses of Weave
 
-| Alternative | Why consider it | Why it is not the default here |
+| Path | What it establishes | Limit |
 | --- | --- | --- |
-| Dense embeddings | Retrieve paraphrases with little literal overlap. | Tested only as one part of hybrid; no dense-only comparison. Adds model/index versioning and a dependency. |
-| Hybrid lexical + dense retrieval | Combine identifier matches and semantic matches. | Quantized local BGE-small + equal-weight rank fusion improved three queries and worsened one; full nugget coverage stayed 7/18. Offline adoption threshold failed. |
-| Source-derived chunk context | Add introductory prose and ancestor headings to lexical search. | Tested; no aggregate gain. This is not LLM-generated contextual retrieval. |
-| Generated context or reranking | Supply additional context or reorder candidates. | Untested; added calls and complexity need a separate comparison. |
-| Knowledge graph or specialist agents | Follow relationships or divide distinct tasks. | Existing page links already support bounded navigation. No demonstrated need for a separate graph database or agent team. |
+| Conversation → turn → model/tool/verifier spans | What ran, what evidence it read and what it cost. | Trace completeness is not answer correctness. |
+| `DocumentationModel.predict` → `QualityJudge.score` | Results against frozen questions, references and assertions. | Reused tasks and same-family models limit independence and generalization. |
+| `signals.setup` on `weave.genai.turn_ended` | Post-completion review of this agent's selected ERROR/review-reason turns. | It cannot block answers or detect every factual defect. |
 
-`Corpus.read` returns up to eight validated internal links as page IDs. This is navigation over the stored corpus, not a semantic knowledge graph or permission to browse arbitrary URLs.
+Evaluation references go to the judge, not the agent. Case pass combines assertions, four quality dimensions and deterministic integrity; self-verification and reference overlap are diagnostics. [Evaluation design](EVALUATION_DESIGN.md) explains the suites. Completed local answers and remote delivery are checked separately.
 
-The experimental [backend](../scripts/experiments/retrieval_backend.py) overrides search only; [runner](../scripts/experiments/retrieval_compare.py) keeps `Agent`, original reads and the judge fixed. [Setup and reproduction](../scripts/experiments/README.md) use an optional dependency and a local, hash-checked model. The app does not import these scripts, and its lockfile is unchanged.
+## Decisions and limits
 
-## Find the tests by behavior
+- **Direct loop:** one control flow is easier to inspect than a routing framework or specialist-agent team. No framework comparison was run.
+- **BM25:** matches API identifiers and runs locally. An [18-query comparison](../results/retrieval-comparison-v1/README.md) improved selected-evidence recall from 57.0% to 64.4% with hybrid, below the adoption threshold; six live tasks tied on assertions. This supports retaining the baseline, not dismissing semantic retrieval.
+- **Separate auditor:** checks support and the actual request without importing every optional page detail. It can miss a claim or omission; its benefit beyond citation checks remains unisolated.
+- **Stored corpus:** reproducible evidence from 351 pages, with context and internal links. It is one October 24 snapshot, not a release-aware or current-site search service. [Version limits](VERSIONING.md)
+- **Bounded Python:** demonstrates execution without granting host access. Syntax checks and a standard-library container do not validate generated Weave SDK examples.
 
-[Agent tests](../tests/test_agent.py) cover release and permission boundaries; [app tests](../tests/test_app.py) cover once-only work and navigation; [evaluation tests](../tests/test_evaluate.py) cover grading and evidence preservation. The [behavior contract](BEHAVIOR_CONTRACT.md) maps detailed Given/When/Then checks. These establish mechanics; separately versioned real runs measure answer quality.
-
-The historical source-support pilot and optional source-derived coverage experiment predate the task contract. Verification version 2 added frozen question outcomes and typed repair research; version 3 added workflow facets and read-evidence anchors. Version 4 narrows facet selection to explicitly requested workflows and adds the Python syntax gate. Citation contract version 3 remains unchanged. The [earlier task-completion review](../results/task-completion-repair-v1/review.md) separates those measurements by runtime; they cannot establish this repair's benefit.
+[Agent tests](../tests/test_agent.py), [app tests](../tests/test_app.py) and [evaluation tests](../tests/test_evaluate.py) protect behavior. The [five auditor controls](../results/essence-v1/auditor-controls.json) test acceptance of supported answers as well as rejection of false claims and requested omissions. Live runs measure usefulness, latency and delivery; a verified flag is not a quality score. The [build log](AI_BUILD_LOG.md) explains why the earlier planning, workflow and recovery machinery was removed.
