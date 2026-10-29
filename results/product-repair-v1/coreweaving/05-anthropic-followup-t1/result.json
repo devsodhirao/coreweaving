@@ -1,0 +1,1587 @@
+{
+  "answer_id": "16252cd1-8b30-4edb-8486-bc55ca357fa3",
+  "question": "Use the Weave documentation at https://docs.wandb.ai/weave to answer this question:\n\nI write Python and call Anthropic directly, with no agent framework. How should I structure tracing for my own tool-calling loop?",
+  "source_ids": [
+    "S1",
+    "S3"
+  ],
+  "citation_contract_version": 3,
+  "verification_contract_version": 4,
+  "task_plan": [
+    {
+      "description": "Explain how to structure Weave tracing for a custom Python tool-calling loop that calls Anthropic directly without an agent framework (e.g., what to trace as ops, how to organize the loop, LLM calls and tool calls).",
+      "request_quote": "How should I structure tracing for my own tool-calling loop?",
+      "requires_clarification": false,
+      "id": "O1",
+      "workflow_subject": null,
+      "facet": null
+    }
+  ],
+  "outcome_assessments": [
+    {
+      "outcome_id": "O1",
+      "status": "answered",
+      "answer_quote": "Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call.",
+      "reason": "Gives the documented structure with a code sketch.",
+      "source_ids": [
+        "S1"
+      ],
+      "evidence_quotes": []
+    }
+  ],
+  "task_complete": true,
+  "missing_outcomes": [],
+  "completion_status": "complete",
+  "review_reason": "none",
+  "conversation_context": [],
+  "answer": "For a hand-written Anthropic loop, the documented approach is to instrument it with Weave's conversation spans. Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call. [S1]\n\n**Setup**\n- Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`. The docs turn off implicit patching when hand-instrumenting a bare provider SDK. Otherwise the conversation is traced twice, once as your Conversation span and once as a traced Op. [S1]\n\n**Structure (from the docs' example)**\n1. `start_conversation(agent_name=..., conversation_id=...)` wraps the session. Use a unique ID such as a UUID. [S1]\n2. `conv.start_turn(user_message=...)` wraps one user request. [S1]\n3. `turn.start_llm(model=..., provider_name=\"anthropic\")` wraps the `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`. [S1]\n4. `turn.start_tool(name=..., arguments=...)` wraps each tool the model requested. Set `tool.result` to the output. [S1]\n\n```python\nfrom weave.conversation import start_conversation, Usage\n\n# Placeholders: convo_id, user_message, anthropic_client, response_tool_calls, run_tool.\nwith start_conversation(agent_name=\"support-agent\", conversation_id=convo_id) as conv:\n    with conv.start_turn(user_message=user_message) as turn:\n        with turn.start_llm(model=\"claude-sonnet-5\", provider_name=\"anthropic\") as llm:\n            response = anthropic_client.messages.create(...)\n            llm.record(input_messages=[...], output_messages=[...],\n                       usage=Usage(input_tokens=..., output_tokens=...))\n        for call in response_tool_calls:\n            with turn.start_tool(name=call.name, arguments=call.arguments) as tool:\n                tool.result = run_tool(call)\n```\n\nThis is the docs' single-pass sketch, not a full loop. It doesn't send tool results back to Claude for a follow-up call. The docs say the full loop is in their notebook. [S1] If your loop makes several model calls, you would presumably open another LLM span for each one inside the same turn. That is my inference, not something I read in the docs.\n\nIn the Agents view, the model call and tool calls appear nested inside the turn. [S1]\n\n**Alternative:** The Threads docs define a *Call* as any `@weave.op`-decorated function execution. They also say turn Calls are top-level operations that start turns, and nested Calls are lower-level operations within a turn. [S3] That is a separate, op-based way to structure a loop. I only read these definitions, not the code sample.",
+  "kind": "answer",
+  "verification": {
+    "passed": true,
+    "claims": [
+      {
+        "text": "Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call.",
+        "kind": "product",
+        "source_ids": [
+          "S1"
+        ],
+        "status": "supported",
+        "answer_quote": "Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call.",
+        "scope_status": "supported",
+        "scope_reason": "S1 shows this for a hand-instrumented Anthropic agent.",
+        "supported": true
+      },
+      {
+        "text": "Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`.",
+        "kind": "product",
+        "source_ids": [
+          "S1"
+        ],
+        "status": "supported",
+        "answer_quote": "Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`.",
+        "scope_status": "supported",
+        "scope_reason": "Matches the S1 example and its explanation of double tracing.",
+        "supported": true
+      },
+      {
+        "text": "`turn.start_llm(model=..., provider_name=\"anthropic\")` wraps the `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`.",
+        "kind": "product",
+        "source_ids": [
+          "S1"
+        ],
+        "status": "supported",
+        "answer_quote": "`turn.start_llm(model=..., provider_name=\"anthropic\")` wraps the `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`.",
+        "scope_status": "supported",
+        "scope_reason": "Directly in the S1 code.",
+        "supported": true
+      },
+      {
+        "text": "It doesn't send tool results back to Claude for a follow-up call. The docs say the full loop is in their notebook.",
+        "kind": "product",
+        "source_ids": [
+          "S1"
+        ],
+        "status": "supported",
+        "answer_quote": "It doesn't send tool results back to Claude for a follow-up call. The docs say the full loop is in their notebook.",
+        "scope_status": "supported",
+        "scope_reason": "S1 says the full loop is in the notebook, and the sketch omits it.",
+        "supported": true
+      },
+      {
+        "text": "The Threads docs define a *Call* as any `@weave.op`-decorated function execution.",
+        "kind": "product",
+        "source_ids": [
+          "S3"
+        ],
+        "status": "supported",
+        "answer_quote": "The Threads docs define a *Call* as any `@weave.op`-decorated function execution.",
+        "scope_status": "supported",
+        "scope_reason": "S3 states this definition.",
+        "supported": true
+      }
+    ],
+    "issues": [],
+    "coverage": [],
+    "outcome_assessments": [
+      {
+        "outcome_id": "O1",
+        "status": "answered",
+        "answer_quote": "Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call.",
+        "reason": "Gives the documented structure with a code sketch.",
+        "source_ids": [
+          "S1"
+        ],
+        "evidence_quotes": []
+      }
+    ],
+    "research_requests": [],
+    "mode": "support",
+    "full_recheck_eligible": false,
+    "status": "passed"
+  },
+  "verification_attempts": [
+    {
+      "candidate": {
+        "source_ids": [
+          "S1",
+          "S2"
+        ],
+        "answer": "Structure the loop with Weave's agent spans: one conversation, one turn per user message, and inside each turn an LLM span for every Anthropic call and a tool span for every tool execution. [S1]\n\n**Setup**\n- Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`. You are hand-instrumenting a bare provider SDK. Weave autopatches supported SDKs by default, so leaving that on would trace the conversation twice, once as your Conversation span and once as a traced Op. [S1]\n\n**Structure**\n1. `start_conversation(agent_name=..., conversation_id=...)` wraps the whole session. Use a unique ID such as a UUID. [S1]\n2. `conv.start_turn(user_message=...)` wraps one user request. [S1]\n3. `turn.start_llm(model=..., provider_name=\"anthropic\")` wraps each `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`. [S1]\n4. `turn.start_tool(name=..., arguments=...)` wraps each tool the model requested. Set `tool.result` to the output. [S1]\n\nThe docs' sketch uses placeholders (`anthropic_client`, `response_tool_calls`, `run_tool`) for your own code:\n\n```python\nimport weave\nfrom weave.conversation import start_conversation, Usage\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\",\n           settings={\"implicitly_patch_integrations\": False})\n\nwith start_conversation(agent_name=\"my-agent\", conversation_id=\"convo-1\") as conv:\n    with conv.start_turn(user_message=\"...\") as turn:\n        with turn.start_llm(model=\"claude-sonnet-5\", provider_name=\"anthropic\") as llm:\n            response = ...  # anthropic_client.messages.create(...)\n            llm.record(input_messages=[...], output_messages=[...],\n                       usage=Usage(input_tokens=0, output_tokens=0))\n        for call in []:  # placeholder: tool calls from the response\n            with turn.start_tool(name=call.name, arguments=call.arguments) as tool:\n                tool.result = ...  # run_tool(call)\n```\n\nThe sketch shows one LLM call followed by its tools. For a multi-step loop, the sub-agent example opens a new LLM span for each model call and a tool span for each tool execution, all within the same turn. [S2] I'm inferring that you repeat this pattern for each iteration of your loop. The pages I read don't state it as a rule.\n\nIn the Agents view, the turn shows the model call and tool calls nested inside it. [S1]\n\n**Alternative:** The docs also describe a manual pattern that uses `@weave.op` methods, where each user message is handled by a turn-level op and its nested calls are lower-level ops. You can combine it with `weave.thread()` context management. [S1] I only saw snippets of that pattern, so I haven't verified how it compares with the agent spans.",
+        "kind": "answer"
+      },
+      "passed": false,
+      "claims": [
+        {
+          "text": "Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`.",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "answer_quote": "Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`.",
+          "scope_status": "supported",
+          "scope_reason": "S1 shows this for hand-instrumenting a bare provider SDK.",
+          "supported": true
+        },
+        {
+          "text": "`turn.start_llm(model=..., provider_name=\"anthropic\")` wraps each `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`.",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "answer_quote": "`turn.start_llm(model=..., provider_name=\"anthropic\")` wraps each `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`.",
+          "scope_status": "supported",
+          "scope_reason": "Matches the S1 snippet.",
+          "supported": true
+        },
+        {
+          "text": "Structure the loop with Weave's agent spans: one conversation, one turn per user message, and inside each turn an LLM span for every Anthropic call and a tool span for every tool execution.",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "partial",
+          "answer_quote": "Structure the loop with Weave's agent spans: one conversation, one turn per user message, and inside each turn an LLM span for every Anthropic call and a tool span for every tool execution.",
+          "scope_status": "supported",
+          "scope_reason": "S1 shows one LLM call then tools; the 'every call' generalization is only partly supported by S1 and S2.",
+          "supported": false
+        },
+        {
+          "text": "the sub-agent example opens a new LLM span for each model call and a tool span for each tool execution, all within the same turn.",
+          "kind": "product",
+          "source_ids": [
+            "S2"
+          ],
+          "status": "partial",
+          "answer_quote": "the sub-agent example opens a new LLM span for each model call and a tool span for each tool execution, all within the same turn.",
+          "scope_status": "uncertain",
+          "scope_reason": "S2 is a supervisor/sub-agent example using a different API (weave.start_llm, sub.llm), not a bare Anthropic loop; the claim is inferred and not documented as a multi-step loop rule.",
+          "supported": false
+        },
+        {
+          "text": "The docs also describe a manual pattern that uses `@weave.op` methods, where each user message is handled by a turn-level op and its nested calls are lower-level ops. You can combine it with `weave.thread()` context management.",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "unsupported",
+          "answer_quote": "The docs also describe a manual pattern that uses `@weave.op` methods, where each user message is handled by a turn-level op and its nested calls are lower-level ops. You can combine it with `weave.thread()` context management.",
+          "scope_status": "unsupported",
+          "scope_reason": "S1 does not contain this pattern; it was only seen in search results, never read.",
+          "supported": false
+        }
+      ],
+      "issues": [
+        "The @weave.op/weave.thread alternative is cited to S1, but S1 doesn't mention it. Remove it or read the threads/ops pages and cite them.",
+        "Multi-step loop guidance relies on the sub-agent example, which uses a different API. The answer labels it an inference, but the S1 snippet shows only a single LLM call per turn. Qualify this or find a source for multi-iteration loops.",
+        "The code sketch uses `for call in []` and a placeholder, so it does not implement a tool loop. It never sends tool results back to the model, so it is an incomplete example of the user's loop.",
+        "O1: The core structure is supported, but the multi-step loop and the alternative pattern are unsupported or inferred.",
+        "Each product claim needs an exact quote and supported applicability/scope.",
+        "Each product claim needs an exact quote and supported applicability/scope.",
+        "Revise partial or unsupported material claims."
+      ],
+      "coverage": [],
+      "outcome_assessments": [
+        {
+          "outcome_id": "O1",
+          "status": "uncertain",
+          "answer_quote": "Structure the loop with Weave's agent spans",
+          "reason": "The core structure is supported, but the multi-step loop and the alternative pattern are unsupported or inferred.",
+          "source_ids": [
+            "S1",
+            "S2"
+          ],
+          "evidence_quotes": []
+        }
+      ],
+      "research_requests": [
+        {
+          "outcome_id": "O1",
+          "claim_quote": null,
+          "missing_premise": "Documentation of the @weave.op turn-level pattern with weave.thread() for manual tracing.",
+          "tool": "read_page",
+          "query": null,
+          "page_id": "guides/tracking/threads",
+          "section": 5
+        }
+      ],
+      "mode": "support",
+      "full_recheck_eligible": false,
+      "status": "failed"
+    },
+    {
+      "candidate": {
+        "source_ids": [
+          "S1",
+          "S3"
+        ],
+        "answer": "For a hand-written Anthropic loop, the documented approach is to instrument it with Weave's conversation spans. Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call. [S1]\n\n**Setup**\n- Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`. The docs turn off implicit patching when hand-instrumenting a bare provider SDK. Otherwise the conversation is traced twice, once as your Conversation span and once as a traced Op. [S1]\n\n**Structure (from the docs' example)**\n1. `start_conversation(agent_name=..., conversation_id=...)` wraps the session. Use a unique ID such as a UUID. [S1]\n2. `conv.start_turn(user_message=...)` wraps one user request. [S1]\n3. `turn.start_llm(model=..., provider_name=\"anthropic\")` wraps the `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`. [S1]\n4. `turn.start_tool(name=..., arguments=...)` wraps each tool the model requested. Set `tool.result` to the output. [S1]\n\n```python\nfrom weave.conversation import start_conversation, Usage\n\n# Placeholders: convo_id, user_message, anthropic_client, response_tool_calls, run_tool.\nwith start_conversation(agent_name=\"support-agent\", conversation_id=convo_id) as conv:\n    with conv.start_turn(user_message=user_message) as turn:\n        with turn.start_llm(model=\"claude-sonnet-5\", provider_name=\"anthropic\") as llm:\n            response = anthropic_client.messages.create(...)\n            llm.record(input_messages=[...], output_messages=[...],\n                       usage=Usage(input_tokens=..., output_tokens=...))\n        for call in response_tool_calls:\n            with turn.start_tool(name=call.name, arguments=call.arguments) as tool:\n                tool.result = run_tool(call)\n```\n\nThis is the docs' single-pass sketch, not a full loop. It doesn't send tool results back to Claude for a follow-up call. The docs say the full loop is in their notebook. [S1] If your loop makes several model calls, you would presumably open another LLM span for each one inside the same turn. That is my inference, not something I read in the docs.\n\nIn the Agents view, the model call and tool calls appear nested inside the turn. [S1]\n\n**Alternative:** The Threads docs define a *Call* as any `@weave.op`-decorated function execution. They also say turn Calls are top-level operations that start turns, and nested Calls are lower-level operations within a turn. [S3] That is a separate, op-based way to structure a loop. I only read these definitions, not the code sample.",
+        "kind": "answer"
+      },
+      "passed": true,
+      "claims": [
+        {
+          "text": "Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call.",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "answer_quote": "Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call.",
+          "scope_status": "supported",
+          "scope_reason": "S1 shows this for a hand-instrumented Anthropic agent.",
+          "supported": true
+        },
+        {
+          "text": "Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`.",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "answer_quote": "Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`.",
+          "scope_status": "supported",
+          "scope_reason": "Matches the S1 example and its explanation of double tracing.",
+          "supported": true
+        },
+        {
+          "text": "`turn.start_llm(model=..., provider_name=\"anthropic\")` wraps the `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`.",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "answer_quote": "`turn.start_llm(model=..., provider_name=\"anthropic\")` wraps the `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`.",
+          "scope_status": "supported",
+          "scope_reason": "Directly in the S1 code.",
+          "supported": true
+        },
+        {
+          "text": "It doesn't send tool results back to Claude for a follow-up call. The docs say the full loop is in their notebook.",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "answer_quote": "It doesn't send tool results back to Claude for a follow-up call. The docs say the full loop is in their notebook.",
+          "scope_status": "supported",
+          "scope_reason": "S1 says the full loop is in the notebook, and the sketch omits it.",
+          "supported": true
+        },
+        {
+          "text": "The Threads docs define a *Call* as any `@weave.op`-decorated function execution.",
+          "kind": "product",
+          "source_ids": [
+            "S3"
+          ],
+          "status": "supported",
+          "answer_quote": "The Threads docs define a *Call* as any `@weave.op`-decorated function execution.",
+          "scope_status": "supported",
+          "scope_reason": "S3 states this definition.",
+          "supported": true
+        }
+      ],
+      "issues": [],
+      "coverage": [],
+      "outcome_assessments": [
+        {
+          "outcome_id": "O1",
+          "status": "answered",
+          "answer_quote": "Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call.",
+          "reason": "Gives the documented structure with a code sketch.",
+          "source_ids": [
+            "S1"
+          ],
+          "evidence_quotes": []
+        }
+      ],
+      "research_requests": [],
+      "mode": "support",
+      "full_recheck_eligible": false,
+      "status": "passed"
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "S1",
+      "page_id": "agent-evals",
+      "section": 3,
+      "title": "Evaluate your AI agent with Weave",
+      "heading": "Build and trace the agent",
+      "url": "https://docs.coreweave.com/products/wandb/weave/agent-evals",
+      "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+      "text": "## Build and trace the agent\n\nIn this example, the agent uses two tools, `lookup_order` and `issue_refund`, to review and respond to refund requests in line with a policy that only allows refunds within 30 days.  The full agent, including the tool definitions, the model loop, and message conversion, is in the accompanying notebook. This section focuses on the Weave-specific part.\n\nFirst, initialize Weave with your CoreWeave Forge team and project. Replace `[YOUR-TEAM]` and `[YOUR-PROJECT]` with your own values:\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\n    \"[YOUR-TEAM]/[YOUR-PROJECT]\",\n    # Hand-instrumenting a bare provider SDK: turn off implicit patching so it\n    # doesn't also log each call as a traced Op, duplicating the spans.\n    settings={\"implicitly_patch_integrations\": False},\n)\n```\n\nBy default, Weave [autopatches supported SDKs and frameworks](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md), and automatically traces conversations emitted from agents built with them. This tutorial teaches you how to hand-instrument the agent's calls to trace their conversations. Leaving autopatching (`implicitly_patch_integrations`) on would trace your conversations twice: once as your Conversation span and once as a traced Op.\n\nTrace the agent using `weave.conversation`. A conversation contains turns, and each turn contains the model call and any tool calls:\n\n```python lines highlight=\"3,4,5,13\" theme={\"system\"}\nfrom weave.conversation import start_conversation, Message, Usage\n\nwith start_conversation(agent_name=\"support-agent\", conversation_id=convo_id) as conv:\n    with conv.start_turn(user_message=user_message) as turn:\n        with turn.start_llm(model=\"claude-sonnet-5\", provider_name=\"anthropic\") as llm:\n            response = anthropic_client.messages.create(...)   # Your model call.\n            llm.record(\n                input_messages=[...],                          # List of weave.Message.\n                output_messages=[...],\n                usage=Usage(input_tokens=..., output_tokens=...),\n            )\n        for call in response_tool_calls:                       # Your tool loop.\n            with turn.start_tool(name=call.name, arguments=call.arguments) as tool:\n                tool.result = run_tool(call)                   # Dict is auto-encoded.\n```\n\nThe snippets in this tutorial focus on the Weave calls and use placeholders for your own agent code:\n\n* `convo_id` and `new_id()`: a unique ID for each conversation, such as a UUID.\n* `user_message`: the user's input for the turn.\n* `anthropic_client`: an initialized Anthropic client.\n* `response_tool_calls` and `run_tool()`: the tool calls the model requested and your function that runs them.\n* `run_agent_turn()`: the full agent loop; returns the final reply and a plain-text transcript of the trajectory (turns, tool calls, results) for the judge to read.\n* `judge_task_completion()`: the LLM judge, introduced in the following section.\n\nThe complete, runnable definitions for all of these are in the accompanying notebook.\n\nRun one request and open the printed Weave link. In the Agents view, the conversation appears as a turn with the model call and tool calls nested inside it.\n\n> [!TIP]\n>\n> If you build your agent with a framework integration (Claude Agent SDK, OpenAI Agents), Weave emits these same Agents spans automatically. Leave implicit patching on and skip the manual `start_*` calls.\n\n",
+      "page_context": "# Evaluate your AI agent with Weave\n\n> Evaluate single-turn and multi-turn AI agents in Weave using the agents workflow and EvaluationLogger, scored with an LLM judge.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\nUnlike a single LLM call, an agent pursues a goal across multiple turns, calling tools and acting on their results. Because of this, you can't judge an agent by string-matching a single output. Instead, you evaluate its behavior across a trajectory.\n\nThis tutorial shows you how to evaluate an agent with Weave using the agents workflow. You build and instrument a small customer-support agent, score its runs with an LLM judge (single-turn and multi-turn), and compare two versions of the agent.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Evaluate your AI agent with Weave"
+        },
+        {
+          "section": 1,
+          "heading": "What you'll learn"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Build and trace the agent"
+        },
+        {
+          "section": 4,
+          "heading": "Score the agent with an LLM judge"
+        },
+        {
+          "section": 5,
+          "heading": "Organize and compare evaluations"
+        },
+        {
+          "section": 6,
+          "heading": "Score a multi-turn conversation"
+        },
+        {
+          "section": 7,
+          "heading": "Extend your scorers"
+        },
+        {
+          "section": 8,
+          "heading": "Next steps"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "agent-integration-quickstart",
+          "title": "Choose an agent integration"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "guides/tracking/threads",
+      "section": 5,
+      "title": "Trace threads",
+      "heading": "Call",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/threads",
+      "page_sha256": "656f7544e6f1aff417278d08b10aab2273eedb0c0a40a00c42ad2eff033fb2c8",
+      "text": "### Call\n\nA *Call* is any `@weave.op`-decorated function execution in your application.\n\n* *Turn Calls* are top-level operations that start new turns.\n* *Nested Calls* are lower-level operations within a turn.\n\n",
+      "page_context": "# Trace threads\n\n> Trace and analyze multi-turn conversations in your LLM applications using threads.\n\nWith Weave *Threads*, you can track and analyze multi-turn conversations in your LLM applications. Threads group related Calls under a shared `thread_id`, so you can visualize complete sessions and track conversation-level metrics across turns. You can create threads programmatically and visualize them in the Weights & Biases UI.\n\nTo get started with Threads, do the following:\n\n1. Familiarize yourself with the basics of Threads.\n   * [Use cases](#use-cases)\n   * [Definitions](#definitions)\n   * [The UI experience](#ui-overview)\n   * [API specification](#api-specification)\n2. Try the code samples, which demonstrate common usage patterns and real-world use cases.\n   * [Basic usage examples](#basic-thread-creation)\n   * [Advanced usage examples](#manual-agent-loop-implementation)\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Trace threads"
+        },
+        {
+          "section": 1,
+          "heading": "Use cases"
+        },
+        {
+          "section": 2,
+          "heading": "Definitions"
+        },
+        {
+          "section": 3,
+          "heading": "Thread"
+        },
+        {
+          "section": 4,
+          "heading": "Turn"
+        },
+        {
+          "section": 5,
+          "heading": "Call"
+        },
+        {
+          "section": 6,
+          "heading": "Trace"
+        },
+        {
+          "section": 7,
+          "heading": "UI overview"
+        },
+        {
+          "section": 8,
+          "heading": "Threads list view"
+        },
+        {
+          "section": 9,
+          "heading": "Threads detail drawer"
+        },
+        {
+          "section": 10,
+          "heading": "Chat view behavior"
+        },
+        {
+          "section": 11,
+          "heading": "What qualifies as a message"
+        },
+        {
+          "section": 12,
+          "heading": "What happens when no messages are present"
+        },
+        {
+          "section": 13,
+          "heading": "Turn and chat interactions"
+        },
+        {
+          "section": 14,
+          "heading": "Navigate to and from the trace view"
+        },
+        {
+          "section": 15,
+          "heading": "SDK usage"
+        },
+        {
+          "section": 16,
+          "heading": "Basic thread creation"
+        },
+        {
+          "section": 17,
+          "heading": "Manual agent loop implementation"
+        },
+        {
+          "section": 18,
+          "heading": "Manual agent with unbalanced call depth"
+        },
+        {
+          "section": 19,
+          "heading": "Resume a previous session"
+        },
+        {
+          "section": 20,
+          "heading": "Nested threads"
+        },
+        {
+          "section": 21,
+          "heading": "API specification"
+        },
+        {
+          "section": 22,
+          "heading": "Endpoint"
+        },
+        {
+          "section": 23,
+          "heading": "Request schema"
+        },
+        {
+          "section": 24,
+          "heading": "Response schema"
+        },
+        {
+          "section": 25,
+          "heading": "Query recent active threads"
+        },
+        {
+          "section": 26,
+          "heading": "Query threads by activity level"
+        },
+        {
+          "section": 27,
+          "heading": "Query recent threads only"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "all_read_evidence": [
+    {
+      "source_id": "S1",
+      "page_id": "agent-evals",
+      "section": 3,
+      "title": "Evaluate your AI agent with Weave",
+      "heading": "Build and trace the agent",
+      "url": "https://docs.coreweave.com/products/wandb/weave/agent-evals",
+      "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+      "text": "## Build and trace the agent\n\nIn this example, the agent uses two tools, `lookup_order` and `issue_refund`, to review and respond to refund requests in line with a policy that only allows refunds within 30 days.  The full agent, including the tool definitions, the model loop, and message conversion, is in the accompanying notebook. This section focuses on the Weave-specific part.\n\nFirst, initialize Weave with your CoreWeave Forge team and project. Replace `[YOUR-TEAM]` and `[YOUR-PROJECT]` with your own values:\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\n    \"[YOUR-TEAM]/[YOUR-PROJECT]\",\n    # Hand-instrumenting a bare provider SDK: turn off implicit patching so it\n    # doesn't also log each call as a traced Op, duplicating the spans.\n    settings={\"implicitly_patch_integrations\": False},\n)\n```\n\nBy default, Weave [autopatches supported SDKs and frameworks](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md), and automatically traces conversations emitted from agents built with them. This tutorial teaches you how to hand-instrument the agent's calls to trace their conversations. Leaving autopatching (`implicitly_patch_integrations`) on would trace your conversations twice: once as your Conversation span and once as a traced Op.\n\nTrace the agent using `weave.conversation`. A conversation contains turns, and each turn contains the model call and any tool calls:\n\n```python lines highlight=\"3,4,5,13\" theme={\"system\"}\nfrom weave.conversation import start_conversation, Message, Usage\n\nwith start_conversation(agent_name=\"support-agent\", conversation_id=convo_id) as conv:\n    with conv.start_turn(user_message=user_message) as turn:\n        with turn.start_llm(model=\"claude-sonnet-5\", provider_name=\"anthropic\") as llm:\n            response = anthropic_client.messages.create(...)   # Your model call.\n            llm.record(\n                input_messages=[...],                          # List of weave.Message.\n                output_messages=[...],\n                usage=Usage(input_tokens=..., output_tokens=...),\n            )\n        for call in response_tool_calls:                       # Your tool loop.\n            with turn.start_tool(name=call.name, arguments=call.arguments) as tool:\n                tool.result = run_tool(call)                   # Dict is auto-encoded.\n```\n\nThe snippets in this tutorial focus on the Weave calls and use placeholders for your own agent code:\n\n* `convo_id` and `new_id()`: a unique ID for each conversation, such as a UUID.\n* `user_message`: the user's input for the turn.\n* `anthropic_client`: an initialized Anthropic client.\n* `response_tool_calls` and `run_tool()`: the tool calls the model requested and your function that runs them.\n* `run_agent_turn()`: the full agent loop; returns the final reply and a plain-text transcript of the trajectory (turns, tool calls, results) for the judge to read.\n* `judge_task_completion()`: the LLM judge, introduced in the following section.\n\nThe complete, runnable definitions for all of these are in the accompanying notebook.\n\nRun one request and open the printed Weave link. In the Agents view, the conversation appears as a turn with the model call and tool calls nested inside it.\n\n> [!TIP]\n>\n> If you build your agent with a framework integration (Claude Agent SDK, OpenAI Agents), Weave emits these same Agents spans automatically. Leave implicit patching on and skip the manual `start_*` calls.\n\n",
+      "page_context": "# Evaluate your AI agent with Weave\n\n> Evaluate single-turn and multi-turn AI agents in Weave using the agents workflow and EvaluationLogger, scored with an LLM judge.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\nUnlike a single LLM call, an agent pursues a goal across multiple turns, calling tools and acting on their results. Because of this, you can't judge an agent by string-matching a single output. Instead, you evaluate its behavior across a trajectory.\n\nThis tutorial shows you how to evaluate an agent with Weave using the agents workflow. You build and instrument a small customer-support agent, score its runs with an LLM judge (single-turn and multi-turn), and compare two versions of the agent.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Evaluate your AI agent with Weave"
+        },
+        {
+          "section": 1,
+          "heading": "What you'll learn"
+        },
+        {
+          "section": 2,
+          "heading": "Prerequisites"
+        },
+        {
+          "section": 3,
+          "heading": "Build and trace the agent"
+        },
+        {
+          "section": 4,
+          "heading": "Score the agent with an LLM judge"
+        },
+        {
+          "section": 5,
+          "heading": "Organize and compare evaluations"
+        },
+        {
+          "section": 6,
+          "heading": "Score a multi-turn conversation"
+        },
+        {
+          "section": 7,
+          "heading": "Extend your scorers"
+        },
+        {
+          "section": 8,
+          "heading": "Next steps"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [
+        {
+          "page_id": "agent-integration-quickstart",
+          "title": "Choose an agent integration"
+        }
+      ],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S2",
+      "page_id": "guides/tracking/trace-sub-agents",
+      "section": 2,
+      "title": "Trace sub-agents",
+      "heading": "Trace a single sub-agent",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-sub-agents",
+      "page_sha256": "6edb851a1257652ab7e391a191ab123d0423074b8b10cced949cb3f49192a6b6",
+      "text": "## Trace a single sub-agent\n\nThe following example runs a supervisor agent that receives a request and delegates it to a research-specialist sub-agent that uses a Wikipedia search tool to find the answer.\n\nWeave captures the full hierarchy by wrapping the conversation in `weave.start_conversation` and then a `conversation.start_turn`. Weave then captures the sub-agent trace using the `weave.start_subagent` block for the specialist, and records each LLM call and tool execution as child spans.\n\nThe routing logic is intentionally omitted from these examples to focus on the tracing between agents.\n\n```python lines highlight=\"4,10,16,22,30\" theme={\"system\"}\nimport weave\nfrom weave.conversation import Message, Usage\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\nwith weave.start_conversation(agent_name=\"supervisor\") as conversation:\n    with conversation.start_turn(user_message=\"Research the founders of Anthropic.\") as turn:\n\n        # Supervisor LLM call: decide which specialist to delegate to.\n        with weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\") as llm:\n            llm.input_messages = [Message(role=\"user\", content=\"Research the founders of Anthropic.\")]\n            llm.output(\"Delegating to the research specialist.\")\n            llm.usage = Usage(input_tokens=80, output_tokens=10)\n\n        # Delegate to the research specialist as a sub-agent.\n        with weave.start_subagent(name=\"research-specialist\", model=\"gpt-4o\") as sub:\n            with sub.llm(model=\"gpt-4o\", provider_name=\"openai\") as sub_llm:\n                sub_llm.input_messages = [Message(role=\"user\", content=\"Find founders of Anthropic.\")]\n                sub_llm.output(\"I should search for this.\")\n                sub_llm.usage = Usage(input_tokens=120, output_tokens=15)\n\n                with weave.start_tool(name=\"wikipedia_search\", arguments='{\"query\":\"Anthropic\"}') as tool:\n                    tool.result = \"Anthropic was founded by Dario and Daniela Amodei in 2021.\"\n\n            with sub.llm(model=\"gpt-4o\", provider_name=\"openai\") as sub_llm:\n                sub_llm.output(\"Anthropic was founded by Dario and Daniela Amodei in 2021.\")\n                sub_llm.usage = Usage(input_tokens=200, output_tokens=25)\n\n        # Back in the supervisor turn: synthesize the final answer.\n        with weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\") as llm:\n            llm.output(\"Anthropic was founded by Dario and Daniela Amodei in 2021.\")\n            llm.usage = Usage(input_tokens=300, output_tokens=20)\n```\n\nIn the **Agents** view, the sub-agent appears as a nested `invoke_agent` block inside the turn, with its own LLM calls and tool calls grouped beneath. The supervisor's direct LLM calls remain siblings of the sub-agent.\n\n",
+      "page_context": "# Trace sub-agents\n\n> Use Weave's sub-agent span to trace sub-agent delegations and view nested agent invocations.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/sub-agents.md).\n\nThis guide shows you how to use Weave to trace sub-agents so that delegated agent invocations appear as nested spans in the same trace as the parent turn. Tracing sub-agents lets you see the full hierarchy of an agent's reasoning, including which specialist agents the parent called, what they did, and how they contributed to the final answer. This guide is for developers instrumenting multi-agent systems with Weave.\n\nA sub-agent is a delegated agent invocation that runs inside a turn. Use sub-agents when one agent hands off to another, such as when a supervisor agent dispatches a specialist agent.\n\nWhen you instrument them with Weave, sub-agents emit a nested `invoke_agent` OpenTelemetry (OTel) span in the same trace as the parent turn. In the **Agents** view, this nesting renders as a sub-agent invocation under the turn that triggered it, with its own LLM calls and tool calls grouped beneath.\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Trace sub-agents"
+        },
+        {
+          "section": 1,
+          "heading": "Sub-agent data model"
+        },
+        {
+          "section": 2,
+          "heading": "Trace a single sub-agent"
+        },
+        {
+          "section": 3,
+          "heading": "Trace multiple sub-agents"
+        },
+        {
+          "section": 4,
+          "heading": "Trace nested sub-agents"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    },
+    {
+      "source_id": "S3",
+      "page_id": "guides/tracking/threads",
+      "section": 5,
+      "title": "Trace threads",
+      "heading": "Call",
+      "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/threads",
+      "page_sha256": "656f7544e6f1aff417278d08b10aab2273eedb0c0a40a00c42ad2eff033fb2c8",
+      "text": "### Call\n\nA *Call* is any `@weave.op`-decorated function execution in your application.\n\n* *Turn Calls* are top-level operations that start new turns.\n* *Nested Calls* are lower-level operations within a turn.\n\n",
+      "page_context": "# Trace threads\n\n> Trace and analyze multi-turn conversations in your LLM applications using threads.\n\nWith Weave *Threads*, you can track and analyze multi-turn conversations in your LLM applications. Threads group related Calls under a shared `thread_id`, so you can visualize complete sessions and track conversation-level metrics across turns. You can create threads programmatically and visualize them in the Weights & Biases UI.\n\nTo get started with Threads, do the following:\n\n1. Familiarize yourself with the basics of Threads.\n   * [Use cases](#use-cases)\n   * [Definitions](#definitions)\n   * [The UI experience](#ui-overview)\n   * [API specification](#api-specification)\n2. Try the code samples, which demonstrate common usage patterns and real-world use cases.\n   * [Basic usage examples](#basic-thread-creation)\n   * [Advanced usage examples](#manual-agent-loop-implementation)\n\n",
+      "outline": [
+        {
+          "section": 0,
+          "heading": "Trace threads"
+        },
+        {
+          "section": 1,
+          "heading": "Use cases"
+        },
+        {
+          "section": 2,
+          "heading": "Definitions"
+        },
+        {
+          "section": 3,
+          "heading": "Thread"
+        },
+        {
+          "section": 4,
+          "heading": "Turn"
+        },
+        {
+          "section": 5,
+          "heading": "Call"
+        },
+        {
+          "section": 6,
+          "heading": "Trace"
+        },
+        {
+          "section": 7,
+          "heading": "UI overview"
+        },
+        {
+          "section": 8,
+          "heading": "Threads list view"
+        },
+        {
+          "section": 9,
+          "heading": "Threads detail drawer"
+        },
+        {
+          "section": 10,
+          "heading": "Chat view behavior"
+        },
+        {
+          "section": 11,
+          "heading": "What qualifies as a message"
+        },
+        {
+          "section": 12,
+          "heading": "What happens when no messages are present"
+        },
+        {
+          "section": 13,
+          "heading": "Turn and chat interactions"
+        },
+        {
+          "section": 14,
+          "heading": "Navigate to and from the trace view"
+        },
+        {
+          "section": 15,
+          "heading": "SDK usage"
+        },
+        {
+          "section": 16,
+          "heading": "Basic thread creation"
+        },
+        {
+          "section": 17,
+          "heading": "Manual agent loop implementation"
+        },
+        {
+          "section": 18,
+          "heading": "Manual agent with unbalanced call depth"
+        },
+        {
+          "section": 19,
+          "heading": "Resume a previous session"
+        },
+        {
+          "section": 20,
+          "heading": "Nested threads"
+        },
+        {
+          "section": 21,
+          "heading": "API specification"
+        },
+        {
+          "section": 22,
+          "heading": "Endpoint"
+        },
+        {
+          "section": 23,
+          "heading": "Request schema"
+        },
+        {
+          "section": 24,
+          "heading": "Response schema"
+        },
+        {
+          "section": 25,
+          "heading": "Query recent active threads"
+        },
+        {
+          "section": 26,
+          "heading": "Query threads by activity level"
+        },
+        {
+          "section": 27,
+          "heading": "Query recent threads only"
+        }
+      ],
+      "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+      "outgoing_links": [],
+      "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+    }
+  ],
+  "actions": [
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "trace custom tool-calling loop Anthropic without agent framework"
+      },
+      "result": {
+        "query": "trace custom tool-calling loop Anthropic without agent framework",
+        "results": [
+          {
+            "page_id": "agent-evals",
+            "section": 3,
+            "title": "Evaluate your AI agent with Weave",
+            "heading": "Build and trace the agent",
+            "url": "https://docs.coreweave.com/products/wandb/weave/agent-evals",
+            "snippet": "## Build and trace the agent\n\nIn this example, the agent uses two tools, `lookup_order` and `issue_refund`, to review and respond to refund requests in line with a policy that only allows refunds within 30 days.  The full agent, including the tool definitions, the model loop, and message conversion, is in the accompanying notebook. This section focuses on the Weave-specific part.\n\nFirst, initialize Weave with your CoreWeave Forge team and project. Replace `[YOUR-TEAM]` and `[YOUR-PROJECT]` with your own values:\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\n    \"[YOUR-TEAM]/[YOUR-PROJECT]\",\n    # Hand-instrumenting a bare provider SDK: turn off implicit patching so it\n    # doesn't also log each call as a traced Op, duplicating the spans.\n    settings={\"implicitly_patch_integrations\": False},\n)\n```\n\nBy default, Weave [autopatches supported SDKs and frameworks](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md), and automatically traces conversations emitted from agents built with them. This tutorial teaches you how to hand-instrument the age"
+          },
+          {
+            "page_id": "guides/integrations/anthropic",
+            "section": 4,
+            "title": "Anthropic",
+            "heading": "Tools (function calling)",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/anthropic",
+            "snippet": "## Tools (function calling)\n\nIn addition to standard messages, Weave instruments Anthropic's tool use interface so you can trace agentic workflows end-to-end.\n\nAnthropic provides a [tools](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview) interface that lets Claude request function calls. Weave automatically tracks tool definitions, tool use requests, and tool results throughout the conversation.\n\nThe following truncated examples demonstrate an Anthropic tool configuration:\n\n**Python**\n\n```python lines theme={\"system\"}\nmessage = client.messages.create(\n    max_tokens=1024,\n    messages=[\n        {\n            \"role\": \"user\",\n            \"content\": \"What's the weather like in San Francisco?\",\n        }\n    ],\n    tools=[\n        {\n            \"name\": \"get_weather\",\n            \"description\": \"Get the current weather in a given location\",\n            \"input_schema\": {\n                \"type\": \"object\",\n                \"properties\": {\n                    \"location\": {\n                        \"type\": \"string\",\n                        \"description\": \"The city and stat"
+          },
+          {
+            "page_id": "guides/integrations/anthropic",
+            "section": 0,
+            "title": "Anthropic",
+            "heading": "Anthropic",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/anthropic",
+            "snippet": "# Anthropic\n\n> Use Weave to automatically track and log LLM calls made with the Anthropic SDK\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/master/weave/docs/quickstart_anthropic.ipynb)\n\nWhen you integrate Weave into your code, it automatically tracks and logs LLM calls made with the Anthropic SDK for both [Python](https://github.com/anthropics/anthropic-sdk-python) and [TypeScript](https://github.com/anthropics/anthropic-sdk-typescript). Weave does this by automatically invoking Anthropic's `Messages.create()` method.\n\nThis guide shows you how to capture traces, wrap your own functions as ops, build a reusable `Model` for experimentation, and track tool use when working with the Anthropic SDK. Use these patterns to debug, compare, and iterate on Claude-powered applications without writing custom logging code.\n\n"
+          },
+          {
+            "page_id": "guides/integrations/agents/claude-agents-sdk",
+            "section": 2,
+            "title": "Claude Agent SDK",
+            "heading": "Prerequisites",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/agents/claude-agents-sdk",
+            "snippet": "### Prerequisites\n\n* A CoreWeave Forge account and [API key](https://forge.coreweave.com/settings#apikeys) set as a `WANDB_API_KEY` environment variable.\n* An Anthropic API key set as an `ANTHROPIC_API_KEY` environment variable.\n* Python 3.10+.\n\n**TypeScript**\n\nWeave integrates with the [`@anthropic-ai/claude-agent-sdk`](https://github.com/anthropics/claude-agent-sdk) to automatically trace `query()` calls, including agent spans, model responses, and tool calls.\n\n"
+          },
+          {
+            "page_id": "guides/tracking/trace-sub-agents",
+            "section": 2,
+            "title": "Trace sub-agents",
+            "heading": "Trace a single sub-agent",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-sub-agents",
+            "snippet": "## Trace a single sub-agent\n\nThe following example runs a supervisor agent that receives a request and delegates it to a research-specialist sub-agent that uses a Wikipedia search tool to find the answer.\n\nWeave captures the full hierarchy by wrapping the conversation in `weave.start_conversation` and then a `conversation.start_turn`. Weave then captures the sub-agent trace using the `weave.start_subagent` block for the specialist, and records each LLM call and tool execution as child spans.\n\nThe routing logic is intentionally omitted from these examples to focus on the tracing between agents.\n\n```python lines highlight=\"4,10,16,22,30\" theme={\"system\"}\nimport weave\nfrom weave.conversation import Message, Usage\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\nwith weave.start_conversation(agent_name=\"supervisor\") as conversation:\n    with conversation.start_turn(user_message=\"Research the founders of Anthropic.\") as turn:\n\n        # Supervisor LLM call: decide which specialist to delegate to.\n        with weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\") as llm:\n            llm.input_"
+          },
+          {
+            "page_id": "guides/tracking/agents-byob-references",
+            "section": 5,
+            "title": "Reference media in your own bucket (BYOB) using agent spans",
+            "heading": "Log a media reference using agent spans",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/agents-byob-references",
+            "snippet": "## Log a media reference using agent spans\n\nReturn a bucket URI as an agent tool result and Weave renders it inline in the **Agents** view, on the tool call that produced it. The following example opens a conversation, a turn, and a tool span, and sets a bucket URI as the tool's result. Replace `[YOUR-TEAM]`, `[YOUR-PROJECT]`, and `[YOUR-BUCKET]` with your own values.\n\n**Python**\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\n# A tool that returns an object that already lives in your bucket.\ndef get_frame(frame_id: int) -> str:\n    return f\"s3://[YOUR-BUCKET]/frames/{frame_id:06d}.png\"\n\nwith weave.start_conversation(agent_name=\"frame-labeler\") as conversation:\n    with weave.start_turn(user_message=\"Show me frame 123\", model=\"gpt-4o-mini\"):\n        with weave.start_tool(\n            name=\"get_frame\",\n            arguments='{\"frame_id\": 123}',\n            tool_call_id=\"call_1\",\n        ) as tool:\n            # The result is a bucket URI string; it renders inline in the Agents view.\n            tool.result = get_frame(123)\n```\n\n**TypeScript**\n"
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "search_docs",
+      "input": {
+        "query": "weave.op nested calls trace"
+      },
+      "result": {
+        "query": "weave.op nested calls trace",
+        "results": [
+          {
+            "page_id": "tutorial-tracing_2",
+            "section": 0,
+            "title": "Trace nested functions",
+            "heading": "Trace nested functions",
+            "url": "https://docs.coreweave.com/products/wandb/weave/tutorial-tracing_2",
+            "snippet": "# Trace nested functions\n\n> Learn how to track deeply nested Call structures with W&B Weave tracing\n\nThis tutorial shows you how to trace nested functions in Weave so you can monitor the full execution flow of an LLM-powered application, including its sub-functions and their parent-child relationships. By the end, you'll be able to capture, visualize, and add metadata to nested traces in the Weave **Traces** page.\n\nLLM-powered applications can contain multiple LLM calls, additional data processing, and validation logic that's important to monitor. You can track these nested functions and their parent-child relationships in Weave using the `@weave.op()` decorator (Python), or wrap it with `weave.op()` (TypeScript).\n\nDecorate functions and sub-functions as granularly as possible to capture the application's complete execution flow. This helps you better understand and shape your application's behavior.\n\n"
+          },
+          {
+            "page_id": "guides/tracking/trace-generator-func",
+            "section": 0,
+            "title": "Trace generator functions",
+            "heading": "Trace generator functions",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-generator-func",
+            "snippet": "# Trace generator functions\n\n> Track sync and async generator functions with Weave tracing\n\nWeave supports tracing both sync and async generator functions, including deeply nested patterns. This page shows you how to decorate generator functions with `@weave.op` so that Weave captures their inputs, yielded outputs, and the full hierarchy of nested calls. Use this when you have streaming or lazily evaluated code paths whose outputs you want to inspect in the Weights & Biases UI alongside your other traces.\n\n> [!WARNING]\n>\n> Because generators yield values lazily, Weave logs outputs only when you fully consume the generator (for example, when you convert it to a list).\n> To ensure Weave captures outputs in the trace, fully consume the generator (for example, with `list()`).\n\n**Python**\n\n```python theme={\"system\"}\nfrom typing import Generator\nimport weave\n\nweave.init(\"my-project\")\n\n# This function uses a sync generator.\n# Weave will trace the Call and its input (`x`),\n# but output values are only captured once the generator is consumed (for example, with `list()`).\n@weave.op\ndef basic_g"
+          },
+          {
+            "page_id": "guides/tracking/ops",
+            "section": 4,
+            "title": "Customize Ops",
+            "heading": "Control sampling rate",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+            "snippet": "## Control sampling rate\n\n**Python**\n\nTo control how frequently Weave traces an Op's calls, set the `tracing_sample_rate` parameter in the `@weave.op` decorator. Use this for high-frequency Ops where you only need to trace a subset of calls.\n\nCollect all traces during agent development to help you shape and understand its behavior. In production, configure trace sampling to lower costs while maintaining observability into your agent's behavior.\n\nWeave applies sampling rates only to outer-most Ops. If a nested Op has a sample rate but a parent Op calls it first, Weave ignores the sampling rate of the nested Op.\n\n```python lines theme={\"system\"}\n@weave.op(tracing_sample_rate=0.1)  # Only trace ~10% of calls\ndef high_frequency_op(x: int) -> int:\n    return x + 1\n\n@weave.op(tracing_sample_rate=1.0)  # Always trace (default)\ndef always_traced_op(x: int) -> int:\n    return x + 1\n```\n\nWhen Weave doesn't sample an Op's call:\n\n* The function executes normally.\n* Weave receives no trace data.\n* Weave doesn't trace child Ops for that call.\n\nThe sampling rate must be between 0.0 and 1.0 inclusiv"
+          },
+          {
+            "page_id": "guides/tracking/threads",
+            "section": 5,
+            "title": "Trace threads",
+            "heading": "Call",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/threads",
+            "snippet": "### Call\n\nA *Call* is any `@weave.op`-decorated function execution in your application.\n\n* *Turn Calls* are top-level operations that start new turns.\n* *Nested Calls* are lower-level operations within a turn.\n\n"
+          },
+          {
+            "page_id": "guides/tracking/create-call",
+            "section": 4,
+            "title": "Trace your code",
+            "heading": "Trace parallel (multi-threaded) function calls",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/create-call",
+            "snippet": "### Trace parallel (multi-threaded) function calls\n\nBy default, parallel Calls all appear in Weave as separate root Calls, which makes the trace hierarchy hard to follow. To get correct nesting under the same parent Op, use a `ThreadPoolExecutor`.\n\n**Python**\n\nThe following code sample demonstrates the use of [`ThreadPoolExecutor`](https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/util#class-contextawarethreadpoolexecutor).\nThe first function, `func`, is a simple Op that takes `x` and returns `x+1`. The second function, `outer`, is another Op that accepts a list of inputs.\nInside `outer`, the use of `ThreadPoolExecutor` and `exc.map(func, inputs)` means that each call to `func` still carries the same parent trace context.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op\ndef func(x):\n    return x+1\n\n@weave.op\ndef outer(inputs):\n    with weave.ThreadPoolExecutor() as exc:\n        exc.map(func, inputs)\n\n# Update your Weave project name\nclient = weave.init('my-weave-project')\nouter([1,2,3,4,5])\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature i"
+          },
+          {
+            "page_id": "guides/tracking/threads",
+            "section": 17,
+            "title": "Trace threads",
+            "heading": "Manual agent loop implementation",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/threads",
+            "snippet": "### Manual agent loop implementation\n\nThis example shows how to manually define a conversational agent using `@weave.op` decorators and `weave.thread()` context management. Each call to `process_user_message` creates a new turn in the thread. You can use this pattern when building your own agent loop and want full control over how context and nesting are handled.\n\nUse the auto-generated thread ID for short-lived interactions, or pass a custom session ID (like `user_session_123`) to persist thread context across sessions.\n\n```python lines theme={\"system\"}\nimport weave\n\nclass ConversationAgent:\n    @weave.op\n    def process_user_message(self, message: str) -> str:\n        \"\"\"\n        TURN-LEVEL OPERATION: This represents one conversation turn.\n        Only this function will be counted in thread statistics.\n        \"\"\"\n        # Store user message\n        # Generate AI response through nested calls\n        response = self._generate_response(message)\n        # Store assistant response\n        return response\n\n    @weave.op\n    def _generate_response(self, message: str) -> str:\n        \""
+          }
+        ],
+        "note": "Read relevant sections with read_page before citing them."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "agent-evals",
+        "section": 3
+      },
+      "result": {
+        "source_id": "S1",
+        "page_id": "agent-evals",
+        "section": 3,
+        "title": "Evaluate your AI agent with Weave",
+        "heading": "Build and trace the agent",
+        "url": "https://docs.coreweave.com/products/wandb/weave/agent-evals",
+        "page_sha256": "3737907b602309bc246bb6fbb0a8d34aa294e06e9de91b87c4950b5fafc6b63b",
+        "text": "## Build and trace the agent\n\nIn this example, the agent uses two tools, `lookup_order` and `issue_refund`, to review and respond to refund requests in line with a policy that only allows refunds within 30 days.  The full agent, including the tool definitions, the model loop, and message conversion, is in the accompanying notebook. This section focuses on the Weave-specific part.\n\nFirst, initialize Weave with your CoreWeave Forge team and project. Replace `[YOUR-TEAM]` and `[YOUR-PROJECT]` with your own values:\n\n```python lines theme={\"system\"}\nimport weave\n\nweave.init(\n    \"[YOUR-TEAM]/[YOUR-PROJECT]\",\n    # Hand-instrumenting a bare provider SDK: turn off implicit patching so it\n    # doesn't also log each call as a traced Op, duplicating the spans.\n    settings={\"implicitly_patch_integrations\": False},\n)\n```\n\nBy default, Weave [autopatches supported SDKs and frameworks](https://docs.coreweave.com/products/wandb/weave/agent-integration-quickstart.md), and automatically traces conversations emitted from agents built with them. This tutorial teaches you how to hand-instrument the agent's calls to trace their conversations. Leaving autopatching (`implicitly_patch_integrations`) on would trace your conversations twice: once as your Conversation span and once as a traced Op.\n\nTrace the agent using `weave.conversation`. A conversation contains turns, and each turn contains the model call and any tool calls:\n\n```python lines highlight=\"3,4,5,13\" theme={\"system\"}\nfrom weave.conversation import start_conversation, Message, Usage\n\nwith start_conversation(agent_name=\"support-agent\", conversation_id=convo_id) as conv:\n    with conv.start_turn(user_message=user_message) as turn:\n        with turn.start_llm(model=\"claude-sonnet-5\", provider_name=\"anthropic\") as llm:\n            response = anthropic_client.messages.create(...)   # Your model call.\n            llm.record(\n                input_messages=[...],                          # List of weave.Message.\n                output_messages=[...],\n                usage=Usage(input_tokens=..., output_tokens=...),\n            )\n        for call in response_tool_calls:                       # Your tool loop.\n            with turn.start_tool(name=call.name, arguments=call.arguments) as tool:\n                tool.result = run_tool(call)                   # Dict is auto-encoded.\n```\n\nThe snippets in this tutorial focus on the Weave calls and use placeholders for your own agent code:\n\n* `convo_id` and `new_id()`: a unique ID for each conversation, such as a UUID.\n* `user_message`: the user's input for the turn.\n* `anthropic_client`: an initialized Anthropic client.\n* `response_tool_calls` and `run_tool()`: the tool calls the model requested and your function that runs them.\n* `run_agent_turn()`: the full agent loop; returns the final reply and a plain-text transcript of the trajectory (turns, tool calls, results) for the judge to read.\n* `judge_task_completion()`: the LLM judge, introduced in the following section.\n\nThe complete, runnable definitions for all of these are in the accompanying notebook.\n\nRun one request and open the printed Weave link. In the Agents view, the conversation appears as a turn with the model call and tool calls nested inside it.\n\n> [!TIP]\n>\n> If you build your agent with a framework integration (Claude Agent SDK, OpenAI Agents), Weave emits these same Agents spans automatically. Leave implicit patching on and skip the manual `start_*` calls.\n\n",
+        "page_context": "# Evaluate your AI agent with Weave\n\n> Evaluate single-turn and multi-turn AI agents in Weave using the agents workflow and EvaluationLogger, scored with an LLM judge.\n\n[Try in Colab](https://colab.research.google.com/github/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\n[GitHub source](https://github.com/wandb/examples/blob/main/colabs/weave/agent_evals.ipynb)\n\nUnlike a single LLM call, an agent pursues a goal across multiple turns, calling tools and acting on their results. Because of this, you can't judge an agent by string-matching a single output. Instead, you evaluate its behavior across a trajectory.\n\nThis tutorial shows you how to evaluate an agent with Weave using the agents workflow. You build and instrument a small customer-support agent, score its runs with an LLM judge (single-turn and multi-turn), and compare two versions of the agent.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Evaluate your AI agent with Weave"
+          },
+          {
+            "section": 1,
+            "heading": "What you'll learn"
+          },
+          {
+            "section": 2,
+            "heading": "Prerequisites"
+          },
+          {
+            "section": 3,
+            "heading": "Build and trace the agent"
+          },
+          {
+            "section": 4,
+            "heading": "Score the agent with an LLM judge"
+          },
+          {
+            "section": 5,
+            "heading": "Organize and compare evaluations"
+          },
+          {
+            "section": 6,
+            "heading": "Score a multi-turn conversation"
+          },
+          {
+            "section": 7,
+            "heading": "Extend your scorers"
+          },
+          {
+            "section": 8,
+            "heading": "Next steps"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [
+          {
+            "page_id": "agent-integration-quickstart",
+            "title": "Choose an agent integration"
+          }
+        ],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/trace-sub-agents",
+        "section": 2
+      },
+      "result": {
+        "source_id": "S2",
+        "page_id": "guides/tracking/trace-sub-agents",
+        "section": 2,
+        "title": "Trace sub-agents",
+        "heading": "Trace a single sub-agent",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/trace-sub-agents",
+        "page_sha256": "6edb851a1257652ab7e391a191ab123d0423074b8b10cced949cb3f49192a6b6",
+        "text": "## Trace a single sub-agent\n\nThe following example runs a supervisor agent that receives a request and delegates it to a research-specialist sub-agent that uses a Wikipedia search tool to find the answer.\n\nWeave captures the full hierarchy by wrapping the conversation in `weave.start_conversation` and then a `conversation.start_turn`. Weave then captures the sub-agent trace using the `weave.start_subagent` block for the specialist, and records each LLM call and tool execution as child spans.\n\nThe routing logic is intentionally omitted from these examples to focus on the tracing between agents.\n\n```python lines highlight=\"4,10,16,22,30\" theme={\"system\"}\nimport weave\nfrom weave.conversation import Message, Usage\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\")\n\nwith weave.start_conversation(agent_name=\"supervisor\") as conversation:\n    with conversation.start_turn(user_message=\"Research the founders of Anthropic.\") as turn:\n\n        # Supervisor LLM call: decide which specialist to delegate to.\n        with weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\") as llm:\n            llm.input_messages = [Message(role=\"user\", content=\"Research the founders of Anthropic.\")]\n            llm.output(\"Delegating to the research specialist.\")\n            llm.usage = Usage(input_tokens=80, output_tokens=10)\n\n        # Delegate to the research specialist as a sub-agent.\n        with weave.start_subagent(name=\"research-specialist\", model=\"gpt-4o\") as sub:\n            with sub.llm(model=\"gpt-4o\", provider_name=\"openai\") as sub_llm:\n                sub_llm.input_messages = [Message(role=\"user\", content=\"Find founders of Anthropic.\")]\n                sub_llm.output(\"I should search for this.\")\n                sub_llm.usage = Usage(input_tokens=120, output_tokens=15)\n\n                with weave.start_tool(name=\"wikipedia_search\", arguments='{\"query\":\"Anthropic\"}') as tool:\n                    tool.result = \"Anthropic was founded by Dario and Daniela Amodei in 2021.\"\n\n            with sub.llm(model=\"gpt-4o\", provider_name=\"openai\") as sub_llm:\n                sub_llm.output(\"Anthropic was founded by Dario and Daniela Amodei in 2021.\")\n                sub_llm.usage = Usage(input_tokens=200, output_tokens=25)\n\n        # Back in the supervisor turn: synthesize the final answer.\n        with weave.start_llm(model=\"gpt-4o\", provider_name=\"openai\") as llm:\n            llm.output(\"Anthropic was founded by Dario and Daniela Amodei in 2021.\")\n            llm.usage = Usage(input_tokens=300, output_tokens=20)\n```\n\nIn the **Agents** view, the sub-agent appears as a nested `invoke_agent` block inside the turn, with its own LLM calls and tool calls grouped beneath. The supervisor's direct LLM calls remain siblings of the sub-agent.\n\n",
+        "page_context": "# Trace sub-agents\n\n> Use Weave's sub-agent span to trace sub-agent delegations and view nested agent invocations.\n\n> [!TIP]\n>\n> **This workflow is also available in CoreWeave Agent Lens.** Agent Lens is the Forge experience built for tracing, monitoring, and analyzing AI agents, with automated insights into agent failures and user intents. It uses the same trace data as Weights & Biases Weave, so the traces you already send appear there with nothing to migrate.\n> [See how to do this in Agent Lens](https://docs.coreweave.com/products/agent-lens/tracing/sub-agents.md).\n\nThis guide shows you how to use Weave to trace sub-agents so that delegated agent invocations appear as nested spans in the same trace as the parent turn. Tracing sub-agents lets you see the full hierarchy of an agent's reasoning, including which specialist agents the parent called, what they did, and how they contributed to the final answer. This guide is for developers instrumenting multi-agent systems with Weave.\n\nA sub-agent is a delegated agent invocation that runs inside a turn. Use sub-agents when one agent hands off to another, such as when a supervisor agent dispatches a specialist agent.\n\nWhen you instrument them with Weave, sub-agents emit a nested `invoke_agent` OpenTelemetry (OTel) span in the same trace as the parent turn. In the **Agents** view, this nesting renders as a sub-agent invocation under the turn that triggered it, with its own LLM calls and tool calls grouped beneath.\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Trace sub-agents"
+          },
+          {
+            "section": 1,
+            "heading": "Sub-agent data model"
+          },
+          {
+            "section": 2,
+            "heading": "Trace a single sub-agent"
+          },
+          {
+            "section": 3,
+            "heading": "Trace multiple sub-agents"
+          },
+          {
+            "section": 4,
+            "heading": "Trace nested sub-agents"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "source_ids": [
+          "S1",
+          "S2"
+        ],
+        "answer": "Structure the loop with Weave's agent spans: one conversation, one turn per user message, and inside each turn an LLM span for every Anthropic call and a tool span for every tool execution. [S1]\n\n**Setup**\n- Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`. You are hand-instrumenting a bare provider SDK. Weave autopatches supported SDKs by default, so leaving that on would trace the conversation twice, once as your Conversation span and once as a traced Op. [S1]\n\n**Structure**\n1. `start_conversation(agent_name=..., conversation_id=...)` wraps the whole session. Use a unique ID such as a UUID. [S1]\n2. `conv.start_turn(user_message=...)` wraps one user request. [S1]\n3. `turn.start_llm(model=..., provider_name=\"anthropic\")` wraps each `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`. [S1]\n4. `turn.start_tool(name=..., arguments=...)` wraps each tool the model requested. Set `tool.result` to the output. [S1]\n\nThe docs' sketch uses placeholders (`anthropic_client`, `response_tool_calls`, `run_tool`) for your own code:\n\n```python\nimport weave\nfrom weave.conversation import start_conversation, Usage\n\nweave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\",\n           settings={\"implicitly_patch_integrations\": False})\n\nwith start_conversation(agent_name=\"my-agent\", conversation_id=\"convo-1\") as conv:\n    with conv.start_turn(user_message=\"...\") as turn:\n        with turn.start_llm(model=\"claude-sonnet-5\", provider_name=\"anthropic\") as llm:\n            response = ...  # anthropic_client.messages.create(...)\n            llm.record(input_messages=[...], output_messages=[...],\n                       usage=Usage(input_tokens=0, output_tokens=0))\n        for call in []:  # placeholder: tool calls from the response\n            with turn.start_tool(name=call.name, arguments=call.arguments) as tool:\n                tool.result = ...  # run_tool(call)\n```\n\nThe sketch shows one LLM call followed by its tools. For a multi-step loop, the sub-agent example opens a new LLM span for each model call and a tool span for each tool execution, all within the same turn. [S2] I'm inferring that you repeat this pattern for each iteration of your loop. The pages I read don't state it as a rule.\n\nIn the Agents view, the turn shows the model call and tool calls nested inside it. [S1]\n\n**Alternative:** The docs also describe a manual pattern that uses `@weave.op` methods, where each user message is handled by a turn-level op and its nested calls are lower-level ops. You can combine it with `weave.thread()` context management. [S1] I only saw snippets of that pattern, so I haven't verified how it compares with the agent spans."
+      },
+      "result": {
+        "passed": false,
+        "claims": [
+          {
+            "text": "Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`.",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "answer_quote": "Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`.",
+            "scope_status": "supported",
+            "scope_reason": "S1 shows this for hand-instrumenting a bare provider SDK.",
+            "supported": true
+          },
+          {
+            "text": "`turn.start_llm(model=..., provider_name=\"anthropic\")` wraps each `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`.",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "answer_quote": "`turn.start_llm(model=..., provider_name=\"anthropic\")` wraps each `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`.",
+            "scope_status": "supported",
+            "scope_reason": "Matches the S1 snippet.",
+            "supported": true
+          },
+          {
+            "text": "Structure the loop with Weave's agent spans: one conversation, one turn per user message, and inside each turn an LLM span for every Anthropic call and a tool span for every tool execution.",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "partial",
+            "answer_quote": "Structure the loop with Weave's agent spans: one conversation, one turn per user message, and inside each turn an LLM span for every Anthropic call and a tool span for every tool execution.",
+            "scope_status": "supported",
+            "scope_reason": "S1 shows one LLM call then tools; the 'every call' generalization is only partly supported by S1 and S2.",
+            "supported": false
+          },
+          {
+            "text": "the sub-agent example opens a new LLM span for each model call and a tool span for each tool execution, all within the same turn.",
+            "kind": "product",
+            "source_ids": [
+              "S2"
+            ],
+            "status": "partial",
+            "answer_quote": "the sub-agent example opens a new LLM span for each model call and a tool span for each tool execution, all within the same turn.",
+            "scope_status": "uncertain",
+            "scope_reason": "S2 is a supervisor/sub-agent example using a different API (weave.start_llm, sub.llm), not a bare Anthropic loop; the claim is inferred and not documented as a multi-step loop rule.",
+            "supported": false
+          },
+          {
+            "text": "The docs also describe a manual pattern that uses `@weave.op` methods, where each user message is handled by a turn-level op and its nested calls are lower-level ops. You can combine it with `weave.thread()` context management.",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "unsupported",
+            "answer_quote": "The docs also describe a manual pattern that uses `@weave.op` methods, where each user message is handled by a turn-level op and its nested calls are lower-level ops. You can combine it with `weave.thread()` context management.",
+            "scope_status": "unsupported",
+            "scope_reason": "S1 does not contain this pattern; it was only seen in search results, never read.",
+            "supported": false
+          }
+        ],
+        "issues": [
+          "The @weave.op/weave.thread alternative is cited to S1, but S1 doesn't mention it. Remove it or read the threads/ops pages and cite them.",
+          "Multi-step loop guidance relies on the sub-agent example, which uses a different API. The answer labels it an inference, but the S1 snippet shows only a single LLM call per turn. Qualify this or find a source for multi-iteration loops.",
+          "The code sketch uses `for call in []` and a placeholder, so it does not implement a tool loop. It never sends tool results back to the model, so it is an incomplete example of the user's loop.",
+          "O1: The core structure is supported, but the multi-step loop and the alternative pattern are unsupported or inferred.",
+          "Each product claim needs an exact quote and supported applicability/scope.",
+          "Each product claim needs an exact quote and supported applicability/scope.",
+          "Revise partial or unsupported material claims."
+        ],
+        "coverage": [],
+        "outcome_assessments": [
+          {
+            "outcome_id": "O1",
+            "status": "uncertain",
+            "answer_quote": "Structure the loop with Weave's agent spans",
+            "reason": "The core structure is supported, but the multi-step loop and the alternative pattern are unsupported or inferred.",
+            "source_ids": [
+              "S1",
+              "S2"
+            ],
+            "evidence_quotes": []
+          }
+        ],
+        "research_requests": [
+          {
+            "outcome_id": "O1",
+            "claim_quote": null,
+            "missing_premise": "Documentation of the @weave.op turn-level pattern with weave.thread() for manual tracing.",
+            "tool": "read_page",
+            "query": null,
+            "page_id": "guides/tracking/threads",
+            "section": 5
+          }
+        ],
+        "mode": "support",
+        "full_recheck_eligible": false,
+        "status": "failed"
+      },
+      "origin": "provider_tool_call"
+    },
+    {
+      "tool": "read_page",
+      "input": {
+        "page_id": "guides/tracking/threads",
+        "section": 5
+      },
+      "result": {
+        "source_id": "S3",
+        "page_id": "guides/tracking/threads",
+        "section": 5,
+        "title": "Trace threads",
+        "heading": "Call",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/threads",
+        "page_sha256": "656f7544e6f1aff417278d08b10aab2273eedb0c0a40a00c42ad2eff033fb2c8",
+        "text": "### Call\n\nA *Call* is any `@weave.op`-decorated function execution in your application.\n\n* *Turn Calls* are top-level operations that start new turns.\n* *Nested Calls* are lower-level operations within a turn.\n\n",
+        "page_context": "# Trace threads\n\n> Trace and analyze multi-turn conversations in your LLM applications using threads.\n\nWith Weave *Threads*, you can track and analyze multi-turn conversations in your LLM applications. Threads group related Calls under a shared `thread_id`, so you can visualize complete sessions and track conversation-level metrics across turns. You can create threads programmatically and visualize them in the Weights & Biases UI.\n\nTo get started with Threads, do the following:\n\n1. Familiarize yourself with the basics of Threads.\n   * [Use cases](#use-cases)\n   * [Definitions](#definitions)\n   * [The UI experience](#ui-overview)\n   * [API specification](#api-specification)\n2. Try the code samples, which demonstrate common usage patterns and real-world use cases.\n   * [Basic usage examples](#basic-thread-creation)\n   * [Advanced usage examples](#manual-agent-loop-implementation)\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Trace threads"
+          },
+          {
+            "section": 1,
+            "heading": "Use cases"
+          },
+          {
+            "section": 2,
+            "heading": "Definitions"
+          },
+          {
+            "section": 3,
+            "heading": "Thread"
+          },
+          {
+            "section": 4,
+            "heading": "Turn"
+          },
+          {
+            "section": 5,
+            "heading": "Call"
+          },
+          {
+            "section": 6,
+            "heading": "Trace"
+          },
+          {
+            "section": 7,
+            "heading": "UI overview"
+          },
+          {
+            "section": 8,
+            "heading": "Threads list view"
+          },
+          {
+            "section": 9,
+            "heading": "Threads detail drawer"
+          },
+          {
+            "section": 10,
+            "heading": "Chat view behavior"
+          },
+          {
+            "section": 11,
+            "heading": "What qualifies as a message"
+          },
+          {
+            "section": 12,
+            "heading": "What happens when no messages are present"
+          },
+          {
+            "section": 13,
+            "heading": "Turn and chat interactions"
+          },
+          {
+            "section": 14,
+            "heading": "Navigate to and from the trace view"
+          },
+          {
+            "section": 15,
+            "heading": "SDK usage"
+          },
+          {
+            "section": 16,
+            "heading": "Basic thread creation"
+          },
+          {
+            "section": 17,
+            "heading": "Manual agent loop implementation"
+          },
+          {
+            "section": 18,
+            "heading": "Manual agent with unbalanced call depth"
+          },
+          {
+            "section": 19,
+            "heading": "Resume a previous session"
+          },
+          {
+            "section": 20,
+            "heading": "Nested threads"
+          },
+          {
+            "section": 21,
+            "heading": "API specification"
+          },
+          {
+            "section": 22,
+            "heading": "Endpoint"
+          },
+          {
+            "section": 23,
+            "heading": "Request schema"
+          },
+          {
+            "section": 24,
+            "heading": "Response schema"
+          },
+          {
+            "section": 25,
+            "heading": "Query recent active threads"
+          },
+          {
+            "section": 26,
+            "heading": "Query threads by activity level"
+          },
+          {
+            "section": 27,
+            "heading": "Query recent threads only"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      },
+      "origin": "verifier_repair",
+      "repair_target": {
+        "outcome_id": "O1",
+        "claim_quote": null,
+        "missing_premise": "Documentation of the @weave.op turn-level pattern with weave.thread() for manual tracing.",
+        "tool": "read_page",
+        "query": null,
+        "page_id": "guides/tracking/threads",
+        "section": 5
+      }
+    },
+    {
+      "tool": "submit_answer",
+      "input": {
+        "source_ids": [
+          "S1",
+          "S3"
+        ],
+        "answer": "For a hand-written Anthropic loop, the documented approach is to instrument it with Weave's conversation spans. Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call. [S1]\n\n**Setup**\n- Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`. The docs turn off implicit patching when hand-instrumenting a bare provider SDK. Otherwise the conversation is traced twice, once as your Conversation span and once as a traced Op. [S1]\n\n**Structure (from the docs' example)**\n1. `start_conversation(agent_name=..., conversation_id=...)` wraps the session. Use a unique ID such as a UUID. [S1]\n2. `conv.start_turn(user_message=...)` wraps one user request. [S1]\n3. `turn.start_llm(model=..., provider_name=\"anthropic\")` wraps the `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`. [S1]\n4. `turn.start_tool(name=..., arguments=...)` wraps each tool the model requested. Set `tool.result` to the output. [S1]\n\n```python\nfrom weave.conversation import start_conversation, Usage\n\n# Placeholders: convo_id, user_message, anthropic_client, response_tool_calls, run_tool.\nwith start_conversation(agent_name=\"support-agent\", conversation_id=convo_id) as conv:\n    with conv.start_turn(user_message=user_message) as turn:\n        with turn.start_llm(model=\"claude-sonnet-5\", provider_name=\"anthropic\") as llm:\n            response = anthropic_client.messages.create(...)\n            llm.record(input_messages=[...], output_messages=[...],\n                       usage=Usage(input_tokens=..., output_tokens=...))\n        for call in response_tool_calls:\n            with turn.start_tool(name=call.name, arguments=call.arguments) as tool:\n                tool.result = run_tool(call)\n```\n\nThis is the docs' single-pass sketch, not a full loop. It doesn't send tool results back to Claude for a follow-up call. The docs say the full loop is in their notebook. [S1] If your loop makes several model calls, you would presumably open another LLM span for each one inside the same turn. That is my inference, not something I read in the docs.\n\nIn the Agents view, the model call and tool calls appear nested inside the turn. [S1]\n\n**Alternative:** The Threads docs define a *Call* as any `@weave.op`-decorated function execution. They also say turn Calls are top-level operations that start turns, and nested Calls are lower-level operations within a turn. [S3] That is a separate, op-based way to structure a loop. I only read these definitions, not the code sample."
+      },
+      "result": {
+        "passed": true,
+        "claims": [
+          {
+            "text": "Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call.",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "answer_quote": "Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call.",
+            "scope_status": "supported",
+            "scope_reason": "S1 shows this for a hand-instrumented Anthropic agent.",
+            "supported": true
+          },
+          {
+            "text": "Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`.",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "answer_quote": "Call `weave.init(\"[YOUR-TEAM]/[YOUR-PROJECT]\", settings={\"implicitly_patch_integrations\": False})`.",
+            "scope_status": "supported",
+            "scope_reason": "Matches the S1 example and its explanation of double tracing.",
+            "supported": true
+          },
+          {
+            "text": "`turn.start_llm(model=..., provider_name=\"anthropic\")` wraps the `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`.",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "answer_quote": "`turn.start_llm(model=..., provider_name=\"anthropic\")` wraps the `messages.create` call. Inside it, call `llm.record(input_messages=..., output_messages=..., usage=Usage(...))`.",
+            "scope_status": "supported",
+            "scope_reason": "Directly in the S1 code.",
+            "supported": true
+          },
+          {
+            "text": "It doesn't send tool results back to Claude for a follow-up call. The docs say the full loop is in their notebook.",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "answer_quote": "It doesn't send tool results back to Claude for a follow-up call. The docs say the full loop is in their notebook.",
+            "scope_status": "supported",
+            "scope_reason": "S1 says the full loop is in the notebook, and the sketch omits it.",
+            "supported": true
+          },
+          {
+            "text": "The Threads docs define a *Call* as any `@weave.op`-decorated function execution.",
+            "kind": "product",
+            "source_ids": [
+              "S3"
+            ],
+            "status": "supported",
+            "answer_quote": "The Threads docs define a *Call* as any `@weave.op`-decorated function execution.",
+            "scope_status": "supported",
+            "scope_reason": "S3 states this definition.",
+            "supported": true
+          }
+        ],
+        "issues": [],
+        "coverage": [],
+        "outcome_assessments": [
+          {
+            "outcome_id": "O1",
+            "status": "answered",
+            "answer_quote": "Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call.",
+            "reason": "Gives the documented structure with a code sketch.",
+            "source_ids": [
+              "S1"
+            ],
+            "evidence_quotes": []
+          }
+        ],
+        "research_requests": [],
+        "mode": "support",
+        "full_recheck_eligible": false,
+        "status": "passed"
+      },
+      "origin": "provider_tool_call"
+    }
+  ],
+  "conversation_id": "69cc7a61-76fb-427f-9fe3-4cd6e2221eef",
+  "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/69cc7a61-76fb-427f-9fe3-4cd6e2221eef",
+  "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+  "source_sha256": "55c77715c7224fd844a499e93b1a816abfa686db2b848b19991c0a56b28fe794",
+  "prompt_sha256": "020cf8e2307ef50c6f2e4a82e7715cc4613832607faa418a0a434424a748bea7",
+  "config_sha256": "49cc7734a6df29a6067960601a6c8e4540ed2253038ea047df999a07cfc3400b",
+  "verify_mode": "support",
+  "cache_enabled": true,
+  "trace_id": "12a76a12e34aaaf3db62b366a28ed9ab",
+  "model": "claude-sonnet-5-5",
+  "elapsed_seconds": 33.58,
+  "planner_usage": {
+    "input_tokens": 20,
+    "output_tokens": 2719
+  },
+  "metrics": {
+    "calls": [
+      {
+        "purpose": "task_planning",
+        "requested_model": "claude-sonnet-5-5",
+        "effort": "medium",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgVpH9bnpV58y7eMkfV3B",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 163
+          },
+          "cache_creation_input_tokens": 163,
+          "cache_read_input_tokens": 1371,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 186,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.579,
+        "estimated_usd": 0.0024126
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "effort": "medium",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgVpHKxPyibSza2WqoUcU",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 432
+          },
+          "cache_creation_input_tokens": 432,
+          "cache_read_input_tokens": 2916,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 122,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 1.2917,
+        "estimated_usd": 0.0025996
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "effort": "medium",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgVpHRZEnX5T3M8Q5F9vA",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 6034
+          },
+          "cache_creation_input_tokens": 6034,
+          "cache_read_input_tokens": 3348,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 221,
+          "output_tokens_details": {
+            "thinking_tokens": 65
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 2.4298,
+        "estimated_usd": 0.0176378
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "effort": "medium",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgVpHc1YJRvCmoLoYdZkr",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 4609
+          },
+          "cache_creation_input_tokens": 4609,
+          "cache_read_input_tokens": 9382,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 1103,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 7.3605,
+        "estimated_usd": 0.0234987
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-sonnet-5-5",
+        "effort": "medium",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgVpJ9Udc92qvtEwS55QX",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 6261
+          },
+          "cache_creation_input_tokens": 6261,
+          "cache_read_input_tokens": 4566,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 1276,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 7.8294,
+        "estimated_usd": 0.0288771
+      },
+      {
+        "purpose": "planner",
+        "requested_model": "claude-sonnet-5-5",
+        "effort": "medium",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgVpJj4jEtDh6pF7oDTtv",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 4367
+          },
+          "cache_creation_input_tokens": 4367,
+          "cache_read_input_tokens": 13991,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 1087,
+          "output_tokens_details": {
+            "thinking_tokens": 49
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 6.879,
+        "estimated_usd": 0.0231946
+      },
+      {
+        "purpose": "verification",
+        "requested_model": "claude-sonnet-5-5",
+        "effort": "medium",
+        "response_model": "claude-sonnet-5-5",
+        "response_id": "msg_011CgVpKEX214mkfFhkRXx1W",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 7470
+          },
+          "cache_creation_input_tokens": 7470,
+          "cache_read_input_tokens": 4566,
+          "inference_geo": "global",
+          "input_tokens": 4,
+          "output_tokens": 855,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "server_tool_use": null,
+          "service_tier": "standard",
+          "speed": "standard"
+        },
+        "error_type": null,
+        "elapsed_seconds": 5.1379,
+        "estimated_usd": 0.0276896
+      }
+    ],
+    "model_calls": 7,
+    "tokens": {
+      "input_tokens": 28,
+      "output_tokens": 4850,
+      "cache_creation_input_tokens": 29336,
+      "cache_read_input_tokens": 40140
+    },
+    "total_input_tokens": 69504,
+    "estimated_usd": 0.12591,
+    "known_estimated_usd": 0.12591,
+    "unpriced_calls": 0,
+    "by_purpose": {
+      "task_planning": {
+        "calls": 1,
+        "known_estimated_usd": 0.0024126
+      },
+      "planner": {
+        "calls": 4,
+        "known_estimated_usd": 0.0669307
+      },
+      "verification": {
+        "calls": 2,
+        "known_estimated_usd": 0.0565667
+      }
+    },
+    "research": {
+      "searches": 2,
+      "passage_reads": 3,
+      "distinct_pages_read": 3,
+      "repeated_tool_requests": 0,
+      "drafts_submitted": 2,
+      "code_runs": 0
+    },
+    "pricing": {
+      "checked_at": "2026-10-25",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": {
+        "claude-sonnet-5-5": {
+          "input": 2,
+          "output": 10,
+          "write_5m": 2.5,
+          "write_1h": 4,
+          "read": 0.1
+        },
+        "claude-opus-5-5": {
+          "input": 4,
+          "output": 20,
+          "write_5m": 5,
+          "write_1h": 8,
+          "read": 0.2
+        }
+      }
+    },
+    "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+  },
+  "error_type": null,
+  "recovery_attempted": false,
+  "recovered_partial": false,
+  "full_recheck_attempted": false,
+  "full_answer_rechecked": false
+}

@@ -1,0 +1,30 @@
+For a hand-written Anthropic loop, the documented approach is to instrument it with Weave's conversation spans. Use one conversation, one turn per user message, and inside the turn an LLM span for the model call and a tool span for each tool call. [S1]
+
+Setup
+
+Call weave.init("[YOUR-TEAM]/[YOUR-PROJECT]", settings={"implicitly_patch_integrations": False}). The docs turn off implicit patching when hand-instrumenting a bare provider SDK. Otherwise the conversation is traced twice, once as your Conversation span and once as a traced Op. [S1]
+
+Structure (from the docs' example)
+
+start_conversation(agent_name=..., conversation_id=...) wraps the session. Use a unique ID such as a UUID. [S1]
+conv.start_turn(user_message=...) wraps one user request. [S1]
+turn.start_llm(model=..., provider_name="anthropic") wraps the messages.create call. Inside it, call llm.record(input_messages=..., output_messages=..., usage=Usage(...)). [S1]
+turn.start_tool(name=..., arguments=...) wraps each tool the model requested. Set tool.result to the output. [S1]
+from weave.conversation import start_conversation, Usage
+
+# Placeholders: convo_id, user_message, anthropic_client, response_tool_calls, run_tool.
+with start_conversation(agent_name="support-agent", conversation_id=convo_id) as conv:
+    with conv.start_turn(user_message=user_message) as turn:
+        with turn.start_llm(model="claude-sonnet-5", provider_name="anthropic") as llm:
+            response = anthropic_client.messages.create(...)
+            llm.record(input_messages=[...], output_messages=[...],
+                       usage=Usage(input_tokens=..., output_tokens=...))
+        for call in response_tool_calls:
+            with turn.start_tool(name=call.name, arguments=call.arguments) as tool:
+                tool.result = run_tool(call)
+
+This is the docs' single-pass sketch, not a full loop. It doesn't send tool results back to Claude for a follow-up call. The docs say the full loop is in their notebook. [S1] If your loop makes several model calls, you would presumably open another LLM span for each one inside the same turn. That is my inference, not something I read in the docs.
+
+In the Agents view, the model call and tool calls appear nested inside the turn. [S1]
+
+Alternative: The Threads docs define a Call as any @weave.op-decorated function execution. They also say turn Calls are top-level operations that start turns, and nested Calls are lower-level operations within a turn. [S3] That is a separate, op-based way to structure a loop. I only read these definitions, not the code sample.

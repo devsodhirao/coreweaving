@@ -1,0 +1,31 @@
+Record usage on the LLM span with llm.record(usage=Usage(...)). For Anthropic, set input_tokens to the total input, meaning input_tokens plus cache-read plus cache-creation tokens. Report the two cache counts separately as well. Also pass a concrete response_model. [S4]
+
+Why this matters
+
+Weave shows token counts from usage and derives cost from usage plus the model id. Incomplete or unpriceable values show 0 in / 0 out or Cost -. [S4]
+Weave prices cache reads and writes at their own rates and subtracts them from the input total. So cache_read_input_tokens and cache_creation_input_tokens must be reported in addition to a total input_tokens that includes them. [S4]
+Anthropic reports cached tokens separately from input_tokens, so you add them back yourself. [S4]
+Cost is a lookup on the model. Weave prefers response_model and falls back to the model passed to start_llm. An alias like sonnet isn't priceable and shows Cost -. Pass resp.model as response_model. [S4]
+
+Example (from the docs' quickstart; MODEL, anthropic_client and history are placeholders)
+
+with weave.start_llm(model=MODEL, provider_name="anthropic") as llm:
+    resp = anthropic_client.messages.create(
+        model=MODEL, max_tokens=1024, messages=history,
+    )
+    u = resp.usage
+    llm.output(resp.content[0].text)
+    llm.record(
+        usage=weave.Usage(
+            input_tokens=u.input_tokens
+            + u.cache_read_input_tokens
+            + u.cache_creation_input_tokens,
+            output_tokens=u.output_tokens,
+            cache_read_input_tokens=u.cache_read_input_tokens,
+            cache_creation_input_tokens=u.cache_creation_input_tokens,
+        ),
+        response_id=resp.id,
+        response_model=resp.model,
+    )
+
+In your loop, do this inside each turn.start_llm(...) span, once per model call. My earlier sketch imported Usage from weave.conversation. This quickstart snippet uses weave.Usage and weave.start_llm. I didn't compare the two import paths. The snippet also records only the text of the response. If you want tool-use blocks captured, that would need extra handling that I didn't check.
