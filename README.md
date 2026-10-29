@@ -65,7 +65,7 @@ flowchart LR
 | --- | --- | --- |
 | One direct tool loop | Gather more evidence and repair within explicit permissions. | **Reasoned.** No framework comparison; the implementation remains substantial. [`Agent.run`](src/coreweaving/agent.py) |
 | Sonnet planner/verifier; Opus judge/recovery | Native tool calls; Sonnet costs less at equal token counts. | **Reasoned.** [Dated prices](src/coreweaving/metrics.py), no model comparison. Same-family errors can correlate; effort is unspecified. |
-| Local snapshot + BM25 | Reproducible passages and inspectable API-name matching without a retrieval service. | **Reasoned.** No retrieval-method benchmark. [Alternatives and corpus limits](docs/CODE_MAP.md#retrieval-alternatives-considered) |
+| Local snapshot + BM25 | Reproducible passages and inspectable API-name matching without a retrieval service. | **Compared.** On 18 frozen queries, contextual BM25 tied baseline; hybrid improved selected-evidence recall from 57.0% to 64.4%, below the predeclared 10-point adoption threshold. [Comparison and limits](results/retrieval-comparison-v1/README.md) |
 | Support verification + fixed question outcomes | Prevent an omitted requested part from passing merely because retained claims are supported. | **Observed repairs.** The [historical pilot below](#evaluation-and-verification) tested an earlier source-only policy; no citation-only arm isolates the model auditor’s added value. |
 | Prompt caching and explicit usage | Reuse input and account for all calls, including repairs. | **Observed.** [Cache probe](results/caching-probe-v1/cache.json) and [usage reconciliation](results/coverage-pilot-v1/accounting-review-final.json); no measured latency gain. |
 
@@ -81,7 +81,7 @@ The Signal's server filter selects this agent's ERROR turns or recorded failure,
 
 Configure the monitor and run a labeled fixture with `uv run python -m coreweaving.signals --fixture` (uses inference credits). Human reviews currently stay in SQLite; Weave feedback-to-dataset curation is future work. Some pilot Compare summaries displayed N/A; the cause is unresolved, and [backend readback](results/coverage-pilot-v1/backend-final-readback.json) preserves the scores.
 
-The latest readback verifies all **17 Agent turns** and the evaluation's parent summary, but only **2/13 evaluation rows** are present after export timeouts. The local 13-case records are complete. [Delivery diagnosis](results/task-completion-repair-v1/backend-retry-missing-rows-diagnostic.json) · [Earlier fully linked run](results/task-completion-repair-v1/backend-budget.json)
+The current regression's readback verifies all **17 Agent turns** and the evaluation's parent summary, but only **2/13 evaluation rows** are present after export timeouts. The local 13-case records are complete. [Delivery diagnosis](results/task-completion-repair-v1/backend-retry-missing-rows-diagnostic.json) · [Earlier fully linked run](results/task-completion-repair-v1/backend-budget.json)
 
 ## Evaluation and verification
 
@@ -105,7 +105,7 @@ The historical pilot used six questions × two trials per mode. It predates veri
 Support’s extra case passes came from citation integrity; factual assertions tied. Coverage refused answerable tasks. **The model verifier’s benefit beyond citation checks remains unisolated.** All 36 runs cost $9.65. [Pilot records](results/coverage-pilot-v1/summary.json) · [Failure analysis](results/coverage-pilot-v1/review.md)
 <!-- MEASURED_RESULTS_END -->
 
-**479 local tests passed; Ruff is clean.** On current `fe4b7b5`, the two-turn usage journey passed its five frozen assertions; answers took **47 and 81 seconds**, costing **$0.35** together. On preceding `f4c7618`, all six browser tasks passed **18/18 checks**, including the original overview: **31–121 seconds, median 49 seconds**, with 29 cited passages matching the snapshot. These are separate development runs. [Current UI check](results/task-completion-repair-v1/ui-followup-fe4/manual-review.json) · [Six-journey check](results/task-completion-repair-v1/ui-final-f4/manual-review.json)
+**513 local tests passed; Ruff is clean.** [Local checks](results/retrieval-comparison-v1/local-checks.json) include the experimental search adapters; the app runtime is unchanged. On current `fe4b7b5`, the two-turn usage journey passed its five frozen assertions; answers took **47 and 81 seconds**, costing **$0.35** together. On preceding `f4c7618`, all six browser tasks passed **18/18 checks**, including the original overview: **31–121 seconds, median 49 seconds**, with 29 cited passages matching the snapshot. These are separate development runs. [Current UI check](results/task-completion-repair-v1/ui-followup-fe4/manual-review.json) · [Six-journey check](results/task-completion-repair-v1/ui-final-f4/manual-review.json)
 
 Costs use returned usage and dated prices; Signal inference, hosting, taxes and unreturned charges are excluded. Original runs and the immutable `submission-2026-10-26` tag retain their original scores. [Evidence by version](results/README.md)
 
@@ -123,7 +123,7 @@ uv run python -m coreweaving.evaluate --suite regression --verify-mode support -
 - **Documentation:** one [licensed](docs/THIRD_PARTY_NOTICES.md) snapshot of 351 pages from October 24, 2026. Reference SDK 0.53.1 differs from runtime 0.54.0. No live freshness check, release selector or API-compatibility validation; long chunks can split code. [Version contract](docs/VERSIONING.md)
 - **State and privacy:** restart can lose unfinished work and conversation memory; the evidence ledger is not size-capped. Saved reviews do not become trusted documentation. Use public inputs with this public trace project.
 
-Next, test citation-only versus model verification on matched tasks, explicit reasoning effort, and fixed-corpus retrieval with and without the new page navigation before a hybrid-search comparison. Define new tasks before comparing; preserve the existing results.
+Next, repair the [observed code-redaction and trace-export defects](results/retrieval-comparison-v1/README.md), then test citation-only versus model verification and explicit reasoning effort on matched tasks. The hybrid pilot stays experimental. Define new tasks before comparing; preserve existing results.
 
 The project exceeded the approximately three-hour brief. Core agent, tracing, Signals and initial evaluation landed in the first session; later sessions added experiments and repairs. The [AI build log](docs/AI_BUILD_LOG.md) records what failed, what changed and the supporting evidence.
 

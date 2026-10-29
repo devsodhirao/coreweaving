@@ -2,6 +2,12 @@
 
 Start with the [task-completion repair review](task-completion-repair-v1/review.md) for findings and this index for the underlying receipts. Recorded answers, failed attempts and labeled fixtures remain unchanged.
 
+## Retrieval comparison: keep the current default
+
+The [prospective retrieval probe](retrieval-comparison-v1/README.md) compares BM25, source-context BM25 and local hybrid search on 18 frozen queries. Selected-nugget recall@6 was **57.0% / 57.0% / 64.4%**. Hybrid's 7.4-point gain missed the predeclared 10-point threshold; all-nugget coverage stayed 7/18. In six paired agent tasks, both arms passed 14/14 assertions; hybrid used 35 model calls versus 36, with median engine time 24.78 s versus 28.42 s. One trial per arm and uneven verifier decisions prevent a causal speed claim. Total agent + judge estimate: **$2.44**.
+
+App runtime `fe4b7b5` remains unchanged. [Original scores](retrieval-comparison-v1/live/summary.json), [recomputed totals](retrieval-comparison-v1/live-comparison.json) and [independent review](retrieval-comparison-v1/live-review.json) preserve shared code-redaction defects and a citation attribution the runtime verifier accepted and the evaluation judge noted without failing the case. [Backend readback](retrieval-comparison-v1/backend-readback.json) separates 12 local scored records from incomplete remote delivery and failed Weave aggregation; [diagnosis](retrieval-comparison-v1/export-diagnosis.json) reproduces literal-text/reference confusion without network calls. [513 tests and local checks](retrieval-comparison-v1/local-checks.json). This experiment does not replace the regression results below.
+
 ## Current repair status
 
 [Task-completion repair](task-completion-repair-v1/review.md) separates source support, task completion, audit delivery and output delivery. The questions and rubric stayed fixed throughout this pass.

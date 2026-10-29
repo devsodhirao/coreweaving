@@ -1,0 +1,1873 @@
+{
+  "case_id": "p01-private-function-data--baseline",
+  "prediction_id": "3910a9a4-22cb-4e15-85e3-1f60e885b6f9",
+  "trial_index": 1,
+  "example_id": null,
+  "verify_mode": "support",
+  "prompts": [
+    "My Python function needs the real password to do its job, but I want its recorded arguments and returned object to hide private fields. How can I change what Weave records without changing the function itself?"
+  ],
+  "output": {
+    "answer_id": "ba6cc7fe-7f2b-4d0a-80b7-783b1e7b54cc",
+    "question": "My Python function needs the real password to do its job, but I want its recorded arguments and returned object to hide private fields. How can I change what Weave records without changing the function itself?",
+    "source_ids": [
+      "S1"
+    ],
+    "citation_contract_version": 3,
+    "verification_contract_version": 3,
+    "task_plan": [
+      {
+        "description": "Explain how to change what Weave records for a function's arguments and returned object so private fields (like the password) are hidden, while the function still receives the real values and its code is unchanged.",
+        "request_quote": "How can I change what Weave records without changing the function itself?",
+        "requires_clarification": false,
+        "id": "O1",
+        "workflow_subject": null,
+        "facet": null
+      }
+    ],
+    "outcome_assessments": [
+      {
+        "outcome_id": "O1",
+        "status": "answered",
+        "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+        "reason": "Documented hooks change logged data without modifying the function, and the answer honestly hedges on the runtime-values detail.",
+        "source_ids": [
+          "S1"
+        ],
+        "evidence_quotes": []
+      }
+    ],
+    "task_complete": true,
+    "missing_outcomes": [],
+    "completion_status": "complete",
+    "review_reason": "none",
+    "conversation_context": [],
+    "answer": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator. The docs describe this as a way to change the data Weave logs without modifying the original function, for example to hide sensitive data [S1].\n\n- `postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].\n- `postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].\n- You pass both to `weave.op(...)`, and the function body stays as it is [S1].\n\nThe docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1]. Here is the same pattern adapted to your case. It is my adaptation, not a tested run:\n\n```python\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass Result:\n    x: int\n    password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    # Return the recorded inputs without the private argument\n    return {k: v for k, v in inputs.items() if k != \"password\"}\n\ndef postprocess_output(output: Result) -> Result:\n    # Return a copy with the private field replaced\n    return Result(x=output.x, password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef my_function(a: int, password: [REDACTED_SECRET] -> Result:\n    ...  # your existing code, unchanged\n```\n\nYou can also replace a value, such as `\"REDACTED\"`, instead of dropping the key. Dropping the key is what the docs' example does [S1].\n\n**Limits of what I read:**\n- The docs describe these hooks as changing the logged data. I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.\n- The docs mark this feature as not yet available in TypeScript [S1]. The examples above are Python.",
+    "kind": "answer",
+    "verification": {
+      "passed": true,
+      "claims": [
+        {
+          "text": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+          "scope_status": "supported",
+          "scope_reason": "Python Op decorator, matching the user's Python function.",
+          "supported": true
+        },
+        {
+          "text": "`postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "answer_quote": "`postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].",
+          "scope_status": "supported",
+          "scope_reason": "Directly documented for Python.",
+          "supported": true
+        },
+        {
+          "text": "`postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "answer_quote": "`postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].",
+          "scope_status": "supported",
+          "scope_reason": "Directly documented for Python.",
+          "supported": true
+        },
+        {
+          "text": "The docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1].",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "answer_quote": "The docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1].",
+          "scope_status": "supported",
+          "scope_reason": "Matches the documented example.",
+          "supported": true
+        },
+        {
+          "text": "The docs mark this feature as not yet available in TypeScript [S1].",
+          "kind": "product",
+          "source_ids": [
+            "S1"
+          ],
+          "status": "supported",
+          "answer_quote": "The docs mark this feature as not yet available in TypeScript [S1].",
+          "scope_status": "supported",
+          "scope_reason": "The TypeScript tab says this.",
+          "supported": true
+        },
+        {
+          "text": "I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.",
+          "kind": "research_process",
+          "source_ids": [],
+          "status": "supported",
+          "answer_quote": "I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.",
+          "scope_status": null,
+          "scope_reason": "Honest statement limited to the page that was read.",
+          "supported": true
+        }
+      ],
+      "issues": [],
+      "coverage": [],
+      "outcome_assessments": [
+        {
+          "outcome_id": "O1",
+          "status": "answered",
+          "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+          "reason": "Documented hooks change logged data without modifying the function, and the answer honestly hedges on the runtime-values detail.",
+          "source_ids": [
+            "S1"
+          ],
+          "evidence_quotes": []
+        }
+      ],
+      "research_requests": [],
+      "mode": "support",
+      "full_recheck_eligible": false,
+      "status": "passed"
+    },
+    "verification_attempts": [
+      {
+        "candidate": {
+          "source_ids": [
+            "S1"
+          ],
+          "answer": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator. The docs describe this as a way to change the data Weave logs without modifying the original function, for example to hide sensitive data [S1].\n\n- `postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].\n- `postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].\n- You pass both to `weave.op(...)`, and the function body stays as it is [S1].\n\nThe docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1]. Here is the same pattern adapted to your case. It is my adaptation, not a tested run:\n\n```python\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass Result:\n    x: int\n    password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    # Return the recorded inputs without the private argument\n    return {k: v for k, v in inputs.items() if k != \"password\"}\n\ndef postprocess_output(output: Result) -> Result:\n    # Return a copy with the private field replaced\n    return Result(x=output.x, password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef my_function(a: int, password: [REDACTED_SECRET] -> Result:\n    ...  # your existing code, unchanged\n```\n\nYou can also replace a value, such as `\"REDACTED\"`, instead of dropping the key. Dropping the key is what the docs' example does [S1].\n\n**Limits of what I read:**\n- The docs describe these hooks as changing the logged data. I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.\n- The docs mark this feature as not yet available in TypeScript [S1]. The examples above are Python.",
+          "kind": "answer"
+        },
+        "passed": true,
+        "claims": [
+          {
+            "text": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+            "scope_status": "supported",
+            "scope_reason": "Python Op decorator, matching the user's Python function.",
+            "supported": true
+          },
+          {
+            "text": "`postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "answer_quote": "`postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].",
+            "scope_status": "supported",
+            "scope_reason": "Directly documented for Python.",
+            "supported": true
+          },
+          {
+            "text": "`postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "answer_quote": "`postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].",
+            "scope_status": "supported",
+            "scope_reason": "Directly documented for Python.",
+            "supported": true
+          },
+          {
+            "text": "The docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1].",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "answer_quote": "The docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1].",
+            "scope_status": "supported",
+            "scope_reason": "Matches the documented example.",
+            "supported": true
+          },
+          {
+            "text": "The docs mark this feature as not yet available in TypeScript [S1].",
+            "kind": "product",
+            "source_ids": [
+              "S1"
+            ],
+            "status": "supported",
+            "answer_quote": "The docs mark this feature as not yet available in TypeScript [S1].",
+            "scope_status": "supported",
+            "scope_reason": "The TypeScript tab says this.",
+            "supported": true
+          },
+          {
+            "text": "I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.",
+            "kind": "research_process",
+            "source_ids": [],
+            "status": "supported",
+            "answer_quote": "I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.",
+            "scope_status": null,
+            "scope_reason": "Honest statement limited to the page that was read.",
+            "supported": true
+          }
+        ],
+        "issues": [],
+        "coverage": [],
+        "outcome_assessments": [
+          {
+            "outcome_id": "O1",
+            "status": "answered",
+            "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+            "reason": "Documented hooks change logged data without modifying the function, and the answer honestly hedges on the runtime-values detail.",
+            "source_ids": [
+              "S1"
+            ],
+            "evidence_quotes": []
+          }
+        ],
+        "research_requests": [],
+        "mode": "support",
+        "full_recheck_eligible": false,
+        "status": "passed"
+      }
+    ],
+    "sources": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/ops",
+        "section": 3,
+        "title": "Customize Ops",
+        "heading": "Customize logged inputs and outputs",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+        "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+        "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=[REDACTED_SECRET]\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+        "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Customize Ops"
+          },
+          {
+            "section": 1,
+            "heading": "Customize display names"
+          },
+          {
+            "section": 2,
+            "heading": "Apply kinds and colors"
+          },
+          {
+            "section": 3,
+            "heading": "Customize logged inputs and outputs"
+          },
+          {
+            "section": 4,
+            "heading": "Control sampling rate"
+          },
+          {
+            "section": 5,
+            "heading": "Control Call link output"
+          },
+          {
+            "section": 6,
+            "heading": "Delete an Op"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "credential_redacted": true,
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      }
+    ],
+    "all_read_evidence": [
+      {
+        "source_id": "S1",
+        "page_id": "guides/tracking/ops",
+        "section": 3,
+        "title": "Customize Ops",
+        "heading": "Customize logged inputs and outputs",
+        "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+        "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+        "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=[REDACTED_SECRET]\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+        "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+        "outline": [
+          {
+            "section": 0,
+            "heading": "Customize Ops"
+          },
+          {
+            "section": 1,
+            "heading": "Customize display names"
+          },
+          {
+            "section": 2,
+            "heading": "Apply kinds and colors"
+          },
+          {
+            "section": 3,
+            "heading": "Customize logged inputs and outputs"
+          },
+          {
+            "section": 4,
+            "heading": "Control sampling rate"
+          },
+          {
+            "section": 5,
+            "heading": "Control Call link output"
+          },
+          {
+            "section": 6,
+            "heading": "Delete an Op"
+          }
+        ],
+        "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+        "credential_redacted": true,
+        "outgoing_links": [],
+        "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+      }
+    ],
+    "actions": [
+      {
+        "tool": "search_docs",
+        "input": {
+          "query": "redact sensitive data in op inputs and outputs postprocess_inputs postprocess_output"
+        },
+        "result": {
+          "query": "redact sensitive data in op inputs and outputs postprocess_inputs postprocess_output",
+          "results": [
+            {
+              "page_id": "guides/tracking/ops",
+              "section": 3,
+              "title": "Customize Ops",
+              "heading": "Customize logged inputs and outputs",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+              "snippet": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return C"
+            },
+            {
+              "page_id": "cookbooks/pii",
+              "section": 12,
+              "title": "PII Data Handling",
+              "heading": "Method 4: Use `autopatch_settings`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/pii",
+              "snippet": "### Method 4: Use `autopatch_settings`\n\nYou can use `autopatch_settings` to configure PII handling directly during initialization for one or more of the supported LLM integrations. We recommend this approach when you want centralized PII handling across all calls to a given integration. The advantages of this method are:\n\n1. PII handling logic is centralized and scoped at initialization, reducing the need for scattered custom logic.\n2. You can customize or disable PII processing workflows entirely for specific integrations.\n\nTo use `autopatch_settings` to configure PII handling, define `postprocess_inputs` or `postprocess_output` in `op_settings` for any one of the supported LLM integrations.\n\n```python lines theme={\"system\"}\n\ndef postprocess(inputs: dict) -> dict:\n    if \"SENSITIVE_KEY\" in inputs:\n        inputs[\"SENSITIVE_KEY\"] = \"REDACTED\"\n    return inputs\n\nclient = weave.init(\n    ...,\n    autopatch_settings={\n        \"openai\": {\n            \"op_settings\": {\n                \"postprocess_inputs\": postprocess,\n                \"postprocess_output\": ...,\n            }\n        },\n   "
+            },
+            {
+              "page_id": "cookbooks/pii",
+              "section": 2,
+              "title": "PII Data Handling",
+              "heading": "Customize input and output logging using `weave.op`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/pii",
+              "snippet": "### Customize input and output logging using `weave.op`\n\nWeave Ops let you define input and output postprocessing functions. With these functions, you can modify the data that is passed to your LLM call or logged to Weave.\n\nThe following example defines two postprocessing functions and passes them as arguments to `weave.op()`.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\n\nimport weave\n\n# Inputs Wrapper Class\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\n# First, define functions for input and output postprocessing:\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"[REDACTED_SECRET]\")\n\n# Then, when you use the `@weave.op` decorator, pass these processing functions as arguments to the decorator:\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef some_llm_call(a: int, hide_me: str) -> Cus"
+            },
+            {
+              "page_id": "guides/tracking/view-call",
+              "section": 1,
+              "title": "View and customize trace display",
+              "heading": "Customize rendered traces with `weave.Markdown`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-call",
+              "snippet": "## Customize rendered traces with `weave.Markdown`\n\nAfter you can view a Call, you may want to control how its inputs and outputs appear in the UI. Use `weave.Markdown` to customize how Weave displays your trace information without losing the original data. This lets you render your inputs and outputs as readable blocks of formatted content while preserving the underlying data structure.\n\n**Python**\n\nUse `postprocess_inputs` and `postprocess_output` functions in your `@weave.op` decorator to format your trace data. The following code sample uses postprocessors to render a call in Weave with more readable formatting:\n\n```python lines theme={\"system\"}\nimport weave\n\ndef postprocess_inputs(query) -> weave.Markdown:\n    search_box = f\"\"\"\n**Search Query:**\n``+`\n{query}\n``+`\n\"\"\"\n    return {\"search_box\": weave.Markdown(search_box),\n            \"query\": query}\n\ndef postprocess_output(docs) -> weave.Markdown:\n    formatted_docs = f\"\"\"\n# {docs[0][\"title\"]}\n\n{docs[0][\"content\"]}\n\n[Read more]({docs[0][\"url\"]})\n\n---\n\n# {docs[1][\"title\"]}\n\n{docs[1][\"content\"]}\n\n[Read more]({docs[1][\"url\"]})\n\"\"\"\n  "
+            },
+            {
+              "page_id": "guides/integrations/autopatching",
+              "section": 3,
+              "title": "Control automatic LLM call tracking",
+              "heading": "Post-process inputs and outputs",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/autopatching",
+              "snippet": "### Post-process inputs and outputs\n\nIn addition to turning patching on or off, you can transform what Weave records for each call. You can customize how Weave records inputs and outputs (for example, to redact PII or secrets) by passing settings to the patch function:\n\n```python lines theme={\"system\"}\nimport weave.integrations\n\ndef redact_inputs(inputs: dict) -> dict:\n    if \"email\" in inputs:\n        inputs[\"email\"] = \"[REDACTED]\"\n    return inputs\n\nweave.init(...)\nweave.integrations.patch_openai(\n    settings={\n        \"op_settings\": {\"postprocess_inputs\": redact_inputs}\n    }\n)\n```\n\nFor more information about handling sensitive data, see [How to use Weave with PII data](https://docs.coreweave.com/products/wandb/weave/cookbooks/pii.md).\n\n**TypeScript**\n\nThe TypeScript SDK only supports autopatching for OpenAI and Anthropic. Weave patches OpenAI when you import Weave, and it doesn't require any additional configuration.\n\nAdditionally, the TypeScript SDK doesn't support:\n\n* Autopatching configuration or disabling.\n* Input and output post-processing.\n\nFor edge cases where automatic p"
+            },
+            {
+              "page_id": "reference/python-sdk/trace/weave_client",
+              "section": 7,
+              "title": "weave_client",
+              "heading": "<kbd>method</kbd> `__init__`",
+              "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/weave_client",
+              "snippet": "### <kbd>method</kbd> `__init__`\n\n```python theme={\"system\"}\n__init__(\n    entity: 'str',\n    project: 'str',\n    server: 'TraceServerClientInterface',\n    ensure_project_exists: 'bool' = True,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    api_key: '[REDACTED_SECRET]' = None\n)\n```\n\n***\n\n"
+            }
+          ],
+          "note": "Read relevant sections with read_page before citing them."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "read_page",
+        "input": {
+          "page_id": "guides/tracking/ops",
+          "section": 3
+        },
+        "result": {
+          "source_id": "S1",
+          "page_id": "guides/tracking/ops",
+          "section": 3,
+          "title": "Customize Ops",
+          "heading": "Customize logged inputs and outputs",
+          "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+          "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+          "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=[REDACTED_SECRET]\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+          "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+          "outline": [
+            {
+              "section": 0,
+              "heading": "Customize Ops"
+            },
+            {
+              "section": 1,
+              "heading": "Customize display names"
+            },
+            {
+              "section": 2,
+              "heading": "Apply kinds and colors"
+            },
+            {
+              "section": 3,
+              "heading": "Customize logged inputs and outputs"
+            },
+            {
+              "section": 4,
+              "heading": "Control sampling rate"
+            },
+            {
+              "section": 5,
+              "heading": "Control Call link output"
+            },
+            {
+              "section": 6,
+              "heading": "Delete an Op"
+            }
+          ],
+          "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+          "credential_redacted": true,
+          "outgoing_links": [],
+          "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+        },
+        "origin": "provider_tool_call"
+      },
+      {
+        "tool": "submit_answer",
+        "input": {
+          "answer": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator. The docs describe this as a way to change the data Weave logs without modifying the original function, for example to hide sensitive data [S1].\n\n- `postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].\n- `postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].\n- You pass both to `weave.op(...)`, and the function body stays as it is [S1].\n\nThe docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1]. Here is the same pattern adapted to your case. It is my adaptation, not a tested run:\n\n```python\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass Result:\n    x: int\n    password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    # Return the recorded inputs without the private argument\n    return {k: v for k, v in inputs.items() if k != \"password\"}\n\ndef postprocess_output(output: Result) -> Result:\n    # Return a copy with the private field replaced\n    return Result(x=output.x, password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef my_function(a: int, password: [REDACTED_SECRET] -> Result:\n    ...  # your existing code, unchanged\n```\n\nYou can also replace a value, such as `\"REDACTED\"`, instead of dropping the key. Dropping the key is what the docs' example does [S1].\n\n**Limits of what I read:**\n- The docs describe these hooks as changing the logged data. I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.\n- The docs mark this feature as not yet available in TypeScript [S1]. The examples above are Python.",
+          "source_ids": [
+            "S1"
+          ],
+          "kind": "answer"
+        },
+        "result": {
+          "passed": true,
+          "claims": [
+            {
+              "text": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+              "kind": "product",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+              "scope_status": "supported",
+              "scope_reason": "Python Op decorator, matching the user's Python function.",
+              "supported": true
+            },
+            {
+              "text": "`postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].",
+              "kind": "product",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "answer_quote": "`postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].",
+              "scope_status": "supported",
+              "scope_reason": "Directly documented for Python.",
+              "supported": true
+            },
+            {
+              "text": "`postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].",
+              "kind": "product",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "answer_quote": "`postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].",
+              "scope_status": "supported",
+              "scope_reason": "Directly documented for Python.",
+              "supported": true
+            },
+            {
+              "text": "The docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1].",
+              "kind": "product",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "answer_quote": "The docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1].",
+              "scope_status": "supported",
+              "scope_reason": "Matches the documented example.",
+              "supported": true
+            },
+            {
+              "text": "The docs mark this feature as not yet available in TypeScript [S1].",
+              "kind": "product",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "answer_quote": "The docs mark this feature as not yet available in TypeScript [S1].",
+              "scope_status": "supported",
+              "scope_reason": "The TypeScript tab says this.",
+              "supported": true
+            },
+            {
+              "text": "I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.",
+              "kind": "research_process",
+              "source_ids": [],
+              "status": "supported",
+              "answer_quote": "I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.",
+              "scope_status": null,
+              "scope_reason": "Honest statement limited to the page that was read.",
+              "supported": true
+            }
+          ],
+          "issues": [],
+          "coverage": [],
+          "outcome_assessments": [
+            {
+              "outcome_id": "O1",
+              "status": "answered",
+              "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+              "reason": "Documented hooks change logged data without modifying the function, and the answer honestly hedges on the runtime-values detail.",
+              "source_ids": [
+                "S1"
+              ],
+              "evidence_quotes": []
+            }
+          ],
+          "research_requests": [],
+          "mode": "support",
+          "full_recheck_eligible": false,
+          "status": "passed"
+        },
+        "origin": "application_normalization"
+      }
+    ],
+    "conversation_id": "f3965a85-d3e2-43a4-a2e1-2bd710d61439",
+    "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/f3965a85-d3e2-43a4-a2e1-2bd710d61439",
+    "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+    "source_sha256": "860e9ee6c1134ca44ed04ac9dd22103e2c8acfe5f64fe40a0969941034af53ff",
+    "prompt_sha256": "c49d9627540d4cd1e9f6bd44f1f4a73b5c45d4b6c9adff03ab14a4541db7bcff",
+    "config_sha256": "49cc7734a6df29a6067960601a6c8e4540ed2253038ea047df999a07cfc3400b",
+    "verify_mode": "support",
+    "cache_enabled": true,
+    "trace_id": "706537fbe0769647ef05d0b6ef3e9564",
+    "model": "claude-sonnet-5-5",
+    "elapsed_seconds": 23.48,
+    "planner_usage": {
+      "input_tokens": 16,
+      "output_tokens": 1150
+    },
+    "metrics": {
+      "calls": [
+        {
+          "purpose": "task_planning",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgVXq5eLWdZTYjxQj4iNv",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1406
+            },
+            "cache_creation_input_tokens": 1406,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 164,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.2138,
+          "estimated_usd": 0.005163
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgVXqDz8UrvgRxdPfN4CT",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 3245
+            },
+            "cache_creation_input_tokens": 3245,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 77,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.5461,
+          "estimated_usd": 0.0088905
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgVXqQoWfEWtZZweLXB2F",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 3476
+            },
+            "cache_creation_input_tokens": 3476,
+            "cache_read_input_tokens": 3245,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 78,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 1.4545,
+          "estimated_usd": 0.0098025
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgVXqX1aBJpxtxYoCoaTw",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1870
+            },
+            "cache_creation_input_tokens": 1870,
+            "cache_read_input_tokens": 6721,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 831,
+            "output_tokens_details": {
+              "thinking_tokens": 175
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 8.0038,
+          "estimated_usd": 0.0136651
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgVXr7FbaPxh9pSrPdTKT",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 7604
+            },
+            "cache_creation_input_tokens": 7604,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 1394,
+            "output_tokens_details": {
+              "thinking_tokens": 536
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 9.2369,
+          "estimated_usd": 0.032958
+        }
+      ],
+      "model_calls": 5,
+      "tokens": {
+        "input_tokens": 20,
+        "output_tokens": 2544,
+        "cache_creation_input_tokens": 17601,
+        "cache_read_input_tokens": 9966
+      },
+      "total_input_tokens": 27587,
+      "estimated_usd": 0.0704791,
+      "known_estimated_usd": 0.0704791,
+      "unpriced_calls": 0,
+      "by_purpose": {
+        "task_planning": {
+          "calls": 1,
+          "known_estimated_usd": 0.005163
+        },
+        "planner": {
+          "calls": 3,
+          "known_estimated_usd": 0.0323581
+        },
+        "verification": {
+          "calls": 1,
+          "known_estimated_usd": 0.032958
+        }
+      },
+      "research": {
+        "searches": 1,
+        "passage_reads": 1,
+        "distinct_pages_read": 1,
+        "repeated_tool_requests": 0,
+        "drafts_submitted": 1,
+        "code_runs": 0
+      },
+      "pricing": {
+        "checked_at": "2026-10-25",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "rates": {
+          "claude-sonnet-5-5": {
+            "input": 2,
+            "output": 10,
+            "write_5m": 2.5,
+            "write_1h": 4,
+            "read": 0.1
+          },
+          "claude-opus-5-5": {
+            "input": 4,
+            "output": 20,
+            "write_5m": 5,
+            "write_1h": 8,
+            "read": 0.2
+          }
+        }
+      },
+      "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+    },
+    "error_type": null,
+    "recovery_attempted": false,
+    "recovered_partial": false,
+    "full_recheck_attempted": false,
+    "full_answer_rechecked": false,
+    "case_id": "p01-private-function-data--baseline",
+    "question_id": "p01-private-function-data",
+    "prediction_id": "3910a9a4-22cb-4e15-85e3-1f60e885b6f9",
+    "retrieval_mode": "baseline",
+    "evaluation_call_id": "01a184ec-63b6-73ef-bc86-db86063776a3",
+    "predict_and_score_call_id": "01a184ec-63b8-7f07-b1fb-ec5fa35d98b0",
+    "predict_call_id": "01a184ec-63bb-7146-9c8c-30f40ac96af3",
+    "turns": [
+      {
+        "answer_id": "ba6cc7fe-7f2b-4d0a-80b7-783b1e7b54cc",
+        "question": "My Python function needs the real password to do its job, but I want its recorded arguments and returned object to hide private fields. How can I change what Weave records without changing the function itself?",
+        "source_ids": [
+          "S1"
+        ],
+        "citation_contract_version": 3,
+        "verification_contract_version": 3,
+        "task_plan": [
+          {
+            "description": "Explain how to change what Weave records for a function's arguments and returned object so private fields (like the password) are hidden, while the function still receives the real values and its code is unchanged.",
+            "request_quote": "How can I change what Weave records without changing the function itself?",
+            "requires_clarification": false,
+            "id": "O1",
+            "workflow_subject": null,
+            "facet": null
+          }
+        ],
+        "outcome_assessments": [
+          {
+            "outcome_id": "O1",
+            "status": "answered",
+            "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+            "reason": "Documented hooks change logged data without modifying the function, and the answer honestly hedges on the runtime-values detail.",
+            "source_ids": [
+              "S1"
+            ],
+            "evidence_quotes": []
+          }
+        ],
+        "task_complete": true,
+        "missing_outcomes": [],
+        "completion_status": "complete",
+        "review_reason": "none",
+        "conversation_context": [],
+        "answer": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator. The docs describe this as a way to change the data Weave logs without modifying the original function, for example to hide sensitive data [S1].\n\n- `postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].\n- `postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].\n- You pass both to `weave.op(...)`, and the function body stays as it is [S1].\n\nThe docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1]. Here is the same pattern adapted to your case. It is my adaptation, not a tested run:\n\n```python\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass Result:\n    x: int\n    password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    # Return the recorded inputs without the private argument\n    return {k: v for k, v in inputs.items() if k != \"password\"}\n\ndef postprocess_output(output: Result) -> Result:\n    # Return a copy with the private field replaced\n    return Result(x=output.x, password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef my_function(a: int, password: [REDACTED_SECRET] -> Result:\n    ...  # your existing code, unchanged\n```\n\nYou can also replace a value, such as `\"REDACTED\"`, instead of dropping the key. Dropping the key is what the docs' example does [S1].\n\n**Limits of what I read:**\n- The docs describe these hooks as changing the logged data. I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.\n- The docs mark this feature as not yet available in TypeScript [S1]. The examples above are Python.",
+        "kind": "answer",
+        "verification": {
+          "passed": true,
+          "claims": [
+            {
+              "text": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+              "kind": "product",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+              "scope_status": "supported",
+              "scope_reason": "Python Op decorator, matching the user's Python function.",
+              "supported": true
+            },
+            {
+              "text": "`postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].",
+              "kind": "product",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "answer_quote": "`postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].",
+              "scope_status": "supported",
+              "scope_reason": "Directly documented for Python.",
+              "supported": true
+            },
+            {
+              "text": "`postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].",
+              "kind": "product",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "answer_quote": "`postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].",
+              "scope_status": "supported",
+              "scope_reason": "Directly documented for Python.",
+              "supported": true
+            },
+            {
+              "text": "The docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1].",
+              "kind": "product",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "answer_quote": "The docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1].",
+              "scope_status": "supported",
+              "scope_reason": "Matches the documented example.",
+              "supported": true
+            },
+            {
+              "text": "The docs mark this feature as not yet available in TypeScript [S1].",
+              "kind": "product",
+              "source_ids": [
+                "S1"
+              ],
+              "status": "supported",
+              "answer_quote": "The docs mark this feature as not yet available in TypeScript [S1].",
+              "scope_status": "supported",
+              "scope_reason": "The TypeScript tab says this.",
+              "supported": true
+            },
+            {
+              "text": "I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.",
+              "kind": "research_process",
+              "source_ids": [],
+              "status": "supported",
+              "answer_quote": "I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.",
+              "scope_status": null,
+              "scope_reason": "Honest statement limited to the page that was read.",
+              "supported": true
+            }
+          ],
+          "issues": [],
+          "coverage": [],
+          "outcome_assessments": [
+            {
+              "outcome_id": "O1",
+              "status": "answered",
+              "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+              "reason": "Documented hooks change logged data without modifying the function, and the answer honestly hedges on the runtime-values detail.",
+              "source_ids": [
+                "S1"
+              ],
+              "evidence_quotes": []
+            }
+          ],
+          "research_requests": [],
+          "mode": "support",
+          "full_recheck_eligible": false,
+          "status": "passed"
+        },
+        "verification_attempts": [
+          {
+            "candidate": {
+              "source_ids": [
+                "S1"
+              ],
+              "answer": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator. The docs describe this as a way to change the data Weave logs without modifying the original function, for example to hide sensitive data [S1].\n\n- `postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].\n- `postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].\n- You pass both to `weave.op(...)`, and the function body stays as it is [S1].\n\nThe docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1]. Here is the same pattern adapted to your case. It is my adaptation, not a tested run:\n\n```python\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass Result:\n    x: int\n    password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    # Return the recorded inputs without the private argument\n    return {k: v for k, v in inputs.items() if k != \"password\"}\n\ndef postprocess_output(output: Result) -> Result:\n    # Return a copy with the private field replaced\n    return Result(x=output.x, password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef my_function(a: int, password: [REDACTED_SECRET] -> Result:\n    ...  # your existing code, unchanged\n```\n\nYou can also replace a value, such as `\"REDACTED\"`, instead of dropping the key. Dropping the key is what the docs' example does [S1].\n\n**Limits of what I read:**\n- The docs describe these hooks as changing the logged data. I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.\n- The docs mark this feature as not yet available in TypeScript [S1]. The examples above are Python.",
+              "kind": "answer"
+            },
+            "passed": true,
+            "claims": [
+              {
+                "text": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+                "kind": "product",
+                "source_ids": [
+                  "S1"
+                ],
+                "status": "supported",
+                "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+                "scope_status": "supported",
+                "scope_reason": "Python Op decorator, matching the user's Python function.",
+                "supported": true
+              },
+              {
+                "text": "`postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].",
+                "kind": "product",
+                "source_ids": [
+                  "S1"
+                ],
+                "status": "supported",
+                "answer_quote": "`postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].",
+                "scope_status": "supported",
+                "scope_reason": "Directly documented for Python.",
+                "supported": true
+              },
+              {
+                "text": "`postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].",
+                "kind": "product",
+                "source_ids": [
+                  "S1"
+                ],
+                "status": "supported",
+                "answer_quote": "`postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].",
+                "scope_status": "supported",
+                "scope_reason": "Directly documented for Python.",
+                "supported": true
+              },
+              {
+                "text": "The docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1].",
+                "kind": "product",
+                "source_ids": [
+                  "S1"
+                ],
+                "status": "supported",
+                "answer_quote": "The docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1].",
+                "scope_status": "supported",
+                "scope_reason": "Matches the documented example.",
+                "supported": true
+              },
+              {
+                "text": "The docs mark this feature as not yet available in TypeScript [S1].",
+                "kind": "product",
+                "source_ids": [
+                  "S1"
+                ],
+                "status": "supported",
+                "answer_quote": "The docs mark this feature as not yet available in TypeScript [S1].",
+                "scope_status": "supported",
+                "scope_reason": "The TypeScript tab says this.",
+                "supported": true
+              },
+              {
+                "text": "I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.",
+                "kind": "research_process",
+                "source_ids": [],
+                "status": "supported",
+                "answer_quote": "I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.",
+                "scope_status": null,
+                "scope_reason": "Honest statement limited to the page that was read.",
+                "supported": true
+              }
+            ],
+            "issues": [],
+            "coverage": [],
+            "outcome_assessments": [
+              {
+                "outcome_id": "O1",
+                "status": "answered",
+                "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+                "reason": "Documented hooks change logged data without modifying the function, and the answer honestly hedges on the runtime-values detail.",
+                "source_ids": [
+                  "S1"
+                ],
+                "evidence_quotes": []
+              }
+            ],
+            "research_requests": [],
+            "mode": "support",
+            "full_recheck_eligible": false,
+            "status": "passed"
+          }
+        ],
+        "sources": [
+          {
+            "source_id": "S1",
+            "page_id": "guides/tracking/ops",
+            "section": 3,
+            "title": "Customize Ops",
+            "heading": "Customize logged inputs and outputs",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+            "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+            "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=[REDACTED_SECRET]\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+            "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+            "outline": [
+              {
+                "section": 0,
+                "heading": "Customize Ops"
+              },
+              {
+                "section": 1,
+                "heading": "Customize display names"
+              },
+              {
+                "section": 2,
+                "heading": "Apply kinds and colors"
+              },
+              {
+                "section": 3,
+                "heading": "Customize logged inputs and outputs"
+              },
+              {
+                "section": 4,
+                "heading": "Control sampling rate"
+              },
+              {
+                "section": 5,
+                "heading": "Control Call link output"
+              },
+              {
+                "section": 6,
+                "heading": "Delete an Op"
+              }
+            ],
+            "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+            "credential_redacted": true,
+            "outgoing_links": [],
+            "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+          }
+        ],
+        "all_read_evidence": [
+          {
+            "source_id": "S1",
+            "page_id": "guides/tracking/ops",
+            "section": 3,
+            "title": "Customize Ops",
+            "heading": "Customize logged inputs and outputs",
+            "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+            "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+            "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=[REDACTED_SECRET]\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+            "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+            "outline": [
+              {
+                "section": 0,
+                "heading": "Customize Ops"
+              },
+              {
+                "section": 1,
+                "heading": "Customize display names"
+              },
+              {
+                "section": 2,
+                "heading": "Apply kinds and colors"
+              },
+              {
+                "section": 3,
+                "heading": "Customize logged inputs and outputs"
+              },
+              {
+                "section": 4,
+                "heading": "Control sampling rate"
+              },
+              {
+                "section": 5,
+                "heading": "Control Call link output"
+              },
+              {
+                "section": 6,
+                "heading": "Delete an Op"
+              }
+            ],
+            "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+            "credential_redacted": true,
+            "outgoing_links": [],
+            "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+          }
+        ],
+        "actions": [
+          {
+            "tool": "search_docs",
+            "input": {
+              "query": "redact sensitive data in op inputs and outputs postprocess_inputs postprocess_output"
+            },
+            "result": {
+              "query": "redact sensitive data in op inputs and outputs postprocess_inputs postprocess_output",
+              "results": [
+                {
+                  "page_id": "guides/tracking/ops",
+                  "section": 3,
+                  "title": "Customize Ops",
+                  "heading": "Customize logged inputs and outputs",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+                  "snippet": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return C"
+                },
+                {
+                  "page_id": "cookbooks/pii",
+                  "section": 12,
+                  "title": "PII Data Handling",
+                  "heading": "Method 4: Use `autopatch_settings`",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/pii",
+                  "snippet": "### Method 4: Use `autopatch_settings`\n\nYou can use `autopatch_settings` to configure PII handling directly during initialization for one or more of the supported LLM integrations. We recommend this approach when you want centralized PII handling across all calls to a given integration. The advantages of this method are:\n\n1. PII handling logic is centralized and scoped at initialization, reducing the need for scattered custom logic.\n2. You can customize or disable PII processing workflows entirely for specific integrations.\n\nTo use `autopatch_settings` to configure PII handling, define `postprocess_inputs` or `postprocess_output` in `op_settings` for any one of the supported LLM integrations.\n\n```python lines theme={\"system\"}\n\ndef postprocess(inputs: dict) -> dict:\n    if \"SENSITIVE_KEY\" in inputs:\n        inputs[\"SENSITIVE_KEY\"] = \"REDACTED\"\n    return inputs\n\nclient = weave.init(\n    ...,\n    autopatch_settings={\n        \"openai\": {\n            \"op_settings\": {\n                \"postprocess_inputs\": postprocess,\n                \"postprocess_output\": ...,\n            }\n        },\n   "
+                },
+                {
+                  "page_id": "cookbooks/pii",
+                  "section": 2,
+                  "title": "PII Data Handling",
+                  "heading": "Customize input and output logging using `weave.op`",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/cookbooks/pii",
+                  "snippet": "### Customize input and output logging using `weave.op`\n\nWeave Ops let you define input and output postprocessing functions. With these functions, you can modify the data that is passed to your LLM call or logged to Weave.\n\nThe following example defines two postprocessing functions and passes them as arguments to `weave.op()`.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\n\nimport weave\n\n# Inputs Wrapper Class\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\n# First, define functions for input and output postprocessing:\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"[REDACTED_SECRET]\")\n\n# Then, when you use the `@weave.op` decorator, pass these processing functions as arguments to the decorator:\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef some_llm_call(a: int, hide_me: str) -> Cus"
+                },
+                {
+                  "page_id": "guides/tracking/view-call",
+                  "section": 1,
+                  "title": "View and customize trace display",
+                  "heading": "Customize rendered traces with `weave.Markdown`",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/view-call",
+                  "snippet": "## Customize rendered traces with `weave.Markdown`\n\nAfter you can view a Call, you may want to control how its inputs and outputs appear in the UI. Use `weave.Markdown` to customize how Weave displays your trace information without losing the original data. This lets you render your inputs and outputs as readable blocks of formatted content while preserving the underlying data structure.\n\n**Python**\n\nUse `postprocess_inputs` and `postprocess_output` functions in your `@weave.op` decorator to format your trace data. The following code sample uses postprocessors to render a call in Weave with more readable formatting:\n\n```python lines theme={\"system\"}\nimport weave\n\ndef postprocess_inputs(query) -> weave.Markdown:\n    search_box = f\"\"\"\n**Search Query:**\n``+`\n{query}\n``+`\n\"\"\"\n    return {\"search_box\": weave.Markdown(search_box),\n            \"query\": query}\n\ndef postprocess_output(docs) -> weave.Markdown:\n    formatted_docs = f\"\"\"\n# {docs[0][\"title\"]}\n\n{docs[0][\"content\"]}\n\n[Read more]({docs[0][\"url\"]})\n\n---\n\n# {docs[1][\"title\"]}\n\n{docs[1][\"content\"]}\n\n[Read more]({docs[1][\"url\"]})\n\"\"\"\n  "
+                },
+                {
+                  "page_id": "guides/integrations/autopatching",
+                  "section": 3,
+                  "title": "Control automatic LLM call tracking",
+                  "heading": "Post-process inputs and outputs",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/guides/integrations/autopatching",
+                  "snippet": "### Post-process inputs and outputs\n\nIn addition to turning patching on or off, you can transform what Weave records for each call. You can customize how Weave records inputs and outputs (for example, to redact PII or secrets) by passing settings to the patch function:\n\n```python lines theme={\"system\"}\nimport weave.integrations\n\ndef redact_inputs(inputs: dict) -> dict:\n    if \"email\" in inputs:\n        inputs[\"email\"] = \"[REDACTED]\"\n    return inputs\n\nweave.init(...)\nweave.integrations.patch_openai(\n    settings={\n        \"op_settings\": {\"postprocess_inputs\": redact_inputs}\n    }\n)\n```\n\nFor more information about handling sensitive data, see [How to use Weave with PII data](https://docs.coreweave.com/products/wandb/weave/cookbooks/pii.md).\n\n**TypeScript**\n\nThe TypeScript SDK only supports autopatching for OpenAI and Anthropic. Weave patches OpenAI when you import Weave, and it doesn't require any additional configuration.\n\nAdditionally, the TypeScript SDK doesn't support:\n\n* Autopatching configuration or disabling.\n* Input and output post-processing.\n\nFor edge cases where automatic p"
+                },
+                {
+                  "page_id": "reference/python-sdk/trace/weave_client",
+                  "section": 7,
+                  "title": "weave_client",
+                  "heading": "<kbd>method</kbd> `__init__`",
+                  "url": "https://docs.coreweave.com/products/wandb/weave/reference/python-sdk/trace/weave_client",
+                  "snippet": "### <kbd>method</kbd> `__init__`\n\n```python theme={\"system\"}\n__init__(\n    entity: 'str',\n    project: 'str',\n    server: 'TraceServerClientInterface',\n    ensure_project_exists: 'bool' = True,\n    postprocess_inputs: 'PostprocessInputsFunc | None' = None,\n    postprocess_output: 'PostprocessOutputFunc | None' = None,\n    attributes: 'dict[str, Any] | None' = None,\n    api_key: '[REDACTED_SECRET]' = None\n)\n```\n\n***\n\n"
+                }
+              ],
+              "note": "Read relevant sections with read_page before citing them."
+            },
+            "origin": "provider_tool_call"
+          },
+          {
+            "tool": "read_page",
+            "input": {
+              "page_id": "guides/tracking/ops",
+              "section": 3
+            },
+            "result": {
+              "source_id": "S1",
+              "page_id": "guides/tracking/ops",
+              "section": 3,
+              "title": "Customize Ops",
+              "heading": "Customize logged inputs and outputs",
+              "url": "https://docs.coreweave.com/products/wandb/weave/guides/tracking/ops",
+              "page_sha256": "3aa5fcb95b7a398f35817ade0ad315adfdf93325247cd87ccc8fa3414f1c6408",
+              "text": "## Customize logged inputs and outputs\n\n**Python**\n\nTo change the data that Weave logs without modifying the original function (for example, to hide sensitive data), pass `postprocess_inputs` and `postprocess_output` to the Op decorator.\n\n`postprocess_inputs` takes a dict where the keys are the argument names and the values are the argument values, and returns a dict with the transformed inputs.\n\n`postprocess_output` takes any value that the function would normally return and returns the transformed output.\n\n```python lines theme={\"system\"}\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass CustomObject:\n    x: int\n    secret_password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    return {k:v for k,v in inputs.items() if k != \"hide_me\"}\n\ndef postprocess_output(output: CustomObject) -> CustomObject:\n    return CustomObject(x=output.x, secret_password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef func(a: int, hide_me: str) -> CustomObject:\n    return CustomObject(x=a, secret_password=[REDACTED_SECRET]\n\nweave.init('hide-data-example')\nfunc(a=1, hide_me=\"password123\")\n```\n\n**TypeScript**\n\n```text theme={\"system\"}\nThis feature is not available in TypeScript yet.\n```\n\n",
+              "page_context": "# Customize Ops\n\n> Learn how to color your Ops for better visibility, how to modify what's logged, and how to control the sampling rate\n\nA Weave Op is a versioned function that automatically logs all Calls. This guide is for developers who use Weave to instrument their code, and shows you how to create Ops, customize how they appear in the Weights & Biases UI, control what data Weave logs, and manage sampling and deletion.\n\n**Python**\n\nTo create an Op, decorate a Python function with `weave.op()`.\n\n```python lines theme={\"system\"}\nimport weave\n\n@weave.op()\ndef track_me(v):\n    return v + 5\n\nweave.init('intro-example')\ntrack_me(15)\n```\n\nCalling an Op creates a new Op version if the code changed from the last call, and logs the function's inputs and outputs.\n\nFunctions that you decorate with `@weave.op()` behave normally (without code versioning and tracking) if you don't call `weave.init('your-project-name')` before calling them.\n\nYou can [serve](https://docs.coreweave.com/products/wandb/weave/guides/tools/serve) or [deploy](https://docs.coreweave.com/products/wandb/weave/guides/tools/deploy) Ops using the Weave toolbelt.\n\n**TypeScript**\n\nTo create an Op, wrap a TypeScript function with `weave.op`.\n\n```typescript twoslash lines theme={\"system\"}\n// @noErrors\nimport * as weave from 'weave'\n\nfunction trackMe(v: number) {\n    return v + 5\n}\n\nconst trackMeOp = weave.op(trackMe)\ntrackMeOp(15)\n\n// You can also do this inline, which may be more convenient\nconst trackMeInline = weave.op((v: number) => v + 5)\ntrackMeInline(15)\n```\n\n",
+              "outline": [
+                {
+                  "section": 0,
+                  "heading": "Customize Ops"
+                },
+                {
+                  "section": 1,
+                  "heading": "Customize display names"
+                },
+                {
+                  "section": 2,
+                  "heading": "Apply kinds and colors"
+                },
+                {
+                  "section": 3,
+                  "heading": "Customize logged inputs and outputs"
+                },
+                {
+                  "section": 4,
+                  "heading": "Control sampling rate"
+                },
+                {
+                  "section": 5,
+                  "heading": "Control Call link output"
+                },
+                {
+                  "section": 6,
+                  "heading": "Delete an Op"
+                }
+              ],
+              "outline_scope": "Navigation metadata: section headings only, not unread section contents.",
+              "credential_redacted": true,
+              "outgoing_links": [],
+              "outgoing_links_scope": "Navigation only: read a linked page before citing its contents."
+            },
+            "origin": "provider_tool_call"
+          },
+          {
+            "tool": "submit_answer",
+            "input": {
+              "answer": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator. The docs describe this as a way to change the data Weave logs without modifying the original function, for example to hide sensitive data [S1].\n\n- `postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].\n- `postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].\n- You pass both to `weave.op(...)`, and the function body stays as it is [S1].\n\nThe docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1]. Here is the same pattern adapted to your case. It is my adaptation, not a tested run:\n\n```python\nfrom dataclasses import dataclass\nfrom typing import Any\nimport weave\n\n@dataclass\nclass Result:\n    x: int\n    password: [REDACTED_SECRET]\n\ndef postprocess_inputs(inputs: dict[str, Any]) -> dict[str, Any]:\n    # Return the recorded inputs without the private argument\n    return {k: v for k, v in inputs.items() if k != \"password\"}\n\ndef postprocess_output(output: Result) -> Result:\n    # Return a copy with the private field replaced\n    return Result(x=output.x, password=\"[REDACTED_SECRET]\")\n\n@weave.op(\n    postprocess_inputs=postprocess_inputs,\n    postprocess_output=postprocess_output,\n)\ndef my_function(a: int, password: [REDACTED_SECRET] -> Result:\n    ...  # your existing code, unchanged\n```\n\nYou can also replace a value, such as `\"REDACTED\"`, instead of dropping the key. Dropping the key is what the docs' example does [S1].\n\n**Limits of what I read:**\n- The docs describe these hooks as changing the logged data. I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.\n- The docs mark this feature as not yet available in TypeScript [S1]. The examples above are Python.",
+              "source_ids": [
+                "S1"
+              ],
+              "kind": "answer"
+            },
+            "result": {
+              "passed": true,
+              "claims": [
+                {
+                  "text": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+                  "kind": "product",
+                  "source_ids": [
+                    "S1"
+                  ],
+                  "status": "supported",
+                  "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+                  "scope_status": "supported",
+                  "scope_reason": "Python Op decorator, matching the user's Python function.",
+                  "supported": true
+                },
+                {
+                  "text": "`postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].",
+                  "kind": "product",
+                  "source_ids": [
+                    "S1"
+                  ],
+                  "status": "supported",
+                  "answer_quote": "`postprocess_inputs` receives a dict of argument names to argument values. It returns the dict that Weave should record [S1].",
+                  "scope_status": "supported",
+                  "scope_reason": "Directly documented for Python.",
+                  "supported": true
+                },
+                {
+                  "text": "`postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].",
+                  "kind": "product",
+                  "source_ids": [
+                    "S1"
+                  ],
+                  "status": "supported",
+                  "answer_quote": "`postprocess_output` receives the value your function returns. It returns the transformed value to record [S1].",
+                  "scope_status": "supported",
+                  "scope_reason": "Directly documented for Python.",
+                  "supported": true
+                },
+                {
+                  "text": "The docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1].",
+                  "kind": "product",
+                  "source_ids": [
+                    "S1"
+                  ],
+                  "status": "supported",
+                  "answer_quote": "The docs' example drops the `hide_me` input and replaces a returned object's `secret_password` field with a placeholder [S1].",
+                  "scope_status": "supported",
+                  "scope_reason": "Matches the documented example.",
+                  "supported": true
+                },
+                {
+                  "text": "The docs mark this feature as not yet available in TypeScript [S1].",
+                  "kind": "product",
+                  "source_ids": [
+                    "S1"
+                  ],
+                  "status": "supported",
+                  "answer_quote": "The docs mark this feature as not yet available in TypeScript [S1].",
+                  "scope_status": "supported",
+                  "scope_reason": "The TypeScript tab says this.",
+                  "supported": true
+                },
+                {
+                  "text": "I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.",
+                  "kind": "research_process",
+                  "source_ids": [],
+                  "status": "supported",
+                  "answer_quote": "I didn't find a passage that explicitly says your function still receives the unredacted values at runtime.",
+                  "scope_status": null,
+                  "scope_reason": "Honest statement limited to the page that was read.",
+                  "supported": true
+                }
+              ],
+              "issues": [],
+              "coverage": [],
+              "outcome_assessments": [
+                {
+                  "outcome_id": "O1",
+                  "status": "answered",
+                  "answer_quote": "You can pass `postprocess_inputs` and `postprocess_output` to the `@weave.op` decorator.",
+                  "reason": "Documented hooks change logged data without modifying the function, and the answer honestly hedges on the runtime-values detail.",
+                  "source_ids": [
+                    "S1"
+                  ],
+                  "evidence_quotes": []
+                }
+              ],
+              "research_requests": [],
+              "mode": "support",
+              "full_recheck_eligible": false,
+              "status": "passed"
+            },
+            "origin": "application_normalization"
+          }
+        ],
+        "conversation_id": "f3965a85-d3e2-43a4-a2e1-2bd710d61439",
+        "trace_url": "https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/agents/conversations/f3965a85-d3e2-43a4-a2e1-2bd710d61439",
+        "snapshot_id": "4db7c17b28698bcc2680da22d687f7c4783ecf5e5255e16177b9197e56da14b4",
+        "source_sha256": "860e9ee6c1134ca44ed04ac9dd22103e2c8acfe5f64fe40a0969941034af53ff",
+        "prompt_sha256": "c49d9627540d4cd1e9f6bd44f1f4a73b5c45d4b6c9adff03ab14a4541db7bcff",
+        "config_sha256": "49cc7734a6df29a6067960601a6c8e4540ed2253038ea047df999a07cfc3400b",
+        "verify_mode": "support",
+        "cache_enabled": true,
+        "trace_id": "706537fbe0769647ef05d0b6ef3e9564",
+        "model": "claude-sonnet-5-5",
+        "elapsed_seconds": 23.48,
+        "planner_usage": {
+          "input_tokens": 16,
+          "output_tokens": 1150
+        },
+        "metrics": {
+          "calls": [
+            {
+              "purpose": "task_planning",
+              "requested_model": "claude-sonnet-5-5",
+              "response_model": "claude-sonnet-5-5",
+              "response_id": "msg_011CgVXq5eLWdZTYjxQj4iNv",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 1406
+                },
+                "cache_creation_input_tokens": 1406,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 164,
+                "output_tokens_details": {
+                  "thinking_tokens": 0
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 2.2138,
+              "estimated_usd": 0.005163
+            },
+            {
+              "purpose": "planner",
+              "requested_model": "claude-sonnet-5-5",
+              "response_model": "claude-sonnet-5-5",
+              "response_id": "msg_011CgVXqDz8UrvgRxdPfN4CT",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 3245
+                },
+                "cache_creation_input_tokens": 3245,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 77,
+                "output_tokens_details": {
+                  "thinking_tokens": 0
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 2.5461,
+              "estimated_usd": 0.0088905
+            },
+            {
+              "purpose": "planner",
+              "requested_model": "claude-sonnet-5-5",
+              "response_model": "claude-sonnet-5-5",
+              "response_id": "msg_011CgVXqQoWfEWtZZweLXB2F",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 3476
+                },
+                "cache_creation_input_tokens": 3476,
+                "cache_read_input_tokens": 3245,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 78,
+                "output_tokens_details": {
+                  "thinking_tokens": 0
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 1.4545,
+              "estimated_usd": 0.0098025
+            },
+            {
+              "purpose": "planner",
+              "requested_model": "claude-sonnet-5-5",
+              "response_model": "claude-sonnet-5-5",
+              "response_id": "msg_011CgVXqX1aBJpxtxYoCoaTw",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 1870
+                },
+                "cache_creation_input_tokens": 1870,
+                "cache_read_input_tokens": 6721,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 831,
+                "output_tokens_details": {
+                  "thinking_tokens": 175
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 8.0038,
+              "estimated_usd": 0.0136651
+            },
+            {
+              "purpose": "verification",
+              "requested_model": "claude-sonnet-5-5",
+              "response_model": "claude-sonnet-5-5",
+              "response_id": "msg_011CgVXr7FbaPxh9pSrPdTKT",
+              "usage": {
+                "cache_creation": {
+                  "ephemeral_1h_input_tokens": 0,
+                  "ephemeral_5m_input_tokens": 7604
+                },
+                "cache_creation_input_tokens": 7604,
+                "cache_read_input_tokens": 0,
+                "inference_geo": "global",
+                "input_tokens": 4,
+                "output_tokens": 1394,
+                "output_tokens_details": {
+                  "thinking_tokens": 536
+                },
+                "server_tool_use": null,
+                "service_tier": "standard",
+                "speed": "standard"
+              },
+              "error_type": null,
+              "elapsed_seconds": 9.2369,
+              "estimated_usd": 0.032958
+            }
+          ],
+          "model_calls": 5,
+          "tokens": {
+            "input_tokens": 20,
+            "output_tokens": 2544,
+            "cache_creation_input_tokens": 17601,
+            "cache_read_input_tokens": 9966
+          },
+          "total_input_tokens": 27587,
+          "estimated_usd": 0.0704791,
+          "known_estimated_usd": 0.0704791,
+          "unpriced_calls": 0,
+          "by_purpose": {
+            "task_planning": {
+              "calls": 1,
+              "known_estimated_usd": 0.005163
+            },
+            "planner": {
+              "calls": 3,
+              "known_estimated_usd": 0.0323581
+            },
+            "verification": {
+              "calls": 1,
+              "known_estimated_usd": 0.032958
+            }
+          },
+          "research": {
+            "searches": 1,
+            "passage_reads": 1,
+            "distinct_pages_read": 1,
+            "repeated_tool_requests": 0,
+            "drafts_submitted": 1,
+            "code_runs": 0
+          },
+          "pricing": {
+            "checked_at": "2026-10-25",
+            "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+            "rates": {
+              "claude-sonnet-5-5": {
+                "input": 2,
+                "output": 10,
+                "write_5m": 2.5,
+                "write_1h": 4,
+                "read": 0.1
+              },
+              "claude-opus-5-5": {
+                "input": 4,
+                "output": 20,
+                "write_5m": 5,
+                "write_1h": 8,
+                "read": 0.2
+              }
+            }
+          },
+          "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+        },
+        "error_type": null,
+        "recovery_attempted": false,
+        "recovered_partial": false,
+        "full_recheck_attempted": false,
+        "full_answer_rechecked": false
+      }
+    ],
+    "agent_metrics": {
+      "calls": [
+        {
+          "purpose": "task_planning",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgVXq5eLWdZTYjxQj4iNv",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1406
+            },
+            "cache_creation_input_tokens": 1406,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 164,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.2138,
+          "estimated_usd": 0.005163
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgVXqDz8UrvgRxdPfN4CT",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 3245
+            },
+            "cache_creation_input_tokens": 3245,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 77,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 2.5461,
+          "estimated_usd": 0.0088905
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgVXqQoWfEWtZZweLXB2F",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 3476
+            },
+            "cache_creation_input_tokens": 3476,
+            "cache_read_input_tokens": 3245,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 78,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 1.4545,
+          "estimated_usd": 0.0098025
+        },
+        {
+          "purpose": "planner",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgVXqX1aBJpxtxYoCoaTw",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 1870
+            },
+            "cache_creation_input_tokens": 1870,
+            "cache_read_input_tokens": 6721,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 831,
+            "output_tokens_details": {
+              "thinking_tokens": 175
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 8.0038,
+          "estimated_usd": 0.0136651
+        },
+        {
+          "purpose": "verification",
+          "requested_model": "claude-sonnet-5-5",
+          "response_model": "claude-sonnet-5-5",
+          "response_id": "msg_011CgVXr7FbaPxh9pSrPdTKT",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 7604
+            },
+            "cache_creation_input_tokens": 7604,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 1394,
+            "output_tokens_details": {
+              "thinking_tokens": 536
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 9.2369,
+          "estimated_usd": 0.032958
+        }
+      ],
+      "model_calls": 5,
+      "tokens": {
+        "input_tokens": 20,
+        "output_tokens": 2544,
+        "cache_creation_input_tokens": 17601,
+        "cache_read_input_tokens": 9966
+      },
+      "total_input_tokens": 27587,
+      "estimated_usd": 0.0704791,
+      "known_estimated_usd": 0.0704791,
+      "unpriced_calls": 0,
+      "by_purpose": {
+        "task_planning": {
+          "calls": 1,
+          "known_estimated_usd": 0.005163
+        },
+        "planner": {
+          "calls": 3,
+          "known_estimated_usd": 0.0323581
+        },
+        "verification": {
+          "calls": 1,
+          "known_estimated_usd": 0.032958
+        }
+      },
+      "research": {
+        "searches": 1,
+        "passage_reads": 1,
+        "distinct_pages_read": 1,
+        "repeated_tool_requests": 0,
+        "drafts_submitted": 1,
+        "code_runs": 0
+      },
+      "pricing": {
+        "checked_at": "2026-10-25",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "rates": {
+          "claude-sonnet-5-5": {
+            "input": 2,
+            "output": 10,
+            "write_5m": 2.5,
+            "write_1h": 4,
+            "read": 0.1
+          },
+          "claude-opus-5-5": {
+            "input": 4,
+            "output": 20,
+            "write_5m": 5,
+            "write_1h": 8,
+            "read": 0.2
+          }
+        }
+      },
+      "scope": "Standard Claude API list-price estimate for returned usage, including planning and verification. Excludes Weave Signals, offline evaluation judges, voice, hosting, taxes, and any usage not returned after failures or SDK/provider retries. Calls count application invocations, not every HTTP attempt. This is not an invoice. Research counts do not measure factual completeness."
+    }
+  },
+  "scores": {
+    "critique": "The answer recommends `postprocess_inputs` and `postprocess_output` on `@weave.op`, which matches the cited \"Customize logged inputs and outputs\" section. It correctly says the input callback takes and returns a dict of argument names to values, and that the output callback transforms the normal return value. The adapted code follows the docs' example: it drops the password key from the inputs and returns a copy of the output object with the private field replaced. It also mentions masking with a placeholder like \"REDACTED\" as an alternative to dropping the key, and labels the code as untested. Some placeholders in the code are redacted, but that is a credential-redaction artifact applied to both the source and the answer. It honestly notes that no passage explicitly says the function still gets the real values at runtime, and that the feature isn't available in TypeScript. Every claim is backed by S1.",
+    "assertions": [
+      {
+        "id": "a1",
+        "critique": "It recommends passing `postprocess_inputs` and `postprocess_output` to `@weave.op` so the function body stays unchanged, as described in S1's \"Customize logged inputs and outputs\" section.",
+        "passed": true
+      },
+      {
+        "id": "a2",
+        "critique": "It explains that `postprocess_inputs` takes and returns a dict of argument names to values, and that `postprocess_output` transforms the value the function returns. Its code omits the password input and masks the password field in the output, and it offers placeholder replacement as another option.",
+        "passed": true
+      }
+    ],
+    "correctness": 4,
+    "completeness": 4,
+    "grounding": 4,
+    "uncertainty": 4,
+    "explanation": "The answer is accurate, complete and grounded in the reference section, with appropriate caveats.",
+    "failures": [],
+    "answer_quality_passed": true,
+    "assertion_count": 2,
+    "assertions_passed": 2,
+    "assertion_fraction_passed": 1.0,
+    "integrity": {
+      "citations_resolve": true,
+      "citation_format_valid": true,
+      "code_executed_when_required": true,
+      "no_runtime_error": true,
+      "answer_present": true,
+      "passed": true,
+      "malformed_citations": [],
+      "citation_turns": [
+        {
+          "turn": 1,
+          "issues": [],
+          "structured_contract": "checked"
+        }
+      ],
+      "source_pages": 1,
+      "page_coverage_met": true,
+      "page_coverage_is_diagnostic": true
+    },
+    "passed": true,
+    "judge_error": null,
+    "expected_assertion_count": 2,
+    "verification_adherence": {
+      "turns": [
+        {
+          "mode": "support",
+          "status": "passed",
+          "policy_followed": true
+        }
+      ],
+      "policy_followed": true
+    },
+    "retrieval_diagnostics": {
+      "selected_reference_count": 1,
+      "selected_reference_read_count": 1,
+      "selected_reference_cited_count": 1,
+      "selected_reference_read_recall": 1.0,
+      "selected_reference_cited_recall": 1.0,
+      "read_sections": [
+        [
+          "guides/tracking/ops",
+          3
+        ]
+      ],
+      "cited_sections": [
+        [
+          "guides/tracking/ops",
+          3
+        ]
+      ],
+      "uncited_selected_sections": [],
+      "alternative_cited_sections": [],
+      "scope": "Exact overlap with preselected page/section references, not semantic recall. Valid alternative passages may support a correct answer. These are diagnostics, never quality gates. Read coverage includes relevant evidence from earlier turns."
+    },
+    "judge_metrics": {
+      "calls": [
+        {
+          "purpose": "evaluation-judge",
+          "requested_model": "claude-opus-5-5",
+          "response_model": "claude-opus-5-5",
+          "response_id": "msg_011CgVXrohSKkCzWSKZn2jRL",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 6385
+            },
+            "cache_creation_input_tokens": 6385,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "global",
+            "input_tokens": 4,
+            "output_tokens": 698,
+            "output_tokens_details": {
+              "thinking_tokens": 0
+            },
+            "server_tool_use": null,
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "error_type": null,
+          "elapsed_seconds": 7.0246,
+          "estimated_usd": 0.045901
+        }
+      ],
+      "model_calls": 1,
+      "tokens": {
+        "input_tokens": 4,
+        "output_tokens": 698,
+        "cache_creation_input_tokens": 6385,
+        "cache_read_input_tokens": 0
+      },
+      "total_input_tokens": 6389,
+      "estimated_usd": 0.045901,
+      "known_estimated_usd": 0.045901,
+      "unpriced_calls": 0,
+      "by_purpose": {
+        "evaluation-judge": {
+          "calls": 1,
+          "known_estimated_usd": 0.045901
+        }
+      },
+      "research": {
+        "searches": 0,
+        "passage_reads": 0,
+        "distinct_pages_read": 0,
+        "repeated_tool_requests": 0,
+        "drafts_submitted": 0,
+        "code_runs": 0
+      },
+      "pricing": {
+        "checked_at": "2026-10-25",
+        "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+        "rates": {
+          "claude-sonnet-5-5": {
+            "input": 2,
+            "output": 10,
+            "write_5m": 2.5,
+            "write_1h": 4,
+            "read": 0.1
+          },
+          "claude-opus-5-5": {
+            "input": 4,
+            "output": 20,
+            "write_5m": 5,
+            "write_1h": 8,
+            "read": 0.2
+          }
+        }
+      },
+      "scope": "Only this evaluation judge's provider-reported usage, including invalid verdicts. Dated list-price estimate; excludes agent, Signals and unreturned usage."
+    },
+    "rubric_version": "2.3-task-aligned-assertions"
+  }
+}

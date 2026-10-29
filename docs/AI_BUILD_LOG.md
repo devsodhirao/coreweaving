@@ -59,6 +59,14 @@ The [repair review](../results/task-completion-repair-v1/review.md) preserves ea
 | A completed run and matching remote parent concealed missing evaluation rows after export timeouts. | Check expected child IDs separately from the summary and Agent traces; retain missing-delivery status. | `fe4b7b5`: 12/13, 47/48 locally; all 17 Agent turns and parent summary verified, only 2/13 evaluation rows present. No invented/reconstructed child records. |
 | Runtime completion and a passing judge missed product-specific overclaims. | Preserve independent manual disagreement and keep semantic calibration as the next quality experiment. | Case 06 fails for unsourced clarification alternatives; case 02 passes its assertions despite an overbroad span statement. No rubric edit or repeat run to improve the headline. |
 
+## Retrieval experiment after the repair
+
+| Finding | Decision | Evidence and limit |
+| --- | --- | --- |
+| Source context tied lexical retrieval; local hybrid found more selected nuggets but missed the predeclared improvement threshold. | Keep BM25 as the default; retain the optional experiment and frozen questions. | [18-query comparison](../results/retrieval-comparison-v1/README.md): 57.0% → 64.4% recall, unchanged 7/18 full coverage. Six paired agent tasks tied on 14/14 assertions; one fewer model call is not an established UX improvement. |
+| Both arms' judges passed an example whose credential masking broke Python syntax; verifier strictness differed on a prompt citation. | Preserve grades and add independent answer findings instead of treating every pass as correct. | [Answer review](../results/retrieval-comparison-v1/live-review.json), source-byte checks and offline Python parsing. Runtime and rubric stayed frozen during the comparison. |
+| Literal search queries starting `weave:///` triggered reference parsing and failed telemetry export and evaluation aggregation. | Preserve local results, verify exact missing remote records and reproduce the SDK failure offline. | [Readback](../results/retrieval-comparison-v1/backend-readback.json) and [diagnosis](../results/retrieval-comparison-v1/export-diagnosis.json). A future fix must preserve queries/evidence and distinguish literal trace content from real references. |
+
 ## What the evidence supports
 
 The project demonstrates a bounded, inspectable documentation agent and a measurement process that found real failures. The 13 regression questions were reused during development, the verifier and judge share a model family, and a source-check pass can still be wrong. [Evaluation design](EVALUATION_DESIGN.md) separates those limitations from the recorded outcomes.

@@ -57,16 +57,19 @@ In [evaluate.py](../src/coreweaving/evaluate.py): `dataset_rows` resolves questi
 
 ## Retrieval alternatives considered
 
-BM25 searches section text with identifier-aware tokens. It is local, inexpensive and inspectable; a query can miss synonyms or select several sections from one page. No benchmark here establishes that it beats other retrieval methods.
+BM25 searches section text with identifier-aware tokens. It is local, inexpensive and inspectable; a query can miss synonyms or select several sections from one page. The [frozen retrieval comparison](../results/retrieval-comparison-v1/README.md) tested 18 queries in nine paired families. Source-derived context tied BM25's 57.0% selected-nugget recall at six results; hybrid reached 64.4%, below the predeclared 10-point adoption threshold. This keeps the current default; it does not establish that BM25 is generally better.
 
 | Alternative | Why consider it | Why it is not the default here |
 | --- | --- | --- |
-| Dense embeddings | Retrieve paraphrases with little literal overlap. | Adds embedding/index versioning and a dependency; compare fixed-corpus reference recall first. |
-| Hybrid lexical + dense retrieval | Combine identifier matches and semantic matches. | Needs a measured fusion strategy and quality/latency comparison. |
-| Contextual chunks or reranking | Supply page context or reorder candidate passages. | Additional complexity can improve or worsen retrieval; neither has been benchmarked here. |
+| Dense embeddings | Retrieve paraphrases with little literal overlap. | Tested only as one part of hybrid; no dense-only comparison. Adds model/index versioning and a dependency. |
+| Hybrid lexical + dense retrieval | Combine identifier matches and semantic matches. | Quantized local BGE-small + equal-weight rank fusion improved three queries and worsened one; full nugget coverage stayed 7/18. Offline adoption threshold failed. |
+| Source-derived chunk context | Add introductory prose and ancestor headings to lexical search. | Tested; no aggregate gain. This is not LLM-generated contextual retrieval. |
+| Generated context or reranking | Supply additional context or reorder candidates. | Untested; added calls and complexity need a separate comparison. |
 | Knowledge graph or specialist agents | Follow relationships or divide distinct tasks. | Existing page links already support bounded navigation. No demonstrated need for a separate graph database or agent team. |
 
 `Corpus.read` returns up to eight validated internal links as page IDs. This is navigation over the stored corpus, not a semantic knowledge graph or permission to browse arbitrary URLs.
+
+The experimental [backend](../scripts/experiments/retrieval_backend.py) overrides search only; [runner](../scripts/experiments/retrieval_compare.py) keeps `Agent`, original reads and the judge fixed. [Setup and reproduction](../scripts/experiments/README.md) use an optional dependency and a local, hash-checked model. The app does not import these scripts, and its lockfile is unchanged.
 
 ## Find the tests by behavior
 
