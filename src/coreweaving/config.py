@@ -323,7 +323,7 @@ class Settings:
     """Immutable turn policy and model names; no credentials are stored here."""
 
     project: str
-    agent_model: str = "claude-sonnet-5-5"
+    agent_model: str = "claude-opus-5-5"
     judge_model: str = "claude-opus-5-5"
     max_steps: int = 10
     max_tools: int = 18
@@ -352,7 +352,7 @@ def settings() -> Settings:
         raise ValueError("CACHE_ENABLED must be true or false.")
     return Settings(
         project=os.environ["WEAVE_PROJECT"],
-        agent_model=os.getenv("AGENT_MODEL", "claude-sonnet-5-5"),
+        agent_model=os.getenv("AGENT_MODEL", "claude-opus-5-5"),
         judge_model=os.getenv("JUDGE_MODEL", "claude-opus-5-5"),
         verifier_model=os.getenv("VERIFIER_MODEL", "claude-opus-5-5"),
         verify_mode=os.getenv("VERIFY_MODE", "support"),
