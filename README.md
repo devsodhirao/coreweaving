@@ -90,7 +90,7 @@ Weave connects an answer to its execution, usage, evaluations and review feedbac
 ## Quality and speed
 
 <!-- MEASURED_RESULTS_START -->
-Current runtime **`522c320`**, [validation packet](results/essence-v2/README.md). The regression retained the same questions and rubric:
+Last live-measured runtime **`522c320`**, [validation packet](results/essence-v2/README.md). The later [clarification-policy change](docs/BEHAVIOR_CONTRACT.md#clarification) has local checks but has not had a new paid evaluation; the following results retain their original source identity. The regression retained the same questions and rubric:
 
 | Check | Observed result |
 | --- | --- |

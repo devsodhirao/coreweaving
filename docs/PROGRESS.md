@@ -2,7 +2,7 @@
 
 Updated **October 29, 2026**. This is the running status and next-work list. The [build log](AI_BUILD_LOG.md) explains past decisions; the [evidence index](../results/README.md) preserves the actual runs.
 
-**Current state:** the smaller assistant is runnable, the brief's core components are implemented, and the funded browser check is complete. Answer omissions and long waits remain. Current measurements belong to runtime **`522c320`**, not to every later documentation commit.
+**Current state:** the smaller assistant is runnable, the brief's core components are implemented, and the funded browser check is complete. Answer omissions and long waits remain. Live measurements belong to runtime **`522c320`**. The later clarification-policy change (source **`60b094ee7338`**) passed 430 local tests but has no new live quality measurement. [Local checks](../results/clarification-policy-v1/local-checks.json)
 
 ## What is complete
 
@@ -32,6 +32,7 @@ Voice, adaptive UI, graph retrieval and additional specialists remain deferred. 
 
 ## Dated updates
 
+- **October 29 — selective clarification and honest completion status.** Added explicit writer/auditor guidance to ask one focused question only when missing user context changes the answer, use retained context, and answer broad requests directly. Accepted clarifications now wait for the user rather than marking the task complete; replies retain the original request. All **430 local tests** passed. No paid calls: semantic decision quality remains unmeasured on this source. Added a concrete 1/3-versus-2/3 example explaining selected-evidence recall. [Behavior](BEHAVIOR_CONTRACT.md#clarification) · [Checks](../results/clarification-policy-v1/local-checks.json) · [Metric example](EVALUATION_DESIGN.md#what-the-experiments-can-tell-us)
 - **October 29 — corrected the retrieval decision's interpretation.** Inspected the original selection gap, froze six fresh wordings on known tasks and compared current BM25 at six/eight results with the existing hybrid at six, offline. Selected-source recall was **52.8% / 52.8% / 66.7%** on this deliberately targeted set; all-source coverage stayed 2/6. Historical saved agent reads explain why raw-question recall understates iterative research. No paid calls or app changes. The live follow-up is proposed, not started. [Evidence and limits](../results/retrieval-followup-v2/README.md)
 - **October 29 — checked whether the tool swap was ever used.** One read-only Weave query confirmed the historical research-budget branch with three planning calls left. The final submission was useful, but this does not show the swap rescued it. Current implementation tests cover the reduced tool list; the final-slot trigger’s live benefit remains unestablished. [Trace, source and review evidence](../results/essence-v2/tool-list-swap-review.json)
 - **October 29 — regression coverage completed.** At the owner’s request, reran only the billing-blocked case with the same runtime, question, references and rubric. Cost **$0.36** beyond the completed simplification pass. All thirteen cases now have grades across the two runs: **12/13 recorded passes, 47/48 assertions**. The initialization failure remains; independent review also flags generous hierarchy grading on the retry. [Completion and original-attempt links](../results/essence-v2/regression-completion.json)

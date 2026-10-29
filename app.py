@@ -152,7 +152,9 @@ def show_result(result):
     status = verification.get("status", "passed" if passed else "failed")
     mode = verification.get("mode", result.get("verify_mode", "support"))
     check_label = (
-        "Checked facts · answer incomplete"
+        "Waiting for your reply"
+        if passed and result.get("kind") == "clarification"
+        else "Checked facts · answer incomplete"
         if result.get("task_complete") is False and passed
         else "Check not run · experimental answer"
         if status == "not_run"

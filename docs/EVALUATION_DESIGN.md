@@ -2,7 +2,7 @@
 
 The [13 questions](../evals/cases.json) test useful documentation tasks: setup, multi-page synthesis, ambiguity, follow-ups, execution and false premises. The [48 assertions](../evals/regression-assertions.json) define required outcomes against the frozen [documentation manifest](../data/docs/manifest.json). References go to the offline judge, not the agent.
 
-**Current runtime:** `522c320`, verification contract 6. [Progress](PROGRESS.md) tracks completed work and remaining gaps; the [validation packet](../results/essence-v2/README.md) separates original runs, the operational retry and independent review.
+**Last live-measured runtime:** `522c320`, verification contract 6. The later clarification-policy change has local checks but no new paid evaluation. [Progress](PROGRESS.md) tracks this distinction; the [validation packet](../results/essence-v2/README.md) separates original runs, the operational retry and independent review.
 
 **Historical result: 13/13 cases, 48/48 assertions** on runtime `3a49a50`, rubric `2.3-task-aligned-assertions`. This is a reused development suite: its failures informed repairs. A green run demonstrates those recorded outcomes, not general reliability or superiority over another assistant. The later runtime `dfdb6bd` also reached 13/13 and scored 17/18 frozen browser criteria. Neither result describes contract 6. [Original run](../results/brief-final-regression-v1/summary.json) · [Manual answer audit](../results/brief-e2e-v1/final-answer-review.json) · [Later historical packet](../results/product-final-v1/README.md)
 
@@ -34,7 +34,7 @@ Four later [captured-answer controls](../results/essence-v1/scope-controls.json)
 
 ## Quality, speed and denominators
 
-- **Quality means usefulness for the actual question.** `verified`, source count and runtime completion labels are diagnostics. A supported partial answer can still fail the task. A justified clarification can fulfill its particular task.
+- **Quality means usefulness for the actual question.** `verified`, source count and runtime completion labels are diagnostics. A supported partial answer can still fail the task. A justified clarification can pass an evaluation specifically testing an appropriate next response; it does not complete the user's underlying task. Evaluate the answer after the reply separately.
 - **Keep the planned denominator:** 13 regression cases and 48 assertions, with ungraded, failed and unrun items visible. The existing `assertion_fraction_passed` field divides by valid judged assertions only; label that conditional percentage when grading is incomplete.
 - **Keep two browser judgments:** the frozen 18 criteria across six tasks, and literal fulfillment of the prompt with source/code review. The overview's existing timing criterion demands an extra detail not explicitly requested; preserve its score separately. Do not rewrite criteria after seeing results.
 - **Engine time** includes every writer, auditor and repair call until the turn returns, excluding the offline judge. **Visible time** runs from browser submission to the answer or error actually appearing. The browser observer records terminal prose separately from complete rendering. Version 2 could stop before a code wrapper even appeared; its affected full-render time remains unmeasured. Version 3 continuously captures the DOM until analysis opens, then selects the earliest 250-ms-stable snapshot matching the downloaded answer's prose and code. Missing matches remain unmeasured. [Unpaid instrument controls](../results/essence-v2/observer-v3-proof.json) cover late, empty and multiple code blocks. DOM readiness is not paint or semantic usefulness; progress and an unhelpful refusal do not count as useful answers.
@@ -75,6 +75,15 @@ Required **Scorer name** and **Inference model or custom runtime** remain in `re
 The fresh baseline scored **10/13, 44/48** under rubric 2.2; the October 27 run scored **13/13, 48/48** under 2.3. Excluding the two changed assertions gives **43/46 → 46/46**. Case 03 already supplied the required setup fields; its improved grade reflects fairness correction. Cases 05/11 delivered previously missing outcomes. Runtime changes occurred together on inspected tasks, so this comparison cannot isolate their causal effects. The tagged submission's separate **10/13, 45/48** result is preserved. [Comparison and versions](../results/brief-e2e-v1/comparison.json)
 
 ## What the experiments can tell us
+
+**Example: selected evidence found.** For the screenshot-storage question in the
+[offline follow-up](../results/retrieval-followup-v2/README.md), the checklist has
+three facts: log a storage URI; configure read access/CORS; register the bucket.
+BM25 returns an accepted supporting section for one fact (1/3 = 33.3%); hybrid
+returns sections for two (2/3 = 66.7%). The aggregate is the mean of each question's
+fraction, so each question has equal weight. This is one search's selected-source
+recall, not the probability that an answer is right. Later reads can find missing
+facts, and valid unlisted sources can be undercounted by the frozen checklist.
 
 The historical six-task, two-repeat pilot scored off **7/12**, support **10/12**, coverage **8/12**. Off and support tied on **39/44 factual assertions**; support's three extra case passes came from citation integrity. Coverage refused two answerable tasks. The pilot had **no citation-checks-only arm**, so it cannot establish the model auditor's added benefit or justify its latency by itself. [Pilot](../results/coverage-pilot-v1/summary.json) · [Case review](../results/coverage-pilot-v1/review.md)
 

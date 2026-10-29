@@ -367,7 +367,56 @@ def test_clarification_is_checked_even_without_sources(corpus):
     result = Agent(corpus, Settings(project="test/test"), fake).run("How do I monitor it?")
     assert result["kind"] == "clarification"
     assert result["verification"]["passed"]
+    assert result["task_complete"] is False
+    assert result["completion_status"] == "awaiting_user"
+    assert result["review_reason"] == "none"
     assert fake.requests[1]["purpose"] == "verification"
+
+
+def test_reply_to_clarification_preserves_original_request_for_writer_and_auditor(corpus):
+    question = "What should I initialize first in my app?"
+    clarification = "Which language are you using? That determines the setup example."
+    fake = FakeModel(
+        [
+            response(("submit_answer", {"answer": clarification, "kind": "clarification"})),
+            audit(),
+            response(READ, ANSWER),
+            audit(),
+        ]
+    )
+    agent, session = Agent(corpus, Settings(project="test/test"), fake), Session()
+    first = agent.run(question, session)
+    second = agent.run("Python.", session)
+    assert not first["task_complete"] and second["task_complete"]
+    assert second["completion_status"] == "complete"
+    assert first["conversation_id"] == second["conversation_id"]
+    assert fake.requests[2]["messages"][:3] == [
+        {"role": "user", "content": question},
+        {"role": "assistant", "content": clarification},
+        {"role": "user", "content": "Python."},
+    ]
+    payload = json.loads(fake.requests[3]["messages"][0]["content"])
+    assert payload["question"] == "Python."
+    assert payload["previous_dialogue"] == fake.requests[2]["messages"][:2]
+
+
+def test_auditor_rejection_of_unnecessary_clarification_returns_to_answering(corpus):
+    """Checks repair mechanics; the fake verdict does not prove semantic judgment."""
+    question = "I'm using Python. What should I initialize first?"
+    fake = FakeModel(
+        [
+            response(("submit_answer", {"answer": "Which language?", "kind": "clarification"})),
+            audit(passed=False, issues=["Python is already specified; answer the setup question."]),
+            response(READ, ANSWER),
+            audit(),
+        ]
+    )
+    session = Session()
+    result = Agent(corpus, Settings(project="test/test"), fake).run(question, session)
+    assert result["kind"] == "answer" and result["task_complete"]
+    assert len(result["verification_attempts"]) == 2
+    assert "Python is already specified" in json.dumps(fake.requests[2]["messages"])
+    assert all(item["content"] != "Which language?" for item in session.history)
 
 
 def test_usage_includes_rejected_verification_and_isolated_follow_up(corpus):

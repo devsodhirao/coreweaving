@@ -2,7 +2,7 @@
 
 Start with [`Agent.run`](../src/coreweaving/agent.py). It owns one conversational turn: choose tools, gather evidence, submit a draft, check it and repair if needed. The [README](../README.md) covers setup; the [behavior contract](BEHAVIOR_CONTRACT.md) describes the enforced boundaries.
 
-**Current runtime:** `522c320`, verification contract 6. [Progress](PROGRESS.md) tracks completed work and remaining gaps; the [validation packet](../results/essence-v2/README.md) separates original runs, the operational retry and independent review.
+**Last live-measured runtime:** `522c320`, verification contract 6. The later clarification-policy change has local checks but no new paid evaluation. [Progress](PROGRESS.md) tracks this distinction; the [validation packet](../results/essence-v2/README.md) separates original runs, the operational retry and independent review.
 
 ## Follow one answer
 
@@ -11,7 +11,7 @@ Start with [`Agent.run`](../src/coreweaving/agent.py). It owns one conversationa
 3. `execute` validates tool names and arguments. `Session.add_passage` assigns source IDs only after a read. Search matches, outlines and internal links locate evidence; they do not establish unread content.
 4. `verify` applies the Markdown citation contract and Python syntax check. Its auditor receives the original question, retained dialogue, candidate, relevant read passages and research actions. It checks material claims and requested coverage, then returns only `passed`, blocking `issues` and `missing_parts`. Full acceptance requires `passed=true`, no issues and no missing parts; supported claims are not copied into a separate inventory.
 5. Rejection goes back to the same writer. The writer can research or revise within the remaining limits. An honest partial answer uses the same checks; there is no terminal judge or extracted-fact recovery path.
-6. The result retains the answer, sources, checks, usage and trace identity. Only delivered dialogue enters conversation history. The UI displays the answer and keeps developer detail in Sources & analysis.
+6. The result retains the answer, sources, checks, usage and trace identity. Only delivered dialogue enters conversation history. An accepted clarification waits for the user's reply and does not mark the task complete. The next turn retains the original request. The UI displays the answer and keeps developer detail in Sources & analysis.
 
 Defaults allow ten writer calls, eighteen research dispatches and two repairs. The last writer call permits submission only. A truncated response never executes tools; one fresh retry may use the next existing slot. These limits bound work, not answer quality.
 

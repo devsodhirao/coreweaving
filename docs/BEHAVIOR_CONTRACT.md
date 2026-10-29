@@ -12,6 +12,22 @@ The writer receives feedback and can research or revise within ten writer calls,
 
 Modes are **support** and **off**. The app refuses off; it exists for evaluation experiments and records an unchecked result. The configured offline judge never participates in answer release. The pre-change writer diagnostic is inconclusive. Validation of this compact audit follows the [essence protocol](../results/essence-v1/protocol.md); historical results retain their earlier policies.
 
+## Clarification
+
+Ask one focused question only when missing user information materially changes
+the answer and cannot be resolved from retained dialogue. Explain why it matters.
+Answer broad explanations directly; state a reasonable assumption for a safe basic
+example. Weak search results call for better research, not asking the user for
+documentation knowledge. Useful common guidance may accompany the question, with
+sources for product claims. After the reply, answer the original retained request.
+
+An accepted clarification is `kind=clarification`, `task_complete=false` and
+`completion_status=awaiting_user`. The UI says "Waiting for your reply". This is an
+appropriate intermediate response, not a task-completion success or operational
+failure. The writer/auditor prompts govern whether clarification is necessary;
+that judgment remains fallible. Fake-model tests cover audit rejection, continuity
+and status/display handling, not the model's real-world decision accuracy.
+
 ## Given / when / then
 
 | Given and when | Required behavior | Boundary |
@@ -25,6 +41,8 @@ Modes are **support** and **off**. The app refuses off; it exists for evaluation
 | Evidence supports only part of the answer | Submit an explicitly limited partial answer for ordinary verification. | Supported fragments are not whole-task completion. |
 | A verdict is malformed or a response truncated | Release no unchecked draft and execute no truncated call. | One fresh planner retry uses the next existing slot, not an expanded budget. |
 | The user asks a follow-up | Send retained dialogue and preserve original citation evidence. | Trace grouping is not model memory. |
+| Essential user context is missing | Ask one focused, justified question; retain the original request for the reply. | Clarification waits for input and does not complete the task. |
+| The question is answerable or context is already known | Answer directly or state a safe assumption; reject unnecessary questioning. | Semantic prompt guidance, not a deterministic ambiguity classifier. |
 | Streamlit reruns during a turn | The worker continues; completion is consumed once. | Process restart can lose the turn/session. |
 | A turn ends | Record outcome, calls, usage and review reason. | Export success, verification and usefulness are separate observations. |
 

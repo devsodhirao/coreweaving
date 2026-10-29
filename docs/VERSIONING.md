@@ -30,6 +30,12 @@ The lockfile and digest-pinned sandbox image are separate environment controls. 
 
 Citation and verification versions are independent. Retaining a contract number does not make two sources equivalent. Current modes are `support` and experimental `off`; `support+coverage` belongs to historical experiments.
 
+The clarification-policy update retains verification contract 6 but changes the
+prompt/source identity. An accepted clarification now records
+`completion_status=awaiting_user` and `task_complete=false`, rather than completion.
+Its [local checks](../results/clarification-policy-v1/local-checks.json) are separate
+from the earlier live scores on `522c320`.
+
 `AGENT_MODEL` selects the writer/researcher, `VERIFIER_MODEL` the auditor, and `JUDGE_MODEL` the offline evaluator only. Agent calls request medium effort; offline grading retains provider-default effort. The pre-change paired diagnostic is inconclusive; earlier probes are not a general ranking. Changing the report schema creates a new measured source even when intended audit responsibilities stay the same. Record actual settings: `.env` can override defaults.
 
 ## Documentation freshness

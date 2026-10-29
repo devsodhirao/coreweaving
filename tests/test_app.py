@@ -47,10 +47,15 @@ def test_each_submission_runs_once_across_inspection_and_reset(monkeypatch):
                 "answer": (
                     "Internal research limit diagnostic."
                     if len(requests) == 4
+                    else "Which framework are you using? That determines the integration steps."
+                    if len(requests) == 7
                     else f"Checked answer to: {question}"
                 ),
-                "kind": "insufficient" if len(requests) in (4, 5) else "answer",
-                "task_complete": len(requests) != 5,
+                "kind": (
+                    "insufficient" if len(requests) in (4, 5)
+                    else "clarification" if len(requests) == 7 else "answer"
+                ),
+                "task_complete": len(requests) not in (5, 7),
                 "verification": verification,
                 "sources": [],
                 "all_read_evidence": [
@@ -148,6 +153,12 @@ def test_each_submission_runs_once_across_inspection_and_reset(monkeypatch):
         app.run()
         assert not app.exception
         assert len(requests) == 6
+
+        app.chat_input[0].set_value("Give me exact integration steps for my app.").run()
+        assert not app.exception
+        assert len(requests) == 7
+        assert any("Waiting for your reply" in item.value for item in app.caption)
+        assert not any("Checked facts · answer incomplete" in item.value for item in app.caption)
     finally:
         st.cache_resource.clear()
 
