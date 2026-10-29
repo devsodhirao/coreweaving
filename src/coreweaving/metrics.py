@@ -66,6 +66,7 @@ class MeteredModel:
         record = {
             "purpose": kwargs["purpose"],
             "requested_model": kwargs["model"],
+            "effort": kwargs.get("effort") or "provider_default",
             "response_model": None,
             "response_id": None,
             "usage": None,

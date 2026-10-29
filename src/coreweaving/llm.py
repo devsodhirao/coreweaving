@@ -1,6 +1,6 @@
 """One provider boundary, with complete typed agent spans and bounded retries."""
 
-import json
+from typing import Literal
 
 import anthropic
 import weave
@@ -9,25 +9,28 @@ from weave.conversation.types import TextPart, ToolCallPart, ToolCallResponsePar
 
 from coreweaving.budget import current_budget
 from coreweaving.config import redact_sensitive, safe_exception
+from coreweaving.telemetry import trace_json, trace_text
 
 
 def trace_message(message: dict) -> weave.Message:
     """Translate provider text/tool blocks without losing tool-call identities."""
     content = message["content"]
     if isinstance(content, str):
-        return weave.Message(role=message["role"], content=content)
+        return weave.Message(role=message["role"], content=trace_text(content))
     parts = []
     for block in content:
         if block["type"] == "text":
-            parts.append(TextPart(content=block["text"]))
+            parts.append(TextPart(content=trace_text(block["text"])))
         elif block["type"] == "tool_use":
             parts.append(
                 ToolCallPart(
-                    id=block["id"], name=block["name"], arguments=json.dumps(block["input"])
+                    id=block["id"], name=block["name"], arguments=trace_json(block["input"])
                 )
             )
         elif block["type"] == "tool_result":
-            parts.append(ToolCallResponsePart(id=block["tool_use_id"], response=block["content"]))
+            parts.append(
+                ToolCallResponsePart(id=block["tool_use_id"], response=trace_text(block["content"]))
+            )
     return weave.Message(role=message["role"], parts=parts)
 
 
@@ -52,6 +55,7 @@ class LanguageModel:
         required_tool: str | None = None,
         max_tokens: int = 2400,
         cache_enabled: bool = True,
+        effort: Literal["low", "medium", "high"] | None = None,
         span_parent=None,
     ) -> dict:
         """Make one request and return raw usage alongside redacted output blocks.
@@ -69,10 +73,14 @@ class LanguageModel:
         # must explicitly use their SubAgent factory to preserve the parent.
         start_llm = span_parent.start_llm if span_parent is not None else weave.start_llm
         with start_llm(
-            model=model, provider_name="anthropic", system_instructions=[system]
+            model=model, provider_name="anthropic", system_instructions=[trace_text(system)]
         ) as span:
             span.set_attributes(
-                {"coreweaving.purpose": purpose, "coreweaving.cache_enabled": cache_enabled}
+                {
+                    "coreweaving.purpose": purpose,
+                    "coreweaving.cache_enabled": cache_enabled,
+                    "coreweaving.effort": effort or "provider_default",
+                }
             )
             span.input_messages = [trace_message(message) for message in messages]
             span.request_max_tokens = max_tokens
@@ -83,6 +91,8 @@ class LanguageModel:
                 messages=messages,
                 tools=tools,
             )
+            if effort is not None:
+                request["output_config"] = {"effort": effort}
             if cache_enabled:
                 # The static prefix and growing conversation use independent
                 # breakpoints. Actual writes/hits are measured from returned usage.

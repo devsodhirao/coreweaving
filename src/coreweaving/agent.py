@@ -6,6 +6,7 @@ Prompts and schemas live together below so the model's contract is inspectable.
 UI persistence belongs to app.py/library.py; independent grading to evaluate.py.
 """
 
+import ast
 import hashlib
 import html
 import json
@@ -37,6 +38,7 @@ from coreweaving.corpus import Corpus
 from coreweaving.llm import LanguageModel
 from coreweaving.metrics import MeteredModel, summarize
 from coreweaving.sandbox import run_python
+from coreweaving.telemetry import trace_json, trace_text
 
 # Model instructions. These strings are fingerprinted with the tool schemas.
 TASK_SYSTEM = """Identify the user's task before any documentation is retrieved.
@@ -44,9 +46,13 @@ Return record_task using only the question and retained dialogue. For ordinary o
 focused questions, return one to six concrete requested outcomes and leave
 workflow_subjects empty. A question about one property, parameter, setup step or
 specific difference does NOT request a whole workflow overview.
-For a BROAD workflow overview or comparison (including how workflows fit together),
-return workflow_subjects with each requested workflow's name and an exact motivating
-user request_quote. Names must occur in the question or retained dialogue. The
+An overview asking how concepts fit together requests their roles and relationship,
+not a catalogue of inputs, lifecycle triggers and outputs. Represent that as ordinary
+outcomes. Use workflow_subjects ONLY when the user explicitly requests all three
+facets (inputs, execution timing/triggers, outputs) for each named workflow.
+A focused timing question is an ordinary outcome about that timing alone.
+Each workflow subject needs its name and an exact motivating user request_quote.
+Names must occur in the question or retained dialogue. The
 application will create separate input, execution_trigger and output checks for
 EVERY subject; do not bundle those facets into a free-form outcome. Use outcomes
 only for additional explicit deliverables, not a duplicate role catalogue. Subject
@@ -79,9 +85,9 @@ Use short, focused queries when a combined query misses a concept; a page need n
 contain the user's entire question to supply a premise. Independent searches or
 reads can share one tool-call response. Read the relevant procedure, not only its
 overview, before giving setup instructions.
-For a workflow comparison, establish each workflow's input, trigger or timing,
-and output. Read the linked procedure or lifecycle sections when an overview
-does not establish those relationships.
+For a workflow comparison, establish the roles and relationships the user asks
+about. Research lifecycle timing or inputs/outputs when requested or necessary
+to make a stated claim correct; a broad overview does not request every facet.
 Collect the minimum evidence needed for those outcomes, then draft; do not expand
 the task into an API catalogue or research unrelated optional features.
 Read each passage's page_context as well: it carries introductory warnings.
@@ -106,6 +112,8 @@ Keep code examples minimal for the question. Do not introduce a tool-dispatch lo
 unless it is requested or needed to explain the answer. Clearly name placeholder
 helper contracts. Never append a tool result without its preceding assistant tool
 call; a tool loop must send the result back to the model and return the final reply.
+Label Python code fences python. Every such block must be syntactically valid;
+use quoted placeholders or an ellipsis statement for omitted implementation.
 
 Submit your final draft using submit_answer. Cite material documentation claims
 inline using [S1], [S2], etc., only from read_page evidence. Include the exact
@@ -688,6 +696,30 @@ def malformed_citations(answer: str) -> list[str]:
     )
 
 
+def python_syntax_issues(answer: str) -> list[str]:
+    """Check delivered Python fences without executing code or claiming SDK validity."""
+    issues = []
+    number = 0
+    for block in _CITATION_MARKDOWN.parse(dedent(answer).strip()):
+        language = block.info.split(maxsplit=1)[:1]
+        if (
+            block.type != "fence"
+            or not language
+            or language[0].lower() not in ("python", "py", "python3")
+        ):
+            continue
+        number += 1
+        try:
+            ast.parse(block.content)
+        except (SyntaxError, ValueError) as exc:
+            line = getattr(exc, "lineno", None)
+            detail = getattr(exc, "msg", "invalid source text")
+            issues.append(
+                f"Python example {number} has invalid syntax at code line {line}: {detail}."
+            )
+    return issues
+
+
 def cited_ids(answer: str) -> list[str]:
     return list(
         dict.fromkeys(
@@ -875,6 +907,7 @@ class Agent:
             required_tool="record_task",
             max_tokens=1800,
             cache_enabled=self.config.cache_enabled,
+            effort="medium",
         )
         response = redact_sensitive(response)
         blocks = [block for block in response["content"] if block["type"] == "tool_use"]
@@ -954,6 +987,7 @@ class Agent:
         issues = citation_contract(
             candidate.answer, candidate.kind, candidate.source_ids, session.evidence
         )
+        issues.extend(python_syntax_issues(candidate.answer))
         if issues:
             return failed(" ".join(issues))
         ids = candidate.source_ids
@@ -1002,9 +1036,9 @@ class Agent:
         facet_count = sum(item.facet is not None for item in task_plan or ())
         verdict_tokens = min(9000, 4000 + 300 * facet_count)
         with weave.start_subagent(
-            name="source_verifier", model=verifier_model, system_instructions=[system]
+            name="source_verifier", model=verifier_model, system_instructions=[trace_text(system)]
         ) as verifier:
-            verifier.input_messages = [weave.Message(role="user", content=json.dumps(payload))]
+            verifier.input_messages = [weave.Message(role="user", content=trace_json(payload))]
             verifier.set_attributes(
                 {
                     "coreweaving.verify_mode": mode,
@@ -1021,6 +1055,7 @@ class Agent:
                 required_tool="record_verdict",
                 max_tokens=verdict_tokens,
                 cache_enabled=self.config.cache_enabled,
+                effort="medium",
                 span_parent=verifier,
             )
             try:
@@ -1233,7 +1268,7 @@ class Agent:
                 semantic_positive and not verdict.passed and not recovery and not full_recheck
             )
             verifier.output_messages = [
-                weave.Message(role="assistant", content=verdict.model_dump_json())
+                weave.Message(role="assistant", content=trace_json(verdict.model_dump()))
             ]
             verifier.set_attributes({"coreweaving.verification_passed": verdict.passed})
             return verdict
@@ -1331,7 +1366,7 @@ class Agent:
             "coreweaving.config_sha256": config_sha256,
             "coreweaving.verify_mode": self.config.verify_mode,
             "coreweaving.cache_enabled": self.config.cache_enabled,
-            "coreweaving.verification_contract_version": 3,
+            "coreweaving.verification_contract_version": 4,
         }
         answer, kind, verdict = (
             "",
@@ -1356,13 +1391,15 @@ class Agent:
         with weave.start_conversation(
             agent_name=AGENT_NAME,
             conversation_id=session.conversation_id,
-            conversation_name=(session.history[0]["content"] if session.history else question)[
-                :100
-            ],
+            conversation_name=trace_text(
+                (session.history[0]["content"] if session.history else question)[:100]
+            ),
             attributes=attributes,
         ):
             with weave.start_turn(
-                user_message=question, model=self.config.agent_model, system_instructions=[system]
+                user_message=trace_text(question),
+                model=self.config.agent_model,
+                system_instructions=[trace_text(system)],
             ) as turn:
                 turn.agent_version = source_sha256[:12]
                 trace_context = otel_trace.get_current_span().get_span_context()
@@ -1421,6 +1458,7 @@ class Agent:
                             purpose="planner",
                             max_tokens=planner_token_limit,
                             cache_enabled=self.config.cache_enabled,
+                            effort="medium",
                         )
                         planner_token_limit = 2400
                         response = redact_sensitive(response)
@@ -1484,7 +1522,7 @@ class Agent:
                         for call in calls:
                             name, arguments = call["name"], call["input"]
                             notify({"stage": name, "detail": arguments})
-                            span_arguments = {"name": name, "arguments": json.dumps(arguments)}
+                            span_arguments = {"name": name, "arguments": trace_json(arguments)}
                             if not normalized_draft:
                                 span_arguments["tool_call_id"] = call["id"]
                             with weave.start_tool(**span_arguments) as span:
@@ -1541,7 +1579,7 @@ class Agent:
                                     span.record_error(safe_exception(exc))
                                     result = {"error": redact_sensitive(str(exc))[:500]}
                                 result = redact_sensitive(result)
-                                span.result = json.dumps(result)
+                                span.result = trace_json(result)
                             actions.append(
                                 {
                                     "tool": name,
@@ -1592,7 +1630,7 @@ class Agent:
                             research_count += 1
                             notify({"stage": request.tool, "detail": arguments})
                             with weave.start_tool(
-                                name=request.tool, arguments=json.dumps(arguments)
+                                name=request.tool, arguments=trace_json(arguments)
                             ) as span:
                                 span.set_attributes({"coreweaving.tool_origin": "verifier_repair"})
                                 try:
@@ -1601,7 +1639,7 @@ class Agent:
                                     span.record_error(safe_exception(exc))
                                     result = {"error": redact_sensitive(str(exc))[:500]}
                                 result = redact_sensitive(result)
-                                span.result = json.dumps(result)
+                                span.result = trace_json(result)
                             action = {
                                 "tool": request.tool,
                                 "input": arguments,
@@ -1700,7 +1738,7 @@ class Agent:
                     if completion["completion_status"] == "partial"
                     else [],
                 )
-                turn.output_messages = [weave.Message(role="assistant", content=answer)]
+                turn.output_messages = [weave.Message(role="assistant", content=trace_text(answer))]
                 metrics = summarize(self.llm.calls[call_start:], actions)
                 turn.set_attributes(
                     {
@@ -1733,7 +1771,7 @@ class Agent:
             "question": question,
             "source_ids": released_source_ids,
             "citation_contract_version": 3,
-            "verification_contract_version": 3,
+            "verification_contract_version": 4,
             "task_plan": [item.model_dump() for item in task_plan],
             "outcome_assessments": [item.model_dump() for item in verdict.outcome_assessments],
             **completion,

@@ -19,6 +19,7 @@ from coreweaving.agent import (
     malformed_citations,
     parse_live_verdict,
     partial_candidate,
+    python_syntax_issues,
     quote_anchor,
     review_reason,
 )
@@ -457,6 +458,43 @@ def test_real_code_and_non_source_escaped_brackets_do_not_consume_citations(lite
     answer = "Initialize Weave. [S1] " + literal
     assert cited_ids(answer) == ["S1"]
     assert citation_contract(answer, "answer", ["S1"], {"S1": {}}) == []
+
+
+@pytest.mark.parametrize("language", ["python", "py", "python3"])
+def test_malformed_delivered_python_is_rejected_before_model_audit(corpus, language):
+    session = Session()
+    session.add_passage(corpus.read(**READ[1]))
+    answer = (
+        "Initialize Weave. [S1]\n\n"
+        f"```{language}\ndef login(user: str, password: [REDACTED_SECRET] -> Session:\n"
+        "    return Session(user=user, password=[REDACTED_SECRET]\n```"
+    )
+    fake = FakeModel([])
+    check = Agent(corpus, Settings(project="test/test"), fake).verify(
+        Candidate(answer=answer, source_ids=["S1"]), session, "Show a Python example.", []
+    )
+    assert not check.passed
+    assert "invalid syntax" in check.issues[0]
+    assert not fake.requests
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        '```python\ndef example(password: str = "[REDACTED_SECRET]"):\n    ...\n```',
+        "```python\n# Scaffold; implementation supplied by the caller.\nresult = handler()\n```",
+        '```bash\nexport EXAMPLE="value"\n```',
+        "```pycon\n>>> 1 + 1\n2\n```",
+        "````markdown\n```python\ninvalid (\n```\n````",
+    ],
+)
+def test_syntax_gate_respects_language_and_does_not_claim_execution(answer):
+    assert python_syntax_issues(answer) == []
+
+
+def test_syntax_gate_checks_fences_inside_lists_and_quotes():
+    answer = "> ```python\n> def broken(:\n> ```\n\n- Example:\n\n  ```py\n  return (\n  ```"
+    assert len(python_syntax_issues(answer)) == 2
 
 
 @pytest.mark.parametrize(
@@ -1782,7 +1820,7 @@ def test_task_plan_is_first_question_only_frozen_and_metered(corpus):
     assert plan_call["required_tool"] == "record_task"
     assert "input, execution_trigger and output" in plan_call["system"]
     assert result["task_plan"][0]["id"] == "O1"
-    assert result["verification_contract_version"] == 3
+    assert result["verification_contract_version"] == 4
     assert result["metrics"]["by_purpose"]["task_planning"]["calls"] == 1
     assert result["planner_usage"] == {"input_tokens": 12, "output_tokens": 7}
     assert result["task_complete"] and result["completion_status"] == "complete"
@@ -2357,7 +2395,9 @@ def test_omitted_citation_anchor_applies_to_claim_outcome_and_repair_target(corp
     assert not check.passed and len(check.research_requests) == 1
 
 
-WORKFLOW_QUESTION = "How do capture, review, and monitoring fit together?"
+WORKFLOW_QUESTION = (
+    "Compare the inputs, execution triggers and outputs of capture, review, and monitoring."
+)
 WORKFLOW_NAMES = ("capture", "review", "monitoring")
 
 
@@ -2463,7 +2503,7 @@ def test_workflow_plan_expands_three_subjects_into_nine_frozen_facets(corpus):
 
 
 def test_workflow_subjects_can_use_retained_names_but_need_a_user_request(corpus):
-    question = "How do those fit together?"
+    question = "Compare the inputs, execution triggers and outputs of those two workflows."
     history = [{"role": "assistant", "content": "The options are capture and review."}]
     fake = FakeModel([], plan=workflow_plan_response(question, ("capture", "review")))
     plan, _ = Agent(corpus, Settings(project="test/test"), fake).plan_task(question, history)
@@ -2517,7 +2557,7 @@ def test_all_nine_workflow_facets_allow_a_complete_answer_with_same_call_budgets
     assert result["verification"]["passed"] and result["task_complete"]
     assert result["missing_outcomes"] == [] and result["review_reason"] == "none"
     assert result["task_plan"] == [item.model_dump() for item in plan]
-    assert result["verification_contract_version"] == 3
+    assert result["verification_contract_version"] == 4
     assert len(fake.plan_requests) == 1 and len(fake.requests) == 2
     assert fake.requests[-1]["max_tokens"] == 6700
 

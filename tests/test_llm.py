@@ -97,6 +97,47 @@ def test_growing_dialogue_preserves_system_prefix(fake_provider):
     assert all(request["cache_control"] == {"type": "ephemeral"} for request in requests)
 
 
+def test_explicit_effort_stays_fixed_across_a_conversation(fake_provider):
+    model, requests = fake_provider
+    for content in ("First question", "Follow-up"):
+        model.call(
+            model="claude-sonnet-5-5",
+            system="Instructions.",
+            messages=[{"role": "user", "content": content}],
+            tools=[],
+            purpose="planner",
+            effort="medium",
+        )
+    assert [request["output_config"] for request in requests] == [{"effort": "medium"}] * 2
+
+
+def test_literal_reference_text_is_changed_only_on_the_telemetry_copy(fake_provider, monkeypatch):
+    from coreweaving.telemetry import LITERAL_PREFIX
+
+    model, requests = fake_provider
+    text = "weave:/// URI ref weave.init required"
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    tracer = provider.get_tracer("literal-reference-test")
+    monkeypatch.setattr(
+        "weave.conversation.conversation.otel_trace.get_tracer", lambda *a, **k: tracer
+    )
+    try:
+        model.call(
+            model="claude-sonnet-5-5",
+            system="Instructions.",
+            messages=[{"role": "user", "content": text}],
+            tools=[],
+            purpose="planner",
+        )
+        assert requests[0]["messages"][0]["content"] == text
+        attributes = str(dict(exporter.get_finished_spans()[0].attributes))
+        assert LITERAL_PREFIX + text in attributes
+    finally:
+        provider.shutdown()
+
+
 def test_active_budget_disables_sdk_retries_and_charges_returned_usage_once(fake_provider):
     model, requests = fake_provider
     with model_budget(1) as budget:
