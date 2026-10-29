@@ -2,7 +2,7 @@
 
 A result needs the identity of its code, source material, model configuration and grading rules. These identify what ran; they do not establish correctness or guarantee identical model output.
 
-**Measured repair runtime:** commit `fe4b7b5ea5fe1b661945a7129cc9d8a29f6565ba`; source SHA256 `860e9ee6c1134ca44ed04ac9dd22103e2c8acfe5f64fe40a0969941034af53ff`. Regression: 12/13 cases, 47/48 assertions under unchanged rubric 2.3. Report new measurements separately; never relabel historical runs.
+**Current runtime:** commit `dfdb6bdfff88710d1b075c9839d38917c3a38fd1`; source SHA256 `2b4c8d1b6bbf70396fb63a68dcf55361e40bb6fd735fa292c8f803ae8d46c079`. Measurement checkout `6b05cf9` freezes the [final protocol](../results/product-final-v1/protocol.md). Its unchanged regression scored 13/13 cases and 48/48 assertions, with backend delivery verified. The seven-turn UI replay scored 17/18 outcomes and 5/6 tasks; a separate preset fulfilled its literal request. Backend readback reconciles all eight UI turns and 58 model spans in the [final packet](../results/product-final-v1/README.md). [V1](../results/product-repair-v1/README.md), source `55c77715…`, remains 12/13 cases and 46/48 assertions, with a partial preset answer after 66.6 seconds. [V2](../results/product-repair-v2/summary.json), source `5ed0e00…`, retains 16/18 UI outcomes, 4/6 passing tasks and a separately successful preset. Never relabel historical runs.
 
 ## What is recorded
 
@@ -10,7 +10,7 @@ A result needs the identity of its code, source material, model configuration an
 | --- | --- |
 | Code | Full Git commit; `source_sha256` covers `src/coreweaving/*.py` and `app.py`. Its first 12 characters identify the Weave agent version. Documentation-only edits do not change this hash. |
 | Behavior | Prompt/tool bundle hash, configuration hash, verification mode, cache setting, `citation_contract_version` and `verification_contract_version`. The prompt hash does not describe every assembled request. |
-| Model | Requested and returned identifiers, provider response ID and usage. Mutable aliases may change behind the same name. |
+| Model | Configured planner, verifier and judge roles; requested/returned identifiers, provider response ID, usage and per-call effort (`medium` or `provider_default` for current paths). Mutable aliases may change behind the same name. |
 | Corpus | Snapshot ID, locked manifest/page hashes, original passages and URLs. Snapshot identity covers canonical URLs and bytes; the manifest separately records retrieval metadata. |
 | Evaluation | Source/snapshot, frozen dataset and assertions, rubric version, judge, trial/prediction IDs and Weave evaluation ID. |
 | Saved answers | Original result and evidence plus separate review history. Missing fields in older records remain unknown. |
@@ -21,9 +21,13 @@ The locked environment and digest-pinned sandbox image are separate from the sou
 
 **Citation contract version 3** parses CommonMark citations, including grouped IDs, using the UI's text normalization. It checks syntax and correspondence with read evidence, not semantic support.
 
-**Verification version 2** introduced question-derived outcomes, applicability checks and typed repair research. **Version 3** adds input, execution-trigger and output facets for selected workflows, with answer quotes and read-evidence anchors. Exact quotes and IDs establish provenance, not semantic completeness. Task selection and entailment remain model judgments. Partial recovery needs a fresh check and retains unresolved outcomes.
+**Verification version 2** introduced question-derived outcomes, applicability checks and typed repair research. **Version 3** added input, execution-trigger and output facets for selected workflows, with answer quotes and read-evidence anchors. **Version 4** instructs the planner to use ordinary outcomes for role/relationship overviews and reserve full facets for explicit requests for all three; it also rejects syntactically invalid recognized Python fences before model auditing. Exact quotes and IDs establish provenance, not semantic completeness. Task selection and entailment remain model judgments; parsing is not SDK validation. Partial recovery needs a fresh check and retains unresolved outcomes.
 
-The source-support pilot and optional source-derived coverage experiment predate task checks, despite reusing mode names. Their results do not validate the current contract. Delivery-schema and output-budget changes also need distinct source/request identities even when the contract number stays at 3.
+The source-support pilot and optional source-derived coverage experiment predate task checks, despite reusing mode names. Their results do not validate the current contract. Delivery-schema and output-budget changes also need distinct source/request identities even when a contract number is unchanged.
+
+V1 changed credential handling, literal-reference telemetry encoding and agent effort as a bundle. V2 separated ordinary Opus verification through `VERIFIER_MODEL` from Sonnet planning through `AGENT_MODEL`. The final configuration defaults both, plus `JUDGE_MODEL`, to Opus 5.5 after [selected full-turn writer probes](../results/product-writer-probe-v1/review.json). Planning and verification use medium effort; offline grading retains provider-default effort and rubric 2.3. Contract 4 remains unchanged. Both model changes need distinct configuration/source identities and measured results; selected probes are not general accuracy estimates.
+
+V2 also preserves reference-bearing SDK dataset containers in legacy telemetry; the final runtime retains that implementation. Inline Agent JSON protects literal URI-like text on a copy. The [no-model-call fixture](../results/product-index-repair-v2/interpretation.json), recorded on source `5ed0e00…`, verifies an indexed row, completed parent and direct scorer output; its scorer-ID index entry remains missing. This does not establish full-run delivery or repair v1's zero-row index snapshot.
 
 The frozen repair requires and validates known live verdict fields while retaining historical-reader defaults. Unknown root, claim and outcome annotations are discarded, not stored or executed; typed research requests remain strict. Ordinary audits keep a 4,000-token cap; workflow audits use `min(9000, 4000 + 300 × facet_count)`, including provider thinking. Missing, invalid or truncated required data still fails closed. The [repair review](../results/task-completion-repair-v1/review.md) records delivery failures, subsequent passes and remaining semantic errors.
 

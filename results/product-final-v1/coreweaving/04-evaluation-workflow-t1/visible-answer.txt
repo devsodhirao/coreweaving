@@ -1,0 +1,41 @@
+To evaluate an agent with a dataset and an LLM judge, you write a small list of tasks with success criteria. Then you run the agent on each task inside a weave.EvaluationLogger and log a score from a judge function, which is just an LLM call [S1]. The docs explain why: an agent works toward a goal across several turns and tool calls, so string-matching one output isn't enough. You need to judge the whole trajectory (the full sequence of turns, tool calls and results) [S2].
+
+Before you start
+
+You need a CoreWeave Forge account, Python 3.10+, pip install weave anthropic, and ANTHROPIC_API_KEY set in your environment [S4].
+Call weave.init("[YOUR-TEAM]/[YOUR-PROJECT]"). If you're adding tracing to a bare provider SDK by hand, also pass settings={"implicitly_patch_integrations": False}. Otherwise each conversation gets traced twice [S3].
+Trace the agent with weave.conversation.start_conversation and turns. If you built the agent with a supported framework (Claude Agent SDK, OpenAI Agents), Weave creates these spans automatically [S3].
+
+Steps
+
+Dataset: Make a list of task dicts, for example task_id, user_request, success_criteria [S1].
+LLM judge: Weave doesn't require any particular scorer shape. In the tutorial, the judge reads the agent's plain-text transcript, compares it with the success criteria, and returns {"passed": bool, "reason": str}. Its prompt tells the judge to reward the correct outcome, not a polite reply [S1].
+Run the evaluation: Run the agent inside ev.log_prediction(...) so the traced conversation links to that eval row. Then set pred.output, call pred.log_score(...), and finish with ev.log_summary() [S1].
+import weave
+from weave.conversation import start_conversation
+
+tasks = [{"task_id": "refund-eligible",
+          "user_request": "I'd like a refund for order A1001, please.",
+          "success_criteria": "Agent looks up the order and issues the refund."}]
+
+def run_agent_turn(conv, user_request):
+    ...  # Placeholder: your agent loop; returns (reply, transcript)
+
+def judge_task_completion(task, transcript) -> dict:
+    ...  # Placeholder: prompt a judge LLM; return {"passed": bool, "reason": str}
+
+def new_id():
+    ...  # Placeholder: return a unique ID, e.g. a UUID string
+
+ev = weave.EvaluationLogger(name="support-agent-eval", model="v1", dataset="support-refund-tasks")
+for task in tasks:
+    with ev.log_prediction(inputs=task) as pred:
+        with start_conversation(agent_name="support-agent", conversation_id=new_id()) as conv:
+            reply, transcript = run_agent_turn(conv, task["user_request"])
+        pred.output = reply
+        pred.log_score("task_completion", judge_task_completion(task, transcript))
+ev.log_summary()
+
+The helper functions are placeholders. The full runnable versions are in the tutorial's notebook [S3]. I haven't run this code.
+
+Seeing the results: Open the evaluation link and go to the Evals tab. The Call tab shows a passed column with the judge's verdict for each task. View spans opens the traced agent spans linked to the evaluation [S1].

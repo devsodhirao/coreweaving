@@ -1,0 +1,29 @@
+I can't give you an exact call because I found no weave.enable_hallucination_free_mode() function in the Weave documentation I searched. Searching for that name brought up hallucination scorer pages, but none of them mention a function with that name. Also, nothing I read says Weave can guarantee that an agent never hallucinates. What Weave does offer is ways to detect hallucinations and respond to them.
+
+What Weave offers instead
+
+HallucinationFreeScorer (built-in scorer): checks whether your system's output contains hallucinations based on the input data. Its score method expects an input column named context. If your data uses a different name, use column_map. You can also change its system_prompt and user_prompt to define what counts as a hallucination for you [S1].
+WeaveHallucinationScorerV1 (local scorer): runs Vectara's open-source HHEM 2.1 model on your machine [S3]. It's available only in the Python SDK [S3].
+Guardrails: run scorers inline on user input or LLM output and change the response in real time, for example by blocking or modifying it when a score crosses a threshold. Guardrails require code changes, and the TypeScript SDK doesn't support them [S2].
+
+Example: measure hallucinations in an evaluation (adapted from the docs [S1])
+
+import asyncio
+import weave
+from weave.scorers import HallucinationFreeScorer
+
+hallucination_scorer = HallucinationFreeScorer(
+    model_id="openai/gpt-4o",  # any litellm-supported model
+    column_map={"context": "input"},
+)
+
+dataset = [{"input": "John likes various types of cheese."}]
+
+@weave.op
+def model(input: str) -> str:
+    return "The person's favorite cheese is cheddar."
+
+evaluation = weave.Evaluation(dataset=dataset, scorers=[hallucination_scorer])
+print(asyncio.run(evaluation.evaluate(model)))
+
+This example hasn't been run. Its result reports a has_hallucination count [S1]. That measures how often hallucinations happen; it doesn't prevent them.

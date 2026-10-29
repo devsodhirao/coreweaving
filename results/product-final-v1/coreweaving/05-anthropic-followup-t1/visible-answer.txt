@@ -1,0 +1,79 @@
+You're building an agent, so the docs suggest using agent tracing. That includes a custom agent you instrument yourself [S3]. Structure the trace like this: a conversation contains turns, and each turn contains the model call and any tool calls [S1]. Pick one of the two approaches below instead of mixing them. They produce separate traces: agent traces appear on the Agents page, and weave.op calls appear on the Traces page [S3].
+
+Option A (recommended): agent spans with weave.conversation
+Set up Weave: call weave.init("team/project"). If you leave out the team, Weave uses your default team. If you leave out the project, initialization fails [S2].
+Turn off implicit patching with settings={"implicitly_patch_integrations": False}. If you add these spans yourself and leave autopatching on, each call gets traced twice [S1].
+Nest the spans:
+start_conversation(...)
+conv.start_turn(...) for each user message
+turn.start_llm(...) around each Anthropic call, then llm.record(...) with the input messages, output messages and Usage
+turn.start_tool(...) for each tool you run, setting tool.result [S1]
+
+In the Agents view, the turn appears with its model call and tool calls nested inside [S1].
+
+In the sketch below, TOOLS, run_tool() and to_weave_messages() are placeholders. to_weave_messages() should return a list of weave.Message. The loop keeps the full history and appends each assistant response and its tool results before calling the model again. The spans only record activity; they don't replace that message history.
+
+import json
+import uuid
+import anthropic
+import weave
+from weave.conversation import start_conversation, Usage
+
+weave.init(
+    "[YOUR-TEAM]/[YOUR-PROJECT]",
+    settings={"implicitly_patch_integrations": False},
+)
+client = anthropic.Anthropic()
+MODEL = "[YOUR-CLAUDE-MODEL]"
+TOOLS = [...]  # placeholder: your Anthropic tool definitions
+
+def run_tool(name: str, args: dict) -> dict:
+    ...  # placeholder: runs your tool
+
+def to_weave_messages(messages: list) -> list:
+    ...  # placeholder: converts to a list of weave.Message
+
+def run_agent_turn(conv, history: list, user_message: str) -> str:
+    history.append({"role": "user", "content": user_message})
+    with conv.start_turn(user_message=user_message) as turn:
+        while True:
+            with turn.start_llm(model=MODEL, provider_name="anthropic") as llm:
+                response = client.messages.create(
+                    model=MODEL, max_tokens=1024, tools=TOOLS, messages=history
+                )
+                llm.record(
+                    input_messages=to_weave_messages(history),
+                    output_messages=to_weave_messages(
+                        [{"role": "assistant", "content": response.content}]
+                    ),
+                    usage=Usage(
+                        input_tokens=response.usage.input_tokens,
+                        output_tokens=response.usage.output_tokens,
+                    ),
+                )
+            history.append({"role": "assistant", "content": response.content})
+            tool_uses = [b for b in response.content if b.type == "tool_use"]
+            if not tool_uses:
+                return "".join(b.text for b in response.content if b.type == "text")
+            results = []
+            for block in tool_uses:
+                with turn.start_tool(name=block.name, arguments=json.dumps(block.input)) as tool:
+                    output = run_tool(block.name, block.input)
+                    tool.result = output
+                results.append(
+                    {"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(output)}
+                )
+            history.append({"role": "user", "content": results})
+
+history = []
+with start_conversation(agent_name="my-agent", conversation_id=str(uuid.uuid4())) as conv:
+    print(run_agent_turn(conv, history, "What's the weather in San Francisco?"))
+
+I only checked that this code is valid Python syntax [C1]. I couldn't import Weave or Anthropic or run it, so treat it as an untested sketch.
+
+Option B: op-based tracing
+
+If you'd rather see the run on the Traces page, keep autopatching on.
+
+weave.init() alone records your Anthropic calls, including tool definitions, Claude's tool-use requests and tool results [S2][S5].
+For more detail, decorate your loop and helper functions with @weave.op(). Weave records each function's code, inputs and outputs, and ops can be nested [S4].

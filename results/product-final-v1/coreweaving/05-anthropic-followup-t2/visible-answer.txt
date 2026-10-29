@@ -1,0 +1,35 @@
+Pass a complete Usage object to llm.record(...) on each LLM span. Anthropic's input_tokens doesn't include cached tokens, so add the cache-read and cache-write counts back into input_tokens yourself. Also pass the exact model the response came from as response_model. Weave works out cost from the usage numbers plus the model ID [S6].
+
+What to record
+Input and output: Usage has the fields input_tokens, output_tokens, reasoning_tokens, cache_creation_input_tokens and cache_read_input_tokens [S7]. input_tokens must be the total input, including cached tokens [S6].
+Cache tokens: Weave prices cache reads and cache writes at their own rates and subtracts them from the input total. So report cache_read_input_tokens and cache_creation_input_tokens separately, as well as a total input_tokens that already includes them. With Anthropic prompt caching, leaving these out can make usage and cost show up as roughly zero [S6].
+A model ID Weave can price: Weave looks up cost by model. It uses response_model first and falls back to the model you passed to start_llm. An alias such as sonnet can't be priced and shows Cost -, so pass response.model [S6].
+record(...) only applies the fields you pass [S6].
+Updated LLM span (replaces the one in the earlier loop)
+with turn.start_llm(model=MODEL, provider_name="anthropic") as llm:
+    response = client.messages.create(
+        model=MODEL, max_tokens=1024, tools=TOOLS, messages=history
+    )
+    u = response.usage
+    cache_read = u.cache_read_input_tokens or 0
+    cache_write = u.cache_creation_input_tokens or 0
+    llm.record(
+        input_messages=to_weave_messages(history),
+        output_messages=to_weave_messages(
+            [{"role": "assistant", "content": response.content}]
+        ),
+        usage=Usage(
+            input_tokens=u.input_tokens + cache_read + cache_write,
+            output_tokens=u.output_tokens,
+            cache_read_input_tokens=cache_read,
+            cache_creation_input_tokens=cache_write,
+        ),
+        response_id=response.id,
+        response_model=response.model,
+    )
+
+The documented example adds the cache fields directly [S6]. I added or 0 as a safeguard in case a cache field comes back empty; that's my own precaution, not something the docs require. to_weave_messages(), TOOLS and MODEL are still the placeholders from before. I only checked that this code is valid Python syntax [C2]. I couldn't run it against Weave or Anthropic.
+
+How to check it worked
+
+If usage is incomplete or the model can't be priced, the span shows 0 in / 0 out tokens or Cost -, even when the rest of the trace looks fine [S6]. If you see either, check the input_tokens total and response_model first.
