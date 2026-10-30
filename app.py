@@ -138,11 +138,12 @@ def show_pending_turn():
             job["progress"] = "Answer checked" if detail["passed"] else "Revising the answer"
     elapsed = int(time.monotonic() - job["started_at"])
     # Report actual work, never a fabricated percentage or an unverified draft.
-    with st.status(f"{job['progress']} · {elapsed}s", state="running", expanded=True):
-        pages = job.get("pages", {})
-        st.caption(f"Searches: {job.get('searches', 0)} · Pages read: {len(pages)}")
-        for url, title in pages.items():
-            st.markdown(f"- [{title}]({url})")
+    # A status context manager marks itself complete when a polling render ends.
+    progress = st.status(f"{job['progress']} · {elapsed}s", state="running", expanded=True)
+    pages = job.get("pages", {})
+    progress.caption(f"Searches: {job.get('searches', 0)} · Pages read: {len(pages)}")
+    for url, title in pages.items():
+        progress.markdown(f"- [{title}]({url})")
 
 
 def show_result(result):

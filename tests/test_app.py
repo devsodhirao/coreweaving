@@ -211,6 +211,7 @@ def test_pending_work_survives_reruns_and_reports_real_sources(monkeypatch):
         assert len(pending) == 1
         assert app.chat_input[0].disabled
         assert next(b for b in app.button if b.label == "New conversation").disabled
+        assert app.status[0].state == "running"
         # A queued request is visible once while it runs, before any answer exists.
         assert sum(item.value == "Explain tracing." for item in app.markdown) == 1
         events = app.session_state.job["events"]
@@ -233,6 +234,11 @@ def test_pending_work_survives_reruns_and_reports_real_sources(monkeypatch):
         assert any("[Tracing agents]" in item.value for item in app.markdown)
         assert len(pending) == 1 and requests == []
 
+        events.put({"stage": "submit_answer", "detail": {}})
+        app.run()
+        assert app.status[0].state == "running"
+        assert "Checking the answer against its sources" in app.status[0].label
+
         future, function, args = pending[0]
         future.set_result(function(*args))
         app.run()
@@ -243,6 +249,7 @@ def test_pending_work_survives_reruns_and_reports_real_sources(monkeypatch):
         assert any("Checked answer." in item.value for item in app.markdown)
         assert sum(item.value == "Explain tracing." for item in app.markdown) == 1
         assert not app.chat_input[0].disabled
+        assert not app.status
     finally:
         st.cache_resource.clear()
 

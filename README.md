@@ -34,7 +34,7 @@ uv run python scripts/fetch_docs.py --locked --weave-only
 uv run streamlit run app.py --server.address 127.0.0.1
 ```
 
-4. **Ask, follow up, and inspect the trace.** Click **Understand Weave**, then ask: “When do those Signals run, and can they stop a bad answer before the user sees it?” Open **Sources & analysis** to read the evidence and follow the Weave activity link. The [recorded two-turn walkthrough](results/decision-walkthrough-v1/README.md) cost about **$1.01**; a new conversation can differ in answer, time and cost. Terminal alternative: `uv run python -m coreweaving`.
+4. **Ask, follow up, and inspect the trace.** Click **Understand Weave**, then ask: “When do those Signals run, and can they stop a bad answer before the user sees it?” Open **Sources & analysis** to read the evidence and follow the Weave activity link. Allow about **one minute for the overview**. The [recorded two-turn walkthrough](results/decision-walkthrough-v1/README.md) cost about **$1.01**; a new conversation can differ in answer, time and cost. Terminal alternative: `uv run python -m coreweaving`.
 
 5. **Inspect the evaluation.** The [current run](results/presentation-regression-retry-v1/README.md) and [case-by-case review](results/presentation-regression-retry-v1/answer-review.json) are free to read. Case 06 shows a disagreement between the answer checker and evaluation judge. To generate a new measurement, use the paid evaluation command under [Quality and speed](#quality-and-speed).
 
@@ -88,6 +88,10 @@ The agent gets up to 10 requests to the writing model, 18 search/read/Python act
 | [`signals.py`](src/coreweaving/signals.py) | Selects completed answers for online review using CoreWeave inference. |
 
 Reading route: `app.run_question` → `Agent.run` → `execute` / `verify` → `show_result`; then `DocumentationModel.predict` and `QualityJudge.score`. [Detailed map](docs/CODE_MAP.md)
+
+Answers are generated live for each submitted question. The app retains loaded documentation and conversation context, and Anthropic prompt caching reuses repeated input. It does not replay a saved-answer library. Opening Sources & analysis displays the existing answer record without making another model request.
+
+When reading a trace, the provider's **User** role includes application-written budget and repair notes. The turn root identifies the human's actual question. Conversation cards can show millisecond badges beside grouped tool calls; inspect the underlying model spans for request duration. [Timestamp and public-access checks](results/publication-v1/README.md)
 
 ## Decisions and evidence
 
@@ -144,9 +148,9 @@ Judge calibration is incomplete. A [separate saved-answer AI review](results/jud
 ## Quality and speed
 
 <!-- MEASURED_RESULTS_START -->
-The presentation build **`a07e5da`**, source **`b312a2c9a081`**, has a complete [current regression](results/presentation-regression-retry-v1/README.md): **12/13 cases and 47/48 assertions passed**. Every case has a valid grade. This is one full run after a separately preserved judge timeout; no runtime, question or rubric changes were made between attempts.
+The measured agent build **`a07e5da`**, source **`b312a2c9a081`**, has a complete [recorded regression](results/presentation-regression-retry-v1/README.md): **12/13 cases and 47/48 assertions passed**. Every case has a valid grade. This is one full run after a separately preserved judge timeout; no runtime, question or rubric changes were made between attempts.
 
-An October 30 [identity check](results/reviewer-gaps-v1/step-0-identity.json) confirms that the current checkout still matches that measured runtime, dependency lock and evaluation inputs. No additional model run or new quality score is implied.
+The October 30 progress-indicator fix changes only how `app.py` displays pending work. Agent code, prompts, retrieval, dependencies and evaluation inputs still match the measured build. The current full source hash is `a6eb10c56bcd`; the scores above remain attributed to `a07e5da`. The UI fix passed local tests and desktop/mobile checks; no new full model regression was run for it. [Change boundary and checks](results/publication-v1/README.md)
 
 | Check | Observed result |
 | --- | --- |
@@ -155,7 +159,7 @@ An October 30 [identity check](results/reviewer-gaps-v1/step-0-identity.json) co
 | Current engine time and cost | Median **31.46 seconds** across 15 turns, range **10.24–70.99 seconds**; **$5.25** returned-usage estimate including the evaluation judge. Engine time excludes that judge and browser rendering. The failed first attempt adds $0.24 known usage and one unpriced timeout. |
 | Current source and delivery checks | 64 stored document-section occurrences match the saved docs, counting reused sources; no citation-format or Python-syntax issues. All **15 turn roots, 97 agent responses and 13 indexed evaluation rows** match Weave records, including saved judge receipts. [Source checks](results/presentation-regression-retry-v1/source-checks.json) · [Readback](results/presentation-regression-retry-v1/evaluation-backend-readback.json) |
 | Current browser walkthrough | Two actual turns: about **58 and 44 seconds** to full render, **$1.01** total. The overview needed three audits and retained loose Signals wording; both answers were long. [Walkthrough](results/decision-walkthrough-v1/README.md) |
-| Local mechanics | **430 tests** passed on these same runtime bytes, plus Ruff and whitespace checks. These are deterministic checks, separate from model quality. [Receipt](results/decision-walkthrough-v1/local-checks.json) |
+| Local mechanics | **430 tests** passed after the progress-indicator fix, plus Ruff and whitespace checks. These are deterministic checks, separate from model quality. [Receipt](results/publication-v1/local-checks.json) |
 
 Earlier builds, including `522c320`, retain their own [results and limitations](results/README.md#earlier-full-regression-522c320). Their scores and timings are not measurements of this build.
 <!-- MEASURED_RESULTS_END -->

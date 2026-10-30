@@ -2,7 +2,7 @@
 
 Every result belongs to its code, corpus, configuration and grading instrument. Those identities explain what ran; they do not promise identical model output or correctness.
 
-**Current measured runtime:** `a07e5da`, verification contract 6, source `b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0`. The [presentation regression](../results/presentation-regression-retry-v1/README.md) records 12/13 cases and 47/48 assertions. The October 30 [identity check](../results/reviewer-gaps-v1/step-0-identity.json) confirms that the current checkout has the same runtime and grading inputs; later documentation commits do not create a new measurement. Results on `522c320` and earlier sources retain their original identities.
+**Measured agent build:** `a07e5da`, verification contract 6, source `b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0`. The [presentation regression](../results/presentation-regression-retry-v1/README.md) records 12/13 cases and 47/48 assertions. The October 30 progress-indicator fix changes `app.py` only; current source is `a6eb10c56bcd790297e591258f2c407d90364664003425b79a047a9de931f06d`. Agent modules, prompts, dependencies, corpus and evaluation inputs remain unchanged. The display fix has local and browser checks, not a new full model regression. [Change boundary](../results/publication-v1/README.md). All prior measurements retain their original identities.
 
 ## Recorded identities
 
