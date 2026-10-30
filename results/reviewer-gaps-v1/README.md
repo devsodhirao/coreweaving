@@ -15,9 +15,13 @@ Reused that measurement rather than repeat it. **No new regression was run at th
 | Step | State | New model-use estimate |
 | --- | --- | ---: |
 | 0: match the demo to its measurement | Complete through identity verification and reuse of the existing full run | $0 |
-| 1: prepare human labeling | Next; use saved answers and leave all human labels blank | $0 planned |
+| 1: prepare human labeling | Complete: [30 saved answers in Weave](../judge-calibration-v1/README.md), four labels and reasons each, all blank | $0 |
 | 1: agreement and different-family judge | Waiting for owner labels; no agreement measured | Not spent |
-| 2–9: repeated trials, feedback loop, analysis and packaging | Proposed; not started in this review | Not spent |
+| 2–9: repeated trials, feedback loop, analysis and packaging | Paused at the explicit owner-labeling handoff; not started in this review | Not spent |
+
+**New spend: $0; remaining cap: $30.** Step 0 commit: `6176795`. The step 1 commit records labeling preparation only. Confidence intervals from repeated trials, human agreement and the cheaper-writer arm remain unmeasured. Existing answer reviews are AI-assisted and have not been promoted into human labels.
+
+[Spend ledger](spend.json) · [Step 1 checks](step-1-checks.json) · [Labeling packet and access limits](../judge-calibration-v1/README.md)
 
 The requested $15–20 repeated-trial run and $5–8 cheaper-writer comparison leave only $2–10 of the $30 cap for the second judge and feedback example. Before any later paid step, freeze its scope and maximum, including judge calls, against the remaining total. Unknown charges are not counted as zero. No paid step starts during the owner-labeling handoff.
 

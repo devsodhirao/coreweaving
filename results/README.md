@@ -2,6 +2,8 @@
 
 Start with the [decision guide](../docs/DECISIONS.md) for engineering judgment and use the versioned runs below for measurements. Recorded answers, failed attempts and labeled fixtures remain unchanged.
 
+[Reviewer-gap work](reviewer-gaps-v1/README.md) confirms that the current runtime matches its existing regression. [Judge calibration](judge-calibration-v1/README.md) has 30 saved answers queued for owner labeling; no human agreement or new model measurement is claimed.
+
 ## Current full regression: `a07e5da` / source `b312a2c9a081`
 
 The [presentation regression](presentation-regression-retry-v1/README.md) completed all 13 cases: **12/13 judge-recorded passes, 47/48 assertions**, no missing grades. The failure is an uncited product menu in a clarification; the answer checker accepted it. Median engine time was 31.46 seconds across 15 turns; returned-usage estimate $5.2549. Readback matches 15 turn roots, 97 agent responses and 13 indexed evaluation rows with their judge receipts. The runtime remains unchanged for the demo.
