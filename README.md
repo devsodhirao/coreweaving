@@ -38,6 +38,8 @@ uv run streamlit run app.py --server.address 127.0.0.1
 
 5. **Inspect the evaluation.** The [current run](results/presentation-regression-retry-v1/README.md) and [case-by-case review](results/presentation-regression-retry-v1/answer-review.json) are free to read. Case 06 shows a disagreement between the answer checker and evaluation judge. To generate a new measurement, use the paid evaluation command under [Quality and speed](#quality-and-speed).
 
+The [October 30 walkthrough check](results/email-contract-v1/README.md) repeats the two questions above and records clean-checkout setup, actual Weave delivery, desktop/mobile screenshots and a remaining reset-only browser-console issue. It is separate from the full regression.
+
 **Gotchas:**
 
 - API keys need funded accounts and access to the configured models. Signal scoring uses separate CoreWeave inference credits.
