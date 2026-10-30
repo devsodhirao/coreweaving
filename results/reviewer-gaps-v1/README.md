@@ -16,6 +16,7 @@ Reused that measurement rather than repeat it. **No new regression was run at th
 | --- | --- | ---: |
 | 0: match the demo to its measurement | Complete through identity verification and reuse of the existing full run | $0 |
 | 1: prepare human labeling | Complete: [30 saved answers in Weave](../judge-calibration-v1/README.md), four labels and reasons each, all blank | $0 |
+| Later request: fill an AI review with evidence | Complete: [120 Codex AI judgments](../judge-calibration-v1/ai-review-v1/README.md), exact excerpts and AI-to-AI comparison; human fields unchanged | $0 evaluation API spend |
 | 1: agreement and different-family judge | Waiting for owner labels; no agreement measured | Not spent |
 | 2–9: repeated trials, feedback loop, analysis and packaging | Paused at the explicit owner-labeling handoff; not started in this review | Not spent |
 
@@ -25,4 +26,4 @@ Reused that measurement rather than repeat it. **No new regression was run at th
 
 The requested $15–20 repeated-trial run and $5–8 cheaper-writer comparison leave only $2–10 of the $30 cap for the second judge and feedback example. Before any later paid step, freeze its scope and maximum, including judge calls, against the remaining total. Unknown charges are not counted as zero. No paid step starts during the owner-labeling handoff.
 
-The next handoff deliberately stops for the owner. AI-assisted reviews already in the repository are useful diagnostics, **not human labels**. The writer and original judge share the Opus model family. Single-run scores, unproven auditor benefit and the known clarification defect remain disclosed.
+The human-labeling handoff still waits for the owner. The later request to have Codex check and fill the review authorized a separately attributed AI review, not invented human labels. Its 112/120 agreement compares AI judgments, with no claim of ground truth. The writer and original judge share the Opus model family. Single-run scores, unproven auditor benefit and the known clarification defect remain disclosed. Coding-session usage is outside the evaluation API spend ledger.

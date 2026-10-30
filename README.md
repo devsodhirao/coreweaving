@@ -122,7 +122,8 @@ Costs are estimates from returned usage and dated prices, excluding Signal infer
 ## Limits and next steps
 
 - Small reused suites and a same-family judge leave shared errors and overfitting risks. Next: independent reviewer calibration, held-out tasks and a citation-only comparison.
-- [Thirty saved answers are ready for owner labeling](results/judge-calibration-v1/README.md), with the original grades hidden from the review copies. Human agreement and a different-family judge comparison are **not measured yet**. [Review-step status and $30 budget](results/reviewer-gaps-v1/README.md).
+- [Thirty saved answers are ready for owner labeling](results/judge-calibration-v1/README.md), with the original grades hidden from the review copies. Human agreement and the planned Llama judge comparison are **not measured yet**. [Review-step status and $30 budget](results/reviewer-gaps-v1/README.md).
+- A separate [completed Codex AI review](results/judge-calibration-v1/ai-review-v1/README.md) supplies 120 judgments with exact evidence. It flags nine selected answers, five involving strict checklist or source-policy interpretations. It is not human calibration, a new agent run or a replacement for the headline above.
 - Verification can miss errors or reject useful answers; the captured-answer controls demonstrate both unstable reasons and missed completeness. Generated SDK examples receive syntax checks, not live integration execution. Multi-step questions can still be slow.
 - One [licensed](docs/THIRD_PARTY_NOTICES.md) snapshot: 351 pages from October 24, 2026. Python reference 0.53.1 differs from runtime 0.54.0. No live refresh, release selector or API-compatibility check. [Version contract](docs/VERSIONING.md)
 - Restart can lose unfinished work and conversation memory. The evidence ledger is not size-capped. Public tracing and limited credential masking require public inputs.

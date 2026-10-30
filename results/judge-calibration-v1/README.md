@@ -1,6 +1,8 @@
 # Judge calibration — owner labels pending
 
-Thirty saved final answers are selected for owner review. **No human labels or agreement measurements exist yet.** Preparation made no model requests. This is an evaluation of the judge, not a new run of the assistant.
+Thirty saved final answers are selected for owner review. **No human labels or human-agreement measurements exist yet.** Preparation made no model requests. This is an evaluation of the judge, not a new run of the assistant.
+
+**Later owner-requested AI review:** [Codex filled a separate set of 120 AI judgments with exact evidence](ai-review-v1/README.md). It does not fill the human queue or complete human calibration. The comparison is explicitly between AI interpretations; the frozen original grades remain unchanged. An owner who reads the AI review is no longer reviewing those examples without seeing another reviewer's judgments.
 
 **[Open the Weave labeling queue](https://wandb.ai/devfromlll-learning-layer-labs/coreweaving/weave/annotation-queues/01a18b90-8bf6-71cb-8461-af4793288859).** The [setup receipt](queue-setup.json) verifies 30 matching review copies, eight registered fields and zero completed annotations at handoff. Original scorer readback matched 28 records; two historical scorer children were unavailable under their saved parent IDs. Those examples remain in the sample. Local JSON and CSV alternatives with blank labels are in the owner's private preparation folder.
 
