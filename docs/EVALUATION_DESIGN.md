@@ -49,6 +49,10 @@ On October 30, the owner chose: **“Only fail if the omission prevents completi
 
 For the multi-turn tracing and Signals example, missing tool-span instructions should be a note unless the user's task needs them. This decision does not excuse incorrect claims, unsupported product advice or missing requested outcomes. It is a grading-policy choice, not a human pass/fail label for any recorded answer.
 
+The owner also chose: **“Fail task completion; assess honesty separately.”** When an answerable question receives only an honest stop message, completeness fails and the overall task fails. Assess honesty under the uncertainty quality independently: an accurate admission of failure can pass that quality; an invented excuse cannot. The absence of an answer does not itself establish a false factual claim, and the absence of false claims does not make the task successful. This decision applies to an answerable task, not a necessary clarification or a justified refusal of an unsupported premise.
+
+For clarification, the owner chose: **“Require sources for product claims; plain clarification needs none.”** Asking what the user wants to monitor does not need a citation. Adding advice about what Weave can monitor requires supporting sources. This confirms the existing case 06 expectation; recording the policy does not fix the runtime auditor's observed acceptance of unsourced advice.
+
 **Status:** accepted guidance for the next rubric. The running grader, rubric 2.3, its assertions and all recorded scores remain unchanged. Before a new measurement uses this policy, version the judge instructions and affected assertions together. Keep any new grades separate from the existing regression and AI review; do not claim an improvement by rewriting old results.
 
 ## Are the tasks fair?
