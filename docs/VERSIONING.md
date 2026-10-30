@@ -2,7 +2,7 @@
 
 Every result belongs to its code, corpus, configuration and grading instrument. Those identities explain what ran; they do not promise identical model output or correctness.
 
-**Current runtime:** `522c320`, verification contract 6. [Progress](PROGRESS.md) tracks completed work and remaining gaps; the [validation packet](../results/essence-v2/README.md) separates original runs, the operational retry and independent review. Source is `bd74bb83b9fd34273acb50edcec66ea4ba0a5cf865ae867b2fc04cd84229a839`; the prior 13/13 on `dfdb6bd` remains historical.
+**Current measured runtime:** `a07e5da`, verification contract 6, source `b312a2c9a081ed88cd7f9a4a8780aa4ba79541cf4cc6a59fb388a74c713991d0`. The [presentation regression](../results/presentation-regression-retry-v1/README.md) records 12/13 cases and 47/48 assertions. The October 30 [identity check](../results/reviewer-gaps-v1/step-0-identity.json) confirms that the current checkout has the same runtime and grading inputs; later documentation commits do not create a new measurement. Results on `522c320` and earlier sources retain their original identities.
 
 ## Recorded identities
 
@@ -33,7 +33,8 @@ Citation and verification versions are independent. Retaining a contract number 
 The clarification-policy update retains verification contract 6 but changes the
 prompt/source identity. An accepted clarification now records
 `completion_status=awaiting_user` and `task_complete=false`, rather than completion.
-Its [local checks](../results/clarification-policy-v1/local-checks.json) are separate
+Its [local checks](../results/clarification-policy-v1/local-checks.json) and the later
+[full regression](../results/presentation-regression-retry-v1/README.md) are separate
 from the earlier live scores on `522c320`.
 
 `AGENT_MODEL` selects the writer/researcher, `VERIFIER_MODEL` the auditor, and `JUDGE_MODEL` the offline evaluator only. Agent calls request medium effort; offline grading retains provider-default effort. The pre-change paired diagnostic is inconclusive; earlier probes are not a general ranking. Changing the report schema creates a new measured source even when intended audit responsibilities stay the same. Record actual settings: `.env` can override defaults.
