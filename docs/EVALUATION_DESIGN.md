@@ -43,9 +43,17 @@ Four later [captured-answer controls](../results/essence-v1/scope-controls.json)
 
 The [protocol](../results/essence-v1/protocol.md) freezes these rules and the bounded selection threshold. Existing saturated regression tasks protect development outcomes; they do not replace harder capability cases or an actual browser replay.
 
+## Owner decision for the next rubric
+
+On October 30, the owner chose: **“Only fail if the omission prevents completing the user's task; otherwise note it.”** This sets the rule for future grading. A detail can be necessary even when the user does not name it: for example, a required setup step without which the requested workflow cannot work. The reviewer must explain what the omission prevents; appearing in a checklist is not sufficient by itself.
+
+For the multi-turn tracing and Signals example, missing tool-span instructions should be a note unless the user's task needs them. This decision does not excuse incorrect claims, unsupported product advice or missing requested outcomes. It is a grading-policy choice, not a human pass/fail label for any recorded answer.
+
+**Status:** accepted guidance for the next rubric. The running grader, rubric 2.3, its assertions and all recorded scores remain unchanged. Before a new measurement uses this policy, version the judge instructions and affected assertions together. Keep any new grades separate from the existing regression and AI review; do not claim an improvement by rewriting old results.
+
 ## Are the tasks fair?
 
-These judgments compare the questions with the frozen sources. Required behavior follows the user's request; optional advice is not silently added to the rubric.
+These judgments describe the frozen rubric against the saved sources. Required behavior follows the user's request; optional advice should not be silently added. The owner decision above identifies where the next rubric must make that distinction more explicit.
 
 | Case | Valid expectation and qualification |
 | --- | --- |
