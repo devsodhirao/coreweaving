@@ -2,9 +2,9 @@
 
 Start with the [decision guide](../docs/DECISIONS.md) for engineering judgment and use the versioned runs below for measurements. Recorded answers, failed attempts and labeled fixtures remain unchanged.
 
-[Reviewer-gap work](reviewer-gaps-v1/README.md) confirms that the current runtime matches its existing regression. [Judge calibration](judge-calibration-v1/README.md) has 30 saved answers queued for owner labeling; no human agreement or new model measurement is claimed.
+For the submission, start with the [experiment summary](../README.md#experiments-and-findings) and current regression below. Older questions, answers and scores in this archive describe their recorded versions, not today's recommended demo. Adversarial questions containing invented APIs are intentional tests, not setup instructions.
 
-At the owner's later request, a [separate Codex AI review](judge-calibration-v1/ai-review-v1/README.md) fills 120 judgments and supplies exact source excerpts, local calculation replays and explicit disagreements with the original grader. It does not create human labels, rerun the agent or replace the measured runtime scores.
+[Identity review](reviewer-gaps-v1/step-0-identity.json) confirms that the current runtime matches its existing regression. The [judge-calibration packet](judge-calibration-v1/README.md) and [separate AI review](judge-calibration-v1/ai-review-v1/README.md) remain historical review material. The owner questionnaire has stopped after five explicit judgments; human agreement is unvalidated. [Current review status](../docs/PROGRESS.md#what-is-still-open)
 
 ## Current full regression: `a07e5da` / source `b312a2c9a081`
 
