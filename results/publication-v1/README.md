@@ -59,9 +59,14 @@ link redirects to the matching Forge conversation ID.
 [Readback](public-access.json) · [Project](project.png) ·
 [Evaluation](evaluation.png) · [Conversation](conversation.png)
 
-GitHub publication and the two previously broken email links are checked
-separately after pushing the reviewed commits. The earlier 404 evidence remains
-in [the pre-publication packet](../email-contract-v1/publication-check.json).
+The reviewed commits were pushed to public `main` through `78b166d`. Both
+previously broken email links now return HTTP 200 in a fresh browser without
+login: the evaluation packet renders its results, and the README's experiment
+anchor opens the findings table. Exact-commit raw copies of both files match the
+local bytes. [Publication receipt](github-publication.json) ·
+[Experiments](github-experiments.png) · [Evaluation packet](github-evaluation-packet.png).
+The earlier 404 evidence remains in
+[the pre-publication packet](../email-contract-v1/publication-check.json).
 
 ## Scope and remaining limits
 
